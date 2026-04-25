@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vyvent</title>
+    <meta name="robots" content="noindex">
+    <!-- Link-preview-friendly Open Graph tags so WhatsApp / iMessage show
+         a rich card instead of a bare URL. These are defaults; the
+         landing-page logic below can override for specific entities later. -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Abrir en Vyvent">
+    <meta property="og:description" content="Descubre y crea eventos cerca de ti.">
+    <meta property="og:site_name" content="Vyvent">
+    <style>
+        :root { --bg: #05030A; --surface: #15101F; --text: #E8E0F0; --muted: #9B8FB8; --primary: #A855F7; --accent: #EC4899; --border: #27272F; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 2rem 1rem; }
+        .container { max-width: 420px; text-align: center; width: 100%; }
+        .logo { font-size: 2.5rem; font-weight: 800; margin-bottom: 0.5rem; background: linear-gradient(135deg, var(--primary), var(--accent)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .tagline { color: var(--muted); font-size: 1.05rem; margin-bottom: 2rem; }
+        .card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 1.75rem 1.5rem; margin-bottom: 1.25rem; }
+        .card-title { font-size: 1.1rem; font-weight: 600; margin-bottom: 0.5rem; }
+        .card-sub { color: var(--muted); font-size: 0.95rem; }
+        .btn { display: block; width: 100%; padding: 0.9rem 1.25rem; background: linear-gradient(135deg, var(--primary), var(--accent)); color: #fff; text-decoration: none; font-weight: 600; font-size: 1rem; border-radius: 12px; border: none; cursor: pointer; margin-bottom: 0.75rem; }
+        .btn.secondary { background: var(--surface); border: 1px solid var(--border); color: var(--text); }
+        .btn.secondary:hover { border-color: var(--primary); }
+        .spinner { display: inline-block; width: 28px; height: 28px; border: 3px solid rgba(255,255,255,0.15); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.9s linear infinite; margin-bottom: 1rem; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        footer { margin-top: 2rem; color: var(--muted); font-size: 0.8rem; }
+        footer a { color: var(--muted); text-decoration: underline; }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">Vyvent</div>
+        <p class="tagline" id="tagline">Descubre y crea eventos cerca de ti</p>
+
+        <div id="opening" class="card hidden">
+            <div class="spinner"></div>
+            <div class="card-title" id="openingTitle">Abriendo…</div>
+            <div class="card-sub">Redirigiéndote a la app de Vyvent.</div>
+        </div>
+
+        <div id="fallback" class="card hidden">
+            <div class="card-title" id="fallbackTitle">¿No tienes Vyvent instalado?</div>
+            <div class="card-sub">Descarga la app para continuar.</div>
+        </div>
+
+        <div id="actions" class="hidden">
+            <a id="openApp" class="btn" href="#">Abrir en la app</a>
+            <a id="playStore" class="btn secondary"
+               href="https://play.google.com/store/apps/details?id=com.vyvent.mobile"
+               target="_blank" rel="noopener">Descargar en Google Play</a>
+        </div>
+
+        <div id="notFound" class="card hidden">
+            <div class="card-title">Página no encontrada</div>
+            <div class="card-sub">La dirección a la que intentabas entrar no existe.</div>
+        </div>
+
+        <div id="genericActions" class="hidden">
+            <a class="btn" href="/vyvent-legal/">Ir al inicio</a>
+        </div>
+
+        <footer>
+            &copy; 2026 Vyvent &middot;
+            <a href="/vyvent-legal/">Información legal</a>
+        </footer>
+    </div>
+
+    <script>
+    (function () {
+        // This 404.html doubles as a deep-link landing page. GitHub Pages
+        // serves it for any path that doesn't resolve to a real file —
+        // including /vyvent-legal/e/<id> and /vyvent-legal/u/<id>. We
+        // inspect the path and either redirect into the app or show the
+        // generic 404 UI for everything else.
+        var BASE = '/vyvent-legal/';
+        var path = window.location.pathname;
+
+        function show(id) { document.getElementById(id).classList.remove('hidden'); }
+        function hide(id) { document.getElementById(id).classList.add('hidden'); }
+
+        // Extract `<kind>/<id>` if the path matches /vyvent-legal/<kind>/<id>[/]
+        var re = new RegExp('^' + BASE.replace(/\//g, '\\/') + '(e|u)\\/([^\\/\\?#]+)\\/?$');
+        var match = re.exec(path);
+
+        if (!match) {
+            // Not an event/user deep link — show the generic "not found" UI.
+            show('notFound');
+            show('genericActions');
+            return;
+        }
+
+        var kind = match[1];
+        var id = match[2];
+        var deepLink = 'vyvent://' + kind + '/' + encodeURIComponent(id);
+
+        // Customize the copy per kind.
+        if (kind === 'e') {
+            document.getElementById('openingTitle').textContent = 'Abriendo evento…';
+            document.getElementById('fallbackTitle').textContent = '¿No tienes Vyvent instalado?';
+            document.getElementById('tagline').textContent = 'Abre este evento en la app.';
+        } else {
+            document.getElementById('openingTitle').textContent = 'Abriendo perfil…';
+            document.getElementById('fallbackTitle').textContent = 'Descarga Vyvent para ver este perfil';
+            document.getElementById('tagline').textContent = 'Abre este perfil en la app.';
+        }
+
+        document.getElementById('openApp').setAttribute('href', deepLink);
+        show('opening');
+
+        var ua = navigator.userAgent || '';
+        var isAndroid = /Android/i.test(ua);
+        var isIOS = /iPhone|iPad|iPod/i.test(ua);
+        var isMobile = isAndroid || isIOS;
+
+        function revealFallback() {
+            hide('opening');
+            show('fallback');
+            show('actions');
+        }
+
+        if (!isMobile) {
+            revealFallback();
+            return;
+        }
+
+        // Small delay so the "opening…" state flashes visibly before the
+        // redirect fires. If the app handles the URL, the browser tab
+        // is hidden before the 1.8s fallback timer fires.
+        setTimeout(function () {
+            window.location = deepLink;
+        }, 400);
+
+        setTimeout(function () {
+            if (!document.hidden) revealFallback();
+        }, 1800);
+
+        document.addEventListener('visibilitychange', function () {
+            if (!document.hidden) revealFallback();
+        });
+    })();
+    </script>
+</body>
+</html>
