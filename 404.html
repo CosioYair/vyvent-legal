@@ -74,17 +74,18 @@
     (function () {
         // This 404.html doubles as a deep-link landing page. GitHub Pages
         // serves it for any path that doesn't resolve to a real file —
-        // including /vyvent-legal/e/<id> and /vyvent-legal/u/<id>. We
-        // inspect the path and either redirect into the app or show the
-        // generic 404 UI for everything else.
+        // including /vyvent-legal/e/<id>, /vyvent-legal/e/<id>/chat and
+        // /vyvent-legal/u/<id>. We inspect the path and either redirect into
+        // the app or show the generic 404 UI for everything else.
         var BASE = '/vyvent-legal/';
         var path = window.location.pathname;
 
         function show(id) { document.getElementById(id).classList.remove('hidden'); }
         function hide(id) { document.getElementById(id).classList.add('hidden'); }
 
-        // Extract `<kind>/<id>` if the path matches /vyvent-legal/<kind>/<id>[/]
-        var re = new RegExp('^' + BASE.replace(/\//g, '\\/') + '(e|u)\\/([^\\/\\?#]+)\\/?$');
+        // Extract `<kind>/<id>` (with an optional trailing `/chat` for events)
+        // from /vyvent-legal/<kind>/<id>[/chat][/].
+        var re = new RegExp('^' + BASE.replace(/\//g, '\\/') + '(e|u)\\/([^\\/\\?#]+)(\\/chat)?\\/?$');
         var match = re.exec(path);
 
         if (!match) {
@@ -96,10 +97,24 @@
 
         var kind = match[1];
         var id = match[2];
-        var deepLink = 'vyvent://' + kind + '/' + encodeURIComponent(id);
+        var isChat = !!match[3];
+
+        // `/chat` only makes sense for events; anything else is not found.
+        if (isChat && kind !== 'e') {
+            show('notFound');
+            show('genericActions');
+            return;
+        }
+
+        // Mirrors the app's linking config: EventChat is `e/:id/chat`.
+        var deepLink = 'vyvent://' + kind + '/' + encodeURIComponent(id) + (isChat ? '/chat' : '');
 
         // Customize the copy per kind.
-        if (kind === 'e') {
+        if (kind === 'e' && isChat) {
+            document.getElementById('openingTitle').textContent = 'Abriendo chat del evento…';
+            document.getElementById('fallbackTitle').textContent = '¿No tienes Vyvent instalado?';
+            document.getElementById('tagline').textContent = 'Únete al chat de este evento en la app.';
+        } else if (kind === 'e') {
             document.getElementById('openingTitle').textContent = 'Abriendo evento…';
             document.getElementById('fallbackTitle').textContent = '¿No tienes Vyvent instalado?';
             document.getElementById('tagline').textContent = 'Abre este evento en la app.';
