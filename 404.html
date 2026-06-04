@@ -4,19 +4,22 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Vyvent</title>
+    <!-- SEO is intentionally deferred (external-invitations.md §10). This page
+         is client-rendered and served with a 404 status, so it stays noindex
+         until the future pre-rendering phase. -->
     <meta name="robots" content="noindex">
     <!-- Link-preview-friendly Open Graph tags so WhatsApp / iMessage show
-         a rich card instead of a bare URL. These are defaults; the
-         landing-page logic below can override for specific entities later. -->
+         a rich card instead of a bare URL. Generic for now; per-entity OG
+         tags require pre-rendering (future phase). -->
     <meta property="og:type" content="website">
     <meta property="og:title" content="Abrir en Vyvent">
     <meta property="og:description" content="Descubre y crea eventos cerca de ti.">
     <meta property="og:site_name" content="Vyvent">
     <style>
-        :root { --bg: #05030A; --surface: #15101F; --text: #E8E0F0; --muted: #9B8FB8; --primary: #A855F7; --accent: #EC4899; --border: #27272F; }
+        :root { --bg: #05030A; --surface: #15101F; --surface-alt: #1E1630; --text: #E8E0F0; --muted: #9B8FB8; --primary: #A855F7; --accent: #EC4899; --border: #27272F; }
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 2rem 1rem; }
-        .container { max-width: 420px; text-align: center; width: 100%; }
+        .container { max-width: 460px; text-align: center; width: 100%; }
         .logo { font-size: 2.5rem; font-weight: 800; margin-bottom: 0.5rem; background: linear-gradient(135deg, var(--primary), var(--accent)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
         .tagline { color: var(--muted); font-size: 1.05rem; margin-bottom: 2rem; }
         .card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 1.75rem 1.5rem; margin-bottom: 1.25rem; }
@@ -30,6 +33,19 @@
         footer { margin-top: 2rem; color: var(--muted); font-size: 0.8rem; }
         footer a { color: var(--muted); text-decoration: underline; }
         .hidden { display: none !important; }
+
+        /* ── Provider Preview ─────────────────────────────────────────────── */
+        .preview { text-align: left; }
+        .pv-cover { width: 100%; height: 150px; border-radius: 16px 16px 0 0; background: linear-gradient(135deg, rgba(168,85,247,0.35), var(--surface)); background-size: cover; background-position: center; }
+        .pv-body { background: var(--surface); border: 1px solid var(--border); border-top: none; border-radius: 0 0 16px 16px; padding: 0 1.4rem 1.5rem; margin-bottom: 1.25rem; }
+        .pv-avatar { width: 84px; height: 84px; border-radius: 50%; border: 4px solid var(--bg); background: var(--surface-alt); margin-top: -42px; object-fit: cover; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; font-weight: 700; color: var(--text); }
+        .pv-name { font-size: 1.4rem; font-weight: 800; margin-top: 0.6rem; }
+        .pv-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 0.6rem; }
+        .pv-chip { font-size: 0.78rem; font-weight: 600; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); }
+        .pv-city { color: var(--muted); font-size: 0.9rem; margin-top: 0.6rem; }
+        .pv-bio { color: var(--text); font-size: 0.95rem; margin-top: 0.8rem; white-space: pre-wrap; }
+        .pv-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 1rem; }
+        .pv-grid img { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; border-radius: 8px; background: var(--surface-alt); }
     </style>
 </head>
 <body>
@@ -43,16 +59,29 @@
             <div class="card-sub">Redirigiéndote a la app de Vyvent.</div>
         </div>
 
+        <!-- Provider preview (value-before-install). Populated by JS. -->
+        <div id="providerPreview" class="preview hidden">
+            <div class="pv-cover" id="pvCover"></div>
+            <div class="pv-body">
+                <div class="pv-avatar" id="pvAvatar"></div>
+                <div class="pv-name" id="pvName"></div>
+                <div class="pv-chips" id="pvChips"></div>
+                <div class="pv-city hidden" id="pvCity"></div>
+                <div class="pv-bio hidden" id="pvBio"></div>
+                <div class="pv-grid" id="pvGrid"></div>
+            </div>
+        </div>
+
         <div id="fallback" class="card hidden">
             <div class="card-title" id="fallbackTitle">¿No tienes Vyvent instalado?</div>
             <div class="card-sub">Descarga la app para continuar.</div>
         </div>
 
         <div id="actions" class="hidden">
-            <a id="openApp" class="btn" href="#">Abrir en la app</a>
+            <a id="openApp" class="btn" href="#">Abrir en Vyvent</a>
             <a id="playStore" class="btn secondary"
                href="https://play.google.com/store/apps/details?id=com.vyvent.mobile"
-               target="_blank" rel="noopener">Descargar en Google Play</a>
+               target="_blank" rel="noopener">Descargar Vyvent</a>
         </div>
 
         <div id="notFound" class="card hidden">
@@ -72,24 +101,25 @@
 
     <script>
     (function () {
-        // This 404.html doubles as a deep-link landing page. GitHub Pages
-        // serves it for any path that doesn't resolve to a real file —
-        // including /vyvent-legal/e/<id>, /vyvent-legal/e/<id>/chat and
-        // /vyvent-legal/u/<id>. We inspect the path and either redirect into
-        // the app or show the generic 404 UI for everything else.
+        // ── Supabase config ──────────────────────────────────────────────────
+        // Anon key is a publishable JWT (RLS-protected, ships in the app bundle
+        // by design). MUST point at the SAME project the production app uses.
+        // TODO(confirm): verify this is the production project before launch.
+        var SUPA_URL = 'https://lehwxjbjlehsdkqxlzrb.supabase.co';
+        var SUPA_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxlaHd4amJqbGVoc2RrcXhsenJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxNDAxMjcsImV4cCI6MjA5MDcxNjEyN30.Twvct9R8Pj5Bph7KkuqB2ElegYhiVCEz_mW_rlWAFrk';
+
         var BASE = '/vyvent-legal/';
         var path = window.location.pathname;
 
         function show(id) { document.getElementById(id).classList.remove('hidden'); }
         function hide(id) { document.getElementById(id).classList.add('hidden'); }
+        function el(id) { return document.getElementById(id); }
 
-        // Extract `<kind>/<id>` (with an optional trailing `/chat` for events)
-        // from /vyvent-legal/<kind>/<id>[/chat][/].
-        var re = new RegExp('^' + BASE.replace(/\//g, '\\/') + '(e|u)\\/([^\\/\\?#]+)(\\/chat)?\\/?$');
+        // /vyvent-legal/<kind>/<id>[/chat][/]
+        var re = new RegExp('^' + BASE.replace(/\//g, '\\/') + '(e|u|p)\\/([^\\/\\?#]+)(\\/chat)?\\/?$');
         var match = re.exec(path);
 
         if (!match) {
-            // Not an event/user deep link — show the generic "not found" UI.
             show('notFound');
             show('genericActions');
             return;
@@ -99,64 +129,167 @@
         var id = match[2];
         var isChat = !!match[3];
 
-        // `/chat` only makes sense for events; anything else is not found.
+        // `/chat` only makes sense for events.
         if (isChat && kind !== 'e') {
             show('notFound');
             show('genericActions');
             return;
         }
 
-        // Mirrors the app's linking config: EventChat is `e/:id/chat`.
-        var deepLink = 'vyvent://' + kind + '/' + encodeURIComponent(id) + (isChat ? '/chat' : '');
-
-        // Customize the copy per kind.
-        if (kind === 'e' && isChat) {
-            document.getElementById('openingTitle').textContent = 'Abriendo chat del evento…';
-            document.getElementById('fallbackTitle').textContent = '¿No tienes Vyvent instalado?';
-            document.getElementById('tagline').textContent = 'Únete al chat de este evento en la app.';
-        } else if (kind === 'e') {
-            document.getElementById('openingTitle').textContent = 'Abriendo evento…';
-            document.getElementById('fallbackTitle').textContent = '¿No tienes Vyvent instalado?';
-            document.getElementById('tagline').textContent = 'Abre este evento en la app.';
-        } else {
-            document.getElementById('openingTitle').textContent = 'Abriendo perfil…';
-            document.getElementById('fallbackTitle').textContent = 'Descarga Vyvent para ver este perfil';
-            document.getElementById('tagline').textContent = 'Abre este perfil en la app.';
+        // ── Provider preview branch (value-before-install) ───────────────────
+        // Unlike events/users, providers RENDER a preview instead of
+        // auto-redirecting, so a non-Vyvent visitor sees value first.
+        if (kind === 'p') {
+            renderProviderPreview(id);
+            return;
         }
 
-        document.getElementById('openApp').setAttribute('href', deepLink);
+        // ── Event / user branch: redirect into the app (existing behavior) ───
+        var deepLink = 'vyvent://' + kind + '/' + encodeURIComponent(id) + (isChat ? '/chat' : '');
+
+        if (kind === 'e' && isChat) {
+            el('openingTitle').textContent = 'Abriendo chat del evento…';
+            el('tagline').textContent = 'Únete al chat de este evento en la app.';
+        } else if (kind === 'e') {
+            el('openingTitle').textContent = 'Abriendo evento…';
+            el('tagline').textContent = 'Abre este evento en la app.';
+        } else {
+            el('openingTitle').textContent = 'Abriendo perfil…';
+            el('fallbackTitle').textContent = 'Descarga Vyvent para ver este perfil';
+            el('tagline').textContent = 'Abre este perfil en la app.';
+        }
+
+        el('openApp').setAttribute('href', deepLink);
         show('opening');
+        redirectToApp(deepLink);
 
-        var ua = navigator.userAgent || '';
-        var isAndroid = /Android/i.test(ua);
-        var isIOS = /iPhone|iPad|iPod/i.test(ua);
-        var isMobile = isAndroid || isIOS;
+        // ── Helpers ──────────────────────────────────────────────────────────
 
-        function revealFallback() {
-            hide('opening');
+        function publicUrl(bucket, p) {
+            if (!p) return null;
+            if (/^https?:\/\//i.test(p)) return p;
+            return SUPA_URL + '/storage/v1/object/public/' + bucket + '/' + String(p).replace(/^\/+/, '');
+        }
+
+        function setupAppActions(deepLink) {
+            el('openApp').setAttribute('href', deepLink);
+            el('fallbackTitle').textContent = '¿Quieres interactuar?';
+            el('fallback').querySelector('.card-sub').textContent =
+                'Descarga Vyvent para seguir, contactar y más.';
             show('fallback');
             show('actions');
         }
 
-        if (!isMobile) {
-            revealFallback();
-            return;
+        function renderProviderPreview(slug) {
+            el('tagline').textContent = 'Perfil de proveedor en Vyvent';
+            show('opening');
+            el('openingTitle').textContent = 'Cargando perfil…';
+
+            var deepLink = 'vyvent://p/' + encodeURIComponent(slug);
+
+            fetch(SUPA_URL + '/rest/v1/rpc/get_public_provider_preview', {
+                method: 'POST',
+                headers: {
+                    'apikey': SUPA_ANON,
+                    'Authorization': 'Bearer ' + SUPA_ANON,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ p_slug: slug })
+            })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (data) {
+                hide('opening');
+
+                if (!data || data.not_found || !data.provider) {
+                    // Protected / not-found stub — no details leaked.
+                    el('tagline').textContent = '';
+                    el('notFound').querySelector('.card-title').textContent = 'Perfil no disponible';
+                    el('notFound').querySelector('.card-sub').textContent =
+                        'Este perfil no está disponible públicamente. Ábrelo en Vyvent.';
+                    show('notFound');
+                    setupAppActions(deepLink);
+                    return;
+                }
+
+                var pr = data.provider;
+
+                // Cover
+                var coverUrl = publicUrl('avatars', pr.cover_path);
+                if (coverUrl) el('pvCover').style.backgroundImage = 'url("' + coverUrl + '")';
+
+                // Avatar
+                var avatarUrl = publicUrl('avatars', pr.avatar_path);
+                if (avatarUrl) {
+                    el('pvAvatar').innerHTML = '<img src="' + avatarUrl + '" alt="" style="width:100%;height:100%;border-radius:50%;object-fit:cover">';
+                } else {
+                    el('pvAvatar').textContent = (pr.display_name || '?').trim().charAt(0).toUpperCase();
+                }
+
+                // Name
+                el('pvName').textContent = pr.display_name || '';
+
+                // Category chips (primary + secondaries)
+                var chips = el('pvChips');
+                function addChip(cat) {
+                    if (!cat || !cat.label) return;
+                    var c = document.createElement('span');
+                    c.className = 'pv-chip';
+                    if (cat.color) { c.style.color = cat.color; c.style.borderColor = cat.color + '66'; }
+                    c.textContent = cat.label;
+                    chips.appendChild(c);
+                }
+                addChip(pr.primary_category);
+                (pr.secondary_categories || []).forEach(addChip);
+
+                // City (coarse)
+                if (pr.city) { el('pvCity').textContent = '📍 ' + pr.city; show('pvCity'); }
+
+                // Bio
+                if (pr.bio) { el('pvBio').textContent = pr.bio; show('pvBio'); }
+
+                // Portfolio grid
+                var grid = el('pvGrid');
+                (data.portfolio || []).forEach(function (item) {
+                    var u = publicUrl(item.bucket, item.storage_path);
+                    if (!u) return;
+                    var img = document.createElement('img');
+                    img.src = u;
+                    img.alt = item.caption || '';
+                    img.loading = 'lazy';
+                    grid.appendChild(img);
+                });
+
+                document.title = (pr.display_name || 'Proveedor') + ' · Vyvent';
+                show('providerPreview');
+                setupAppActions(deepLink);
+            })
+            .catch(function () {
+                hide('opening');
+                el('notFound').querySelector('.card-title').textContent = 'No se pudo cargar';
+                el('notFound').querySelector('.card-sub').textContent = 'Inténtalo de nuevo o ábrelo en Vyvent.';
+                show('notFound');
+                setupAppActions('vyvent://p/' + encodeURIComponent(slug));
+            });
         }
 
-        // Small delay so the "opening…" state flashes visibly before the
-        // redirect fires. If the app handles the URL, the browser tab
-        // is hidden before the 1.8s fallback timer fires.
-        setTimeout(function () {
-            window.location = deepLink;
-        }, 400);
+        function redirectToApp(deepLink) {
+            var ua = navigator.userAgent || '';
+            var isMobile = /Android|iPhone|iPad|iPod/i.test(ua);
 
-        setTimeout(function () {
-            if (!document.hidden) revealFallback();
-        }, 1800);
+            function revealFallback() {
+                hide('opening');
+                show('fallback');
+                show('actions');
+            }
 
-        document.addEventListener('visibilitychange', function () {
-            if (!document.hidden) revealFallback();
-        });
+            if (!isMobile) { revealFallback(); return; }
+
+            setTimeout(function () { window.location = deepLink; }, 400);
+            setTimeout(function () { if (!document.hidden) revealFallback(); }, 1800);
+            document.addEventListener('visibilitychange', function () {
+                if (!document.hidden) revealFallback();
+            });
+        }
     })();
     </script>
 </body>
