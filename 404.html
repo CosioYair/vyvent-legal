@@ -434,25 +434,14 @@
                     show('evMapCap');
                 }
 
-                // Limited gallery — organizer uploads first (Issue 2). The
-                // uploader id is the first segment of each event-photo storage
-                // path; the organizer's id is the first segment of their avatar
-                // path. These UUIDs are already in the public image URLs, so this
-                // exposes nothing new — they're used only to ORDER, never shown.
-                // Stable: organizer images lead, the rest keep the backend order.
+                // Limited gallery — organizer-first, best-effort. All ordering
+                // (+ the backend-limitation rationale) lives in
+                // orderGalleryOrganizerFirst. The cover image is chosen/rendered
+                // separately and is intentionally NOT part of this gallery.
                 var grid  = el('evGrid');
                 var orgId = firstPathSeg(ev.organizer && ev.organizer.avatar_path);
-                var gallery = (ev.gallery || [])
-                    .map(function (item, i) {
-                        return { item: item, i: i, isOrg: !!orgId && firstPathSeg(item.storage_path) === orgId };
-                    })
-                    .sort(function (a, b) {
-                        if (a.isOrg !== b.isOrg) return a.isOrg ? -1 : 1; // organizer first
-                        return a.i - b.i;                                 // else preserve backend order
-                    })
-                    .slice(0, 6);                                         // cap at 6 (unchanged)
-                gallery.forEach(function (g) {
-                    var u = publicUrl('event-photos', g.item.storage_path);
+                orderGalleryOrganizerFirst(ev.gallery, orgId).forEach(function (item) {
+                    var u = publicUrl('event-photos', item.storage_path);
                     if (!u) return;
                     var img = document.createElement('img');
                     img.src = u;
@@ -486,6 +475,59 @@
             if (!path) return null;
             var s = String(path).replace(/^\/+/, '').split('/')[0];
             return s || null;
+        }
+
+        // ── Gallery ordering: organizer images first (BEST-EFFORT) ───────────
+        //
+        // BACKEND LIMITATION (cannot be fixed here — no backend/RPC/schema changes
+        // in this sprint): get_public_event_preview returns only the 6 OLDEST
+        // non-cover photos (`ORDER BY created_at ASC LIMIT 6`). If the organizer
+        // uploaded after 6+ other photos already existed, their images are NOT in
+        // the payload at all — so this reordering is BEST-EFFORT: it can only
+        // promote organizer images that are already present in the returned set.
+        //
+        // FULL GUARANTEE requires a backend change — rank organizer uploads in the
+        // RPC's ORDER BY *before* the LIMIT 6 — explicitly OUT OF SCOPE here and
+        // tracked for a future sprint.
+        //
+        // COVER: the is_cover image is selected and rendered separately (evCover)
+        // and is NOT part of this gallery — it must remain untouched.
+        //
+        // Detection is layered by CONFIDENCE and is EXTENSIBLE: if the payload ever
+        // gains explicit per-image ownership metadata (a flag, role, or uploader
+        // id), it is honored ahead of the path-derived heuristic with NO call-site
+        // change. Today only the heuristic (tier 4) is available.
+        function isOrganizerImage(item, organizerId) {
+            if (!item) return false;
+            // Tier 1 — explicit organizer flag (future payload field).
+            if (item.is_organizer === true) return true;
+            // Tier 2 — explicit uploader role / source (future payload field).
+            var role = item.uploader_role || item.source;
+            if (role === 'organizer' || role === 'creator' || role === 'owner') return true;
+            // Tier 3 — explicit uploader/owner id (future payload field).
+            if (organizerId && (item.uploader_id === organizerId || item.owner_id === organizerId)) return true;
+            // Tier 4 — heuristic (today): event-photo paths are {uploaderId}/...,
+            // a UUID already public in the image URL; compared for ordering only,
+            // never displayed. Exposes nothing new.
+            if (organizerId && firstPathSeg(item.storage_path) === organizerId) return true;
+            return false;
+        }
+
+        // Returns at most 6 gallery items with organizer images first. STABLE:
+        // ties keep the backend order (created_at ASC), so when no organizer
+        // metadata is resolvable the original order is preserved exactly. Safe on
+        // null/undefined/empty input. The max-6 layout rule is unchanged.
+        function orderGalleryOrganizerFirst(gallery, organizerId) {
+            return (gallery || [])
+                .map(function (item, i) {
+                    return { item: item, i: i, org: isOrganizerImage(item, organizerId) };
+                })
+                .sort(function (a, b) {
+                    if (a.org !== b.org) return a.org ? -1 : 1; // organizer first
+                    return a.i - b.i;                           // else preserve order
+                })
+                .slice(0, 6)
+                .map(function (x) { return x.item; });
         }
 
         // Deterministic event status. Cancelled always wins; otherwise derive
