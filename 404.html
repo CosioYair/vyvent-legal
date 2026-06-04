@@ -46,6 +46,10 @@
         .pv-bio { color: var(--text); font-size: 0.95rem; margin-top: 0.8rem; white-space: pre-wrap; }
         .pv-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 1rem; }
         .pv-grid img { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; border-radius: 8px; background: var(--surface-alt); }
+        .pv-empty { margin-top: 1rem; padding: 1.5rem 1.25rem; text-align: center; background: var(--surface-alt); border: 1px solid var(--border); border-radius: 12px; }
+        .pv-empty-title { font-size: 1.05rem; font-weight: 700; color: var(--text); margin-bottom: 0.5rem; }
+        .pv-empty-body { font-size: 0.9rem; color: var(--muted); line-height: 1.5; }
+        .pv-empty-body + .pv-empty-body { margin-top: 0.6rem; }
     </style>
 </head>
 <body>
@@ -69,6 +73,14 @@
                 <div class="pv-city hidden" id="pvCity"></div>
                 <div class="pv-bio hidden" id="pvBio"></div>
                 <div class="pv-grid" id="pvGrid"></div>
+                <!-- Empty state — shown only when the provider has no published
+                     portfolio work yet. Positive/trust-building framing: the
+                     portfolio fills automatically through event participation. -->
+                <div class="pv-empty hidden" id="pvEmpty">
+                    <div class="pv-empty-title">Portafolio en construcción 🚀</div>
+                    <p class="pv-empty-body">Este proveedor es nuevo en Vyvent y todavía no tiene trabajos publicados en su portafolio.</p>
+                    <p class="pv-empty-body">Los trabajos realizados en eventos dentro de Vyvent se agregan automáticamente a medida que participa.</p>
+                </div>
             </div>
         </div>
 
@@ -247,17 +259,25 @@
                 // Bio
                 if (pr.bio) { el('pvBio').textContent = pr.bio; show('pvBio'); }
 
-                // Portfolio grid
+                // Portfolio grid — or a trust-building empty state when the
+                // provider has no published work yet. Hiding the grid avoids a
+                // leftover margin gap (no layout shift).
                 var grid = el('pvGrid');
-                (data.portfolio || []).forEach(function (item) {
-                    var u = publicUrl(item.bucket, item.storage_path);
-                    if (!u) return;
-                    var img = document.createElement('img');
-                    img.src = u;
-                    img.alt = item.caption || '';
-                    img.loading = 'lazy';
-                    grid.appendChild(img);
-                });
+                var portfolio = data.portfolio || [];
+                if (portfolio.length === 0) {
+                    hide('pvGrid');
+                    show('pvEmpty');
+                } else {
+                    portfolio.forEach(function (item) {
+                        var u = publicUrl(item.bucket, item.storage_path);
+                        if (!u) return;
+                        var img = document.createElement('img');
+                        img.src = u;
+                        img.alt = item.caption || '';
+                        img.loading = 'lazy';
+                        grid.appendChild(img);
+                    });
+                }
 
                 document.title = (pr.display_name || 'Proveedor') + ' · Vyvent';
                 show('providerPreview');
