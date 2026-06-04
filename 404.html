@@ -50,6 +50,17 @@
         .pv-empty-title { font-size: 1.05rem; font-weight: 700; color: var(--text); margin-bottom: 0.5rem; }
         .pv-empty-body { font-size: 0.9rem; color: var(--muted); line-height: 1.5; }
         .pv-empty-body + .pv-empty-body { margin-top: 0.6rem; }
+
+        /* ── Event Preview ──────────────────────────────────────────────────── */
+        #evTitle { margin-top: 1.25rem; }
+        .ev-when { color: var(--muted); font-size: 0.92rem; margin-top: 0.5rem; }
+        .ev-organizer { display: flex; align-items: center; gap: 8px; margin-top: 0.9rem; }
+        .ev-organizer img, .ev-org-fallback { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; background: var(--surface-alt); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.85rem; color: var(--text); flex: none; }
+        .ev-org-name { font-size: 0.9rem; color: var(--text); font-weight: 600; }
+        .ev-cancelled { display: inline-block; margin-top: 1rem; padding: 4px 10px; border-radius: 999px; background: rgba(239,68,68,0.15); color: #F87171; font-size: 0.8rem; font-weight: 700; }
+        .ev-map { width: 100%; height: 160px; border: 1px solid var(--border); border-radius: 12px; margin-top: 1rem; overflow: hidden; }
+        .ev-map iframe { width: 100%; height: 100%; border: 0; display: block; }
+        .ev-map-cap { color: var(--muted); font-size: 0.78rem; margin-top: 0.4rem; text-align: center; }
     </style>
 </head>
 <body>
@@ -81,6 +92,25 @@
                     <p class="pv-empty-body">Este proveedor es nuevo en Vyvent y todavía no tiene trabajos publicados en su portafolio.</p>
                     <p class="pv-empty-body">Los trabajos realizados en eventos dentro de Vyvent se agregan automáticamente a medida que participa.</p>
                 </div>
+            </div>
+        </div>
+
+        <!-- Event preview (value-before-install). Renders ONLY for events whose
+             organizer chose feed_visibility='everyone'; every other case (private
+             or non-existent) returns the identical not-found stub from the RPC and
+             falls through to the protected card below. Populated by JS. -->
+        <div id="eventPreview" class="preview hidden">
+            <div class="pv-cover" id="evCover"></div>
+            <div class="pv-body">
+                <div class="ev-cancelled hidden" id="evCancelled">Evento cancelado</div>
+                <div class="pv-name" id="evTitle"></div>
+                <div class="ev-when hidden" id="evWhen"></div>
+                <div class="pv-chips" id="evChips"></div>
+                <div class="ev-organizer hidden" id="evOrganizer"></div>
+                <div class="pv-bio hidden" id="evDesc"></div>
+                <div class="ev-map hidden" id="evMap"></div>
+                <div class="ev-map-cap hidden" id="evMapCap">📍 Ubicación aproximada</div>
+                <div class="pv-grid" id="evGrid"></div>
             </div>
         </div>
 
@@ -156,7 +186,17 @@
             return;
         }
 
-        // ── Event / user branch: redirect into the app (existing behavior) ───
+        // ── Event preview branch (value-before-install) ──────────────────────
+        // A plain /e/{id} link RENDERS a preview (public events only; private
+        // events resolve to a protected stub inside the renderer). The
+        // /e/{id}/chat sub-route is the gated event chat — not previewable — so
+        // it stays on the redirect path below.
+        if (kind === 'e' && !isChat) {
+            renderEventPreview(id);
+            return;
+        }
+
+        // ── Event-chat / user branch: redirect into the app (existing behavior) ───
         var deepLink = 'vyvent://' + kind + '/' + encodeURIComponent(id) + (isChat ? '/chat' : '');
 
         if (kind === 'e' && isChat) {
@@ -290,6 +330,141 @@
                 show('notFound');
                 setupAppActions('vyvent://p/' + encodeURIComponent(slug));
             });
+        }
+
+        function renderEventPreview(eventId) {
+            el('tagline').textContent = 'Evento en Vyvent';
+            show('opening');
+            el('openingTitle').textContent = 'Cargando evento…';
+
+            var deepLink = 'vyvent://e/' + encodeURIComponent(eventId);
+
+            fetch(SUPA_URL + '/rest/v1/rpc/get_public_event_preview', {
+                method: 'POST',
+                headers: {
+                    'apikey': SUPA_ANON,
+                    'Authorization': 'Bearer ' + SUPA_ANON,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ p_event_id: eventId })
+            })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (data) {
+                hide('opening');
+
+                // Private OR not-found return the SAME stub (P3 — no enumeration,
+                // no existence leak). The web renders the protected card.
+                if (!data || data.not_found || !data.event) {
+                    el('tagline').textContent = '';
+                    el('notFound').querySelector('.card-title').textContent = 'Evento privado';
+                    el('notFound').querySelector('.card-sub').textContent =
+                        'Este evento es privado o no está disponible. Ábrelo en Vyvent para verlo.';
+                    show('notFound');
+                    setupAppActions(deepLink);
+                    return;
+                }
+
+                var ev = data.event;
+
+                // Cover
+                var coverUrl = publicUrl('event-photos', ev.cover_path);
+                if (coverUrl) el('evCover').style.backgroundImage = 'url("' + coverUrl + '")';
+
+                if (ev.is_cancelled) show('evCancelled');
+
+                el('evTitle').textContent = ev.title || 'Evento';
+
+                var when = formatWhen(ev.starts_at, ev.ends_at);
+                if (when) { el('evWhen').textContent = when; show('evWhen'); }
+
+                // Category chip
+                if (ev.category) {
+                    var c = document.createElement('span');
+                    c.className = 'pv-chip';
+                    c.textContent = ev.category;
+                    el('evChips').appendChild(c);
+                }
+
+                // Organizer (public profile identity only — no PII)
+                if (ev.organizer) {
+                    var org = el('evOrganizer');
+                    var orgAvatar = publicUrl('avatars', ev.organizer.avatar_path);
+                    var orgName = ev.organizer.display_name || ev.organizer.username || '';
+                    if (orgAvatar) {
+                        org.innerHTML = '<img src="' + orgAvatar + '" alt="">';
+                    } else {
+                        var fb = document.createElement('div');
+                        fb.className = 'ev-org-fallback';
+                        fb.textContent = (orgName || '?').trim().charAt(0).toUpperCase();
+                        org.appendChild(fb);
+                    }
+                    var nm = document.createElement('span');
+                    nm.className = 'ev-org-name';
+                    nm.textContent = orgName ? ('Organiza ' + orgName) : '';
+                    org.appendChild(nm);
+                    show('evOrganizer');
+                }
+
+                if (ev.description) { el('evDesc').textContent = ev.description; show('evDesc'); }
+
+                // Coarse location (~1 km, rounded server-side). No marker — shows
+                // an approximate area, never the exact venue (safety, §8.8).
+                if (typeof ev.approx_lat === 'number' && typeof ev.approx_lng === 'number') {
+                    var d = 0.02;
+                    var bbox = [ev.approx_lng - d, ev.approx_lat - d, ev.approx_lng + d, ev.approx_lat + d].join(',');
+                    var src = 'https://www.openstreetmap.org/export/embed.html?bbox=' +
+                              encodeURIComponent(bbox) + '&layer=mapnik';
+                    el('evMap').innerHTML = '<iframe loading="lazy" referrerpolicy="no-referrer" src="' + src + '"></iframe>';
+                    show('evMap');
+                    show('evMapCap');
+                }
+
+                // Limited gallery
+                var grid = el('evGrid');
+                (ev.gallery || []).forEach(function (item) {
+                    var u = publicUrl('event-photos', item.storage_path);
+                    if (!u) return;
+                    var img = document.createElement('img');
+                    img.src = u;
+                    img.loading = 'lazy';
+                    grid.appendChild(img);
+                });
+
+                document.title = (ev.title || 'Evento') + ' · Vyvent';
+                show('eventPreview');
+
+                // App actions — event-flavored copy.
+                el('openApp').setAttribute('href', deepLink);
+                el('fallbackTitle').textContent = '¿Quieres unirte?';
+                el('fallback').querySelector('.card-sub').textContent =
+                    'Descarga Vyvent para unirte, comentar y ver quién asiste.';
+                show('fallback');
+                show('actions');
+            })
+            .catch(function () {
+                hide('opening');
+                el('notFound').querySelector('.card-title').textContent = 'No se pudo cargar';
+                el('notFound').querySelector('.card-sub').textContent = 'Inténtalo de nuevo o ábrelo en Vyvent.';
+                show('notFound');
+                setupAppActions(deepLink);
+            });
+        }
+
+        function formatWhen(startsAt, endsAt) {
+            if (!startsAt) return '';
+            try {
+                var s = new Date(startsAt);
+                var dateStr = s.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' });
+                var timeStr = s.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+                var out = '📅 ' + dateStr + ' · ' + timeStr;
+                if (endsAt) {
+                    var e = new Date(endsAt);
+                    if (e.toDateString() === s.toDateString()) {
+                        out += '–' + e.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+                    }
+                }
+                return out;
+            } catch (_) { return ''; }
         }
 
         function redirectToApp(deepLink) {
