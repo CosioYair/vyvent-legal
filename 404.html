@@ -57,7 +57,12 @@
         .ev-organizer { display: flex; align-items: center; gap: 8px; margin-top: 0.9rem; }
         .ev-organizer img, .ev-org-fallback { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; background: var(--surface-alt); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.85rem; color: var(--text); flex: none; }
         .ev-org-name { font-size: 0.9rem; color: var(--text); font-weight: 600; }
-        .ev-cancelled { display: inline-block; margin-top: 1rem; padding: 4px 10px; border-radius: 999px; background: rgba(239,68,68,0.15); color: #F87171; font-size: 0.8rem; font-weight: 700; }
+        .ev-status { display: inline-flex; align-items: center; gap: 6px; margin-top: 1rem; padding: 4px 12px; border-radius: 999px; font-size: 0.8rem; font-weight: 700; }
+        .ev-status::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+        .ev-status.upcoming  { background: rgba(168,85,247,0.15); color: #C084FC; }
+        .ev-status.live      { background: rgba(34,197,94,0.15);  color: #4ADE80; }
+        .ev-status.finished  { background: rgba(155,143,184,0.15); color: var(--muted); }
+        .ev-status.cancelled { background: rgba(239,68,68,0.15);  color: #F87171; }
         .ev-map { width: 100%; height: 160px; border: 1px solid var(--border); border-radius: 12px; margin-top: 1rem; overflow: hidden; }
         .ev-map iframe { width: 100%; height: 100%; border: 0; display: block; }
         .ev-map-cap { color: var(--muted); font-size: 0.78rem; margin-top: 0.4rem; text-align: center; }
@@ -102,7 +107,7 @@
         <div id="eventPreview" class="preview hidden">
             <div class="pv-cover" id="evCover"></div>
             <div class="pv-body">
-                <div class="ev-cancelled hidden" id="evCancelled">Evento cancelado</div>
+                <div class="ev-status hidden" id="evStatus"></div>
                 <div class="pv-name" id="evTitle"></div>
                 <div class="ev-when hidden" id="evWhen"></div>
                 <div class="pv-chips" id="evChips"></div>
@@ -370,7 +375,13 @@
                 var coverUrl = publicUrl('event-photos', ev.cover_path);
                 if (coverUrl) el('evCover').style.backgroundImage = 'url("' + coverUrl + '")';
 
-                if (ev.is_cancelled) show('evCancelled');
+                // Derived status badge (deterministic, frontend-only — cancelled
+                // overrides everything, then time-based state vs. now).
+                var STATUS_LABELS = { upcoming: 'Próximo', live: 'En vivo', finished: 'Finalizado', cancelled: 'Cancelado' };
+                var status = getEventStatus(new Date(), ev.starts_at, ev.ends_at, ev.is_cancelled);
+                var badge = el('evStatus');
+                badge.className = 'ev-status ' + status;            // drops 'hidden'
+                badge.textContent = STATUS_LABELS[status] || STATUS_LABELS.upcoming;
 
                 el('evTitle').textContent = ev.title || 'Evento';
 
@@ -448,6 +459,21 @@
                 show('notFound');
                 setupAppActions(deepLink);
             });
+        }
+
+        // Deterministic event status. Cancelled always wins; otherwise derive
+        // from `now` vs. the timestamps. Any missing/invalid date → 'upcoming'
+        // (never throws). Returns: 'upcoming' | 'live' | 'finished' | 'cancelled'.
+        function getEventStatus(now, startsAt, endsAt, isCancelled) {
+            if (isCancelled === true) return 'cancelled';
+            if (!startsAt || !endsAt) return 'upcoming';
+            var t     = (now instanceof Date ? now : new Date(now)).getTime();
+            var start = new Date(startsAt).getTime();
+            var end   = new Date(endsAt).getTime();
+            if (isNaN(t) || isNaN(start) || isNaN(end)) return 'upcoming';
+            if (t < start) return 'upcoming';
+            if (t <= end)  return 'live';
+            return 'finished';
         }
 
         function formatWhen(startsAt, endsAt) {
