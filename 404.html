@@ -70,6 +70,12 @@
            user is never trapped on the map. */
         .ev-map iframe { width: 100%; height: 100%; border: 0; display: block; pointer-events: none; }
         .ev-map-cap { color: var(--muted); font-size: 0.78rem; margin-top: 0.4rem; text-align: center; }
+
+        /* Private-event conversion card (limited preview / state B). Left-aligned
+           with a primary accent edge so it reads as a "locked, open the app"
+           prompt rather than an error. */
+        .private-note { text-align: left; border-color: rgba(168,85,247,0.45); background: linear-gradient(180deg, rgba(168,85,247,0.10), var(--surface)); }
+        .private-note .card-title { margin-bottom: 0.4rem; }
     </style>
 </head>
 <body>
@@ -121,6 +127,14 @@
                 <div class="ev-map-cap hidden" id="evMapCap">📍 Ubicación aproximada</div>
                 <div class="pv-grid" id="evGrid"></div>
             </div>
+        </div>
+
+        <!-- Private-event conversion card. Shown ONLY in the limited preview
+             (state B): a valid signed invitation link revealed the basic event
+             card above, and this card drives the install to unlock the rest. -->
+        <div id="evPrivateNote" class="card private-note hidden">
+            <div class="card-title">🔒 Este es un evento privado</div>
+            <div class="card-sub">Para ver la ubicación, asistentes, proveedores y participar en el evento, abre este enlace en Vyvent.</div>
         </div>
 
         <div id="fallback" class="card hidden">
@@ -180,6 +194,12 @@
         var id = match[2];
         var isChat = !!match[3];
 
+        // Signed preview token (`?k=`). Present only on organizer-shared PRIVATE
+        // event links; it is the sole key that unlocks the limited web preview
+        // (get_private_event_preview). Absent/invalid → protected stub.
+        var previewToken = null;
+        try { previewToken = new URLSearchParams(window.location.search).get('k'); } catch (_) {}
+
         // `/chat` only makes sense for events.
         if (isChat && kind !== 'e') {
             show('notFound');
@@ -201,7 +221,7 @@
         // /e/{id}/chat sub-route is the gated event chat — not previewable — so
         // it stays on the redirect path below.
         if (kind === 'e' && !isChat) {
-            renderEventPreview(id);
+            renderEventPreview(id, previewToken);
             return;
         }
 
@@ -341,87 +361,138 @@
             });
         }
 
-        function renderEventPreview(eventId) {
-            el('tagline').textContent = 'Evento en Vyvent';
-            show('opening');
-            el('openingTitle').textContent = 'Cargando evento…';
-
-            var deepLink = 'vyvent://e/' + encodeURIComponent(eventId);
-
-            fetch(SUPA_URL + '/rest/v1/rpc/get_public_event_preview', {
+        // Small POST-RPC helper → resolves to parsed JSON (or null on HTTP error).
+        function callRpc(fn, body) {
+            return fetch(SUPA_URL + '/rest/v1/rpc/' + fn, {
                 method: 'POST',
                 headers: {
                     'apikey': SUPA_ANON,
                     'Authorization': 'Bearer ' + SUPA_ANON,
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ p_event_id: eventId })
-            })
-            .then(function (r) { return r.ok ? r.json() : null; })
-            .then(function (data) {
-                hide('opening');
+                body: JSON.stringify(body)
+            }).then(function (r) { return r.ok ? r.json() : null; });
+        }
 
-                // Private OR not-found return the SAME stub (P3 — no enumeration,
-                // no existence leak). The web renders the protected card.
-                if (!data || data.not_found || !data.event) {
-                    el('tagline').textContent = '';
-                    el('notFound').querySelector('.card-title').textContent = 'Evento privado';
-                    el('notFound').querySelector('.card-sub').textContent =
-                        'Este evento es privado o no está disponible. Ábrelo en Vyvent para verlo.';
+        // THREE preview states (external-invitations.md §6 + private-preview):
+        //   A. Public event                     → rich public preview.
+        //   B. Private + valid signed `?k` token → LIMITED preview + conversion.
+        //   C. Missing / invalid / unsigned      → identical protected stub.
+        //
+        // We always try the public RPC first (state A path, unchanged). Only when
+        // it returns the not-found stub AND we hold a token do we attempt the
+        // limited preview — so public events and tokenless private links behave
+        // exactly as before.
+        function renderEventPreview(eventId, token) {
+            el('tagline').textContent = 'Evento en Vyvent';
+            show('opening');
+            el('openingTitle').textContent = 'Cargando evento…';
+
+            var deepLink = 'vyvent://e/' + encodeURIComponent(eventId);
+
+            callRpc('get_public_event_preview', { p_event_id: eventId })
+                .then(function (data) {
+                    // A. Public event → rich preview.
+                    if (data && !data.not_found && data.event) {
+                        hide('opening');
+                        renderEventCard(data.event, deepLink, false);
+                        return;
+                    }
+                    // B. Private + signed token → limited preview.
+                    if (token) {
+                        return callRpc('get_private_event_preview',
+                                       { p_event_id: eventId, p_token: token })
+                            .then(function (pdata) {
+                                hide('opening');
+                                if (pdata && !pdata.not_found && pdata.event) {
+                                    renderEventCard(pdata.event, deepLink, true);
+                                } else {
+                                    renderEventProtected(deepLink); // invalid token → C
+                                }
+                            });
+                    }
+                    // C. No token (or unsigned) → protected stub.
+                    hide('opening');
+                    renderEventProtected(deepLink);
+                })
+                .catch(function () {
+                    hide('opening');
+                    el('notFound').querySelector('.card-title').textContent = 'No se pudo cargar';
+                    el('notFound').querySelector('.card-sub').textContent = 'Inténtalo de nuevo o ábrelo en Vyvent.';
                     show('notFound');
                     setupAppActions(deepLink);
-                    return;
+                });
+        }
+
+        // State C — protected stub. Identical for "private" and "not found": the
+        // RPCs never reveal which (P3, no enumeration).
+        function renderEventProtected(deepLink) {
+            el('tagline').textContent = '';
+            el('notFound').querySelector('.card-title').textContent = 'Evento privado';
+            el('notFound').querySelector('.card-sub').textContent =
+                'Este evento es privado o no está disponible. Ábrelo en Vyvent para verlo.';
+            show('notFound');
+            setupAppActions(deepLink);
+        }
+
+        // Renders the event card. `limited=true` (state B) draws ONLY the basic
+        // fields the limited payload carries — cover, status, title, date/time,
+        // category, organizer, description — and shows the private-event
+        // conversion card. It deliberately skips the map and gallery (the limited
+        // payload contains neither approx coords nor gallery, so there is nothing
+        // sensitive to render even by mistake).
+        function renderEventCard(ev, deepLink, limited) {
+            // Cover
+            var coverUrl = publicUrl('event-photos', ev.cover_path);
+            if (coverUrl) el('evCover').style.backgroundImage = 'url("' + coverUrl + '")';
+
+            // Derived status badge (deterministic, frontend-only — cancelled
+            // overrides everything, then time-based state vs. now).
+            var STATUS_LABELS = { upcoming: 'Próximo', live: 'En vivo', finished: 'Finalizado', cancelled: 'Cancelado' };
+            var status = getEventStatus(new Date(), ev.starts_at, ev.ends_at, ev.is_cancelled);
+            var badge = el('evStatus');
+            badge.className = 'ev-status ' + status;            // drops 'hidden'
+            badge.textContent = STATUS_LABELS[status] || STATUS_LABELS.upcoming;
+
+            el('evTitle').textContent = ev.title || 'Evento';
+
+            var when = formatWhen(ev.starts_at, ev.ends_at);
+            if (when) { el('evWhen').textContent = when; show('evWhen'); }
+
+            // Category chip
+            if (ev.category) {
+                var c = document.createElement('span');
+                c.className = 'pv-chip';
+                c.textContent = ev.category;
+                el('evChips').appendChild(c);
+            }
+
+            // Organizer (public profile identity only — no PII)
+            if (ev.organizer) {
+                var org = el('evOrganizer');
+                var orgAvatar = publicUrl('avatars', ev.organizer.avatar_path);
+                var orgName = ev.organizer.display_name || ev.organizer.username || '';
+                if (orgAvatar) {
+                    org.innerHTML = '<img src="' + orgAvatar + '" alt="">';
+                } else {
+                    var fb = document.createElement('div');
+                    fb.className = 'ev-org-fallback';
+                    fb.textContent = (orgName || '?').trim().charAt(0).toUpperCase();
+                    org.appendChild(fb);
                 }
+                var nm = document.createElement('span');
+                nm.className = 'ev-org-name';
+                nm.textContent = orgName ? ('Organiza ' + orgName) : '';
+                org.appendChild(nm);
+                show('evOrganizer');
+            }
 
-                var ev = data.event;
+            if (ev.description) { el('evDesc').textContent = ev.description; show('evDesc'); }
 
-                // Cover
-                var coverUrl = publicUrl('event-photos', ev.cover_path);
-                if (coverUrl) el('evCover').style.backgroundImage = 'url("' + coverUrl + '")';
-
-                // Derived status badge (deterministic, frontend-only — cancelled
-                // overrides everything, then time-based state vs. now).
-                var STATUS_LABELS = { upcoming: 'Próximo', live: 'En vivo', finished: 'Finalizado', cancelled: 'Cancelado' };
-                var status = getEventStatus(new Date(), ev.starts_at, ev.ends_at, ev.is_cancelled);
-                var badge = el('evStatus');
-                badge.className = 'ev-status ' + status;            // drops 'hidden'
-                badge.textContent = STATUS_LABELS[status] || STATUS_LABELS.upcoming;
-
-                el('evTitle').textContent = ev.title || 'Evento';
-
-                var when = formatWhen(ev.starts_at, ev.ends_at);
-                if (when) { el('evWhen').textContent = when; show('evWhen'); }
-
-                // Category chip
-                if (ev.category) {
-                    var c = document.createElement('span');
-                    c.className = 'pv-chip';
-                    c.textContent = ev.category;
-                    el('evChips').appendChild(c);
-                }
-
-                // Organizer (public profile identity only — no PII)
-                if (ev.organizer) {
-                    var org = el('evOrganizer');
-                    var orgAvatar = publicUrl('avatars', ev.organizer.avatar_path);
-                    var orgName = ev.organizer.display_name || ev.organizer.username || '';
-                    if (orgAvatar) {
-                        org.innerHTML = '<img src="' + orgAvatar + '" alt="">';
-                    } else {
-                        var fb = document.createElement('div');
-                        fb.className = 'ev-org-fallback';
-                        fb.textContent = (orgName || '?').trim().charAt(0).toUpperCase();
-                        org.appendChild(fb);
-                    }
-                    var nm = document.createElement('span');
-                    nm.className = 'ev-org-name';
-                    nm.textContent = orgName ? ('Organiza ' + orgName) : '';
-                    org.appendChild(nm);
-                    show('evOrganizer');
-                }
-
-                if (ev.description) { el('evDesc').textContent = ev.description; show('evDesc'); }
-
+            // ── Public-only sections (state A): coarse map + limited gallery. ──
+            // Skipped entirely for the limited preview — the limited payload has
+            // no approx coords and no gallery, so these stay hidden.
+            if (!limited) {
                 // Coarse location (~1 km, rounded server-side). No marker — shows
                 // an approximate area, never the exact venue (safety, §8.8).
                 if (typeof ev.approx_lat === 'number' && typeof ev.approx_lng === 'number') {
@@ -434,10 +505,8 @@
                     show('evMapCap');
                 }
 
-                // Limited gallery — organizer-first, best-effort. All ordering
-                // (+ the backend-limitation rationale) lives in
-                // orderGalleryOrganizerFirst. The cover image is chosen/rendered
-                // separately and is intentionally NOT part of this gallery.
+                // Limited gallery — organizer-first, best-effort. The cover image
+                // is chosen/rendered separately and is NOT part of this gallery.
                 var grid  = el('evGrid');
                 var orgId = firstPathSeg(ev.organizer && ev.organizer.avatar_path);
                 orderGalleryOrganizerFirst(ev.gallery, orgId).forEach(function (item) {
@@ -448,25 +517,26 @@
                     img.loading = 'lazy';
                     grid.appendChild(img);
                 });
+            }
 
-                document.title = (ev.title || 'Evento') + ' · Vyvent';
-                show('eventPreview');
+            document.title = (ev.title || 'Evento') + ' · Vyvent';
+            show('eventPreview');
 
-                // App actions — event-flavored copy.
-                el('openApp').setAttribute('href', deepLink);
+            // App actions — event-flavored copy. The limited preview additionally
+            // shows the private-event conversion card above the CTAs.
+            if (limited) {
+                show('evPrivateNote');
+                el('fallbackTitle').textContent = '¿Quieres ver todo el evento?';
+                el('fallback').querySelector('.card-sub').textContent =
+                    'Descarga Vyvent para ver la ubicación, los asistentes y participar.';
+            } else {
                 el('fallbackTitle').textContent = '¿Quieres unirte?';
                 el('fallback').querySelector('.card-sub').textContent =
                     'Descarga Vyvent para unirte, comentar y ver quién asiste.';
-                show('fallback');
-                show('actions');
-            })
-            .catch(function () {
-                hide('opening');
-                el('notFound').querySelector('.card-title').textContent = 'No se pudo cargar';
-                el('notFound').querySelector('.card-sub').textContent = 'Inténtalo de nuevo o ábrelo en Vyvent.';
-                show('notFound');
-                setupAppActions(deepLink);
-            });
+            }
+            el('openApp').setAttribute('href', deepLink);
+            show('fallback');
+            show('actions');
         }
 
         // First path segment of a storage path ({uploaderId}/...) or null.
