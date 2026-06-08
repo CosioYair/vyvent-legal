@@ -435,12 +435,12 @@
             setupAppActions(deepLink);
         }
 
-        // Renders the event card. `limited=true` (state B) draws ONLY the basic
+        // Renders the event card. `limited=true` (state B) draws the basic
         // fields the limited payload carries — cover, status, title, date/time,
-        // category, organizer, description — and shows the private-event
-        // conversion card. It deliberately skips the map and gallery (the limited
-        // payload contains neither approx coords nor gallery, so there is nothing
-        // sensitive to render even by mistake).
+        // category, organizer, description, and an APPROXIMATE-location map
+        // (coarse, ~1 km) — plus the private-event conversion card. It still
+        // skips the GALLERY (the limited payload contains no gallery) and never
+        // shows an exact venue: both previews only ever receive rounded coords.
         function renderEventCard(ev, deepLink, limited) {
             // Cover
             var coverUrl = publicUrl('event-photos', ev.cover_path);
@@ -489,22 +489,25 @@
 
             if (ev.description) { el('evDesc').textContent = ev.description; show('evDesc'); }
 
-            // ── Public-only sections (state A): coarse map + limited gallery. ──
-            // Skipped entirely for the limited preview — the limited payload has
-            // no approx coords and no gallery, so these stay hidden.
-            if (!limited) {
-                // Coarse location (~1 km, rounded server-side). No marker — shows
-                // an approximate area, never the exact venue (safety, §8.8).
-                if (typeof ev.approx_lat === 'number' && typeof ev.approx_lng === 'number') {
-                    var d = 0.02;
-                    var bbox = [ev.approx_lng - d, ev.approx_lat - d, ev.approx_lng + d, ev.approx_lat + d].join(',');
-                    var src = 'https://www.openstreetmap.org/export/embed.html?bbox=' +
-                              encodeURIComponent(bbox) + '&layer=mapnik';
-                    el('evMap').innerHTML = '<iframe loading="lazy" referrerpolicy="no-referrer" src="' + src + '"></iframe>';
-                    show('evMap');
-                    show('evMapCap');
-                }
+            // ── Coarse location map — BOTH previews (state A and B) ──────────
+            // Always rounded server-side (~1 km); no marker, so it shows an
+            // approximate area and never the exact venue (safety, §8.8). The
+            // limited payload now carries approx_lat/approx_lng too, so the
+            // private-event share preview also places the event on the map.
+            if (typeof ev.approx_lat === 'number' && typeof ev.approx_lng === 'number') {
+                var d = 0.02;
+                var bbox = [ev.approx_lng - d, ev.approx_lat - d, ev.approx_lng + d, ev.approx_lat + d].join(',');
+                var src = 'https://www.openstreetmap.org/export/embed.html?bbox=' +
+                          encodeURIComponent(bbox) + '&layer=mapnik';
+                el('evMap').innerHTML = '<iframe loading="lazy" referrerpolicy="no-referrer" src="' + src + '"></iframe>';
+                show('evMap');
+                show('evMapCap');
+            }
 
+            // ── Gallery — PUBLIC preview only (state A) ───────────────────────
+            // The limited payload carries no gallery, so this stays hidden for
+            // private-event share previews.
+            if (!limited) {
                 // Limited gallery — organizer-first, best-effort. The cover image
                 // is chosen/rendered separately and is NOT part of this gallery.
                 var grid  = el('evGrid');
