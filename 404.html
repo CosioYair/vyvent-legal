@@ -200,6 +200,16 @@
         var previewToken = null;
         try { previewToken = new URLSearchParams(window.location.search).get('k'); } catch (_) {}
 
+        // Invitation-link code (`?code=`). Present on shared invitation links;
+        // forwarded into the `vyvent://` deep link so the app opens the redeem
+        // flow prefilled. The web NEVER redeems it (web stays read-only) — it
+        // only passes the param through.
+        var claimCode = null;
+        try {
+            var rawCode = new URLSearchParams(window.location.search).get('code');
+            if (rawCode && /^[A-Za-z0-9-]{1,20}$/.test(rawCode)) claimCode = rawCode;
+        } catch (_) {}
+
         // `/chat` only makes sense for events.
         if (isChat && kind !== 'e') {
             show('notFound');
@@ -221,7 +231,7 @@
         // /e/{id}/chat sub-route is the gated event chat — not previewable — so
         // it stays on the redirect path below.
         if (kind === 'e' && !isChat) {
-            renderEventPreview(id, previewToken);
+            renderEventPreview(id, previewToken, claimCode);
             return;
         }
 
@@ -383,12 +393,25 @@
         // it returns the not-found stub AND we hold a token do we attempt the
         // limited preview — so public events and tokenless private links behave
         // exactly as before.
-        function renderEventPreview(eventId, token) {
+        function renderEventPreview(eventId, token, code) {
             el('tagline').textContent = 'Evento en Vyvent';
             show('opening');
             el('openingTitle').textContent = 'Cargando evento…';
 
-            var deepLink = 'vyvent://e/' + encodeURIComponent(eventId);
+            // The deep link forwards the invitation code, so "Abrir en Vyvent"
+            // lands the recipient in the app's redeem flow already prefilled.
+            var deepLink = 'vyvent://e/' + encodeURIComponent(eventId) +
+                           (code ? '?code=' + encodeURIComponent(code) : '');
+
+            // Invitation-flavored CTA copy when the link carries a code — the
+            // visitor isn't a curious passerby, they hold a pase.
+            function applyInviteCopy() {
+                if (!code) return;
+                el('fallbackTitle').textContent = 'Tienes una invitación a este evento';
+                el('fallback').querySelector('.card-sub').textContent =
+                    '¿Ya tienes Vyvent? Ábrela para canjear tu código al instante. ' +
+                    'Si no, descárgala y canjea el código que te compartieron.';
+            }
 
             callRpc('get_public_event_preview', { p_event_id: eventId })
                 .then(function (data) {
@@ -396,6 +419,7 @@
                     if (data && !data.not_found && data.event) {
                         hide('opening');
                         renderEventCard(data.event, deepLink, false);
+                        applyInviteCopy();
                         return;
                     }
                     // B. Private + signed token → limited preview.
@@ -409,11 +433,13 @@
                                 } else {
                                     renderEventProtected(deepLink); // invalid token → C
                                 }
+                                applyInviteCopy();
                             });
                     }
                     // C. No token (or unsigned) → protected stub.
                     hide('opening');
                     renderEventProtected(deepLink);
+                    applyInviteCopy();
                 })
                 .catch(function () {
                     hide('opening');
