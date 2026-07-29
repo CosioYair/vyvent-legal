@@ -1,42 +1,150 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es-MX">
 <head>
     <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'none'; style-src 'unsafe-inline'; img-src 'self'; font-src 'self'; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vyvent — Legal</title>
+    <!-- ENV-SPECIFIC: deployment base path. Rewritten to "/" on promotion. -->
+    <base href="/vyvent-legal/">
+    <!-- ENV-SPECIFIC: DEV mirror only. Removed on promotion to production. -->
+    <meta name="robots" content="noindex">
+    <link rel="icon" type="image/png" sizes="96x96" href="favicon-96x96.png">
+    <link rel="shortcut icon" href="favicon.ico">
+    <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+    <title>Orbiventt | Red social de eventos para Android y iPhone</title>
+    <meta name="description" content="Orbiventt es una red social gratuita para descubrir, crear, organizar y compartir eventos públicos o privados. Disponible para Android y iPhone.">
+    <link rel="canonical" href="https://orbiventt.com/">
+
+    <meta property="og:type" content="website">
+    <meta property="og:locale" content="es_MX">
+    <meta property="og:site_name" content="Orbiventt">
+    <meta property="og:url" content="https://orbiventt.com/">
+    <meta property="og:title" content="Orbiventt | Red social de eventos para Android y iPhone">
+    <meta property="og:description" content="Orbiventt es una red social gratuita para descubrir, crear, organizar y compartir eventos públicos o privados. Disponible para Android y iPhone.">
+    <meta property="og:image" content="https://orbiventt.com/assets/orbiventt-logo.png">
+    <meta property="og:image:alt" content="Logotipo de Orbiventt">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Orbiventt | Red social de eventos para Android y iPhone">
+    <meta name="twitter:description" content="Orbiventt es una red social gratuita para descubrir, crear, organizar y compartir eventos públicos o privados. Disponible para Android y iPhone.">
+    <meta name="twitter:image" content="https://orbiventt.com/assets/orbiventt-logo.png">
+    <meta name="twitter:image:alt" content="Logotipo de Orbiventt">
+
+    <!-- Structured data: a data block, not executable script — the strict
+         script-src 'none' CSP does not apply to non-JS script types. -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "Organization",
+          "@id": "https://orbiventt.com/#organization",
+          "name": "Orbiventt",
+          "url": "https://orbiventt.com/",
+          "email": "contact@orbiventt.com",
+          "logo": {
+            "@type": "ImageObject",
+            "@id": "https://orbiventt.com/#logo",
+            "url": "https://orbiventt.com/assets/orbiventt-logo.png"
+          }
+        },
+        {
+          "@type": "WebSite",
+          "@id": "https://orbiventt.com/#website",
+          "url": "https://orbiventt.com/",
+          "name": "Orbiventt",
+          "inLanguage": "es-MX",
+          "publisher": { "@id": "https://orbiventt.com/#organization" }
+        },
+        {
+          "@type": ["SoftwareApplication", "MobileApplication"],
+          "@id": "https://orbiventt.com/#app",
+          "name": "Orbiventt",
+          "url": "https://orbiventt.com/",
+          "description": "Red social gratuita dedicada a los eventos: descubre eventos públicos cerca de ti, crea encuentros públicos o privados y organiza invitaciones, chat del evento, listas colaborativas de cosas por llevar y proveedores desde un mismo espacio.",
+          "applicationCategory": "SocialNetworkingApplication",
+          "operatingSystem": "Android, iOS",
+          "inLanguage": "es-MX",
+          "isAccessibleForFree": true,
+          "offers": { "@type": "Offer", "price": "0", "priceCurrency": "MXN" },
+          "image": "https://orbiventt.com/assets/favicon.png",
+          "installUrl": [
+            "https://play.google.com/store/apps/details?id=com.vyvent.mobile",
+            "https://apps.apple.com/mx/app/orbiventt/id6788249586"
+          ],
+          "publisher": { "@id": "https://orbiventt.com/#organization" }
+        }
+      ]
+    }
+    </script>
     <style>
-        :root { --bg: #05030A; --surface: #15101F; --text: #E8E0F0; --muted: #9B8FB8; --primary: #A855F7; --accent: #EC4899; --border: #27272F; }
+        :root { --bg: #05030A; --surface: #15101F; --text: #E8E0F0; --muted: #9B8FB8; --primary: #A855F7; --accent: #EC4899; --accent-cyan: #22D3EE; --border: #27272F; }
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); line-height: 1.7; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 2rem 1rem; }
-        .container { max-width: 500px; text-align: center; }
-        .logo { font-size: 3rem; font-weight: 800; margin-bottom: 0.5rem; background: linear-gradient(135deg, var(--primary), var(--accent)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        .tagline { color: var(--muted); font-size: 1.1rem; margin-bottom: 2.5rem; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); line-height: 1.7; min-height: 100vh; display: flex; padding: 2rem 1rem; }
+        .container { max-width: 500px; text-align: center; margin: auto; }
+        .logo { display: block; width: 300px; max-width: 78%; height: auto; margin: 0 auto 0.75rem; }
+        h1 { font-size: 1.45rem; font-weight: 600; margin-bottom: 0.6rem; background: linear-gradient(135deg, var(--primary), var(--accent)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .tagline { color: var(--muted); font-size: 1.05rem; margin-bottom: 1rem; }
+        .availability { color: var(--text); font-size: 0.95rem; margin-bottom: 1rem; }
+        .stores { display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap; margin-bottom: 1.25rem; }
+        .stores a { display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; padding: 0.65rem 1.25rem; border-radius: 10px; text-decoration: none; font-weight: 600; font-size: 0.95rem; color: #fff; background: linear-gradient(135deg, var(--primary), var(--accent)); }
+        .stores a:hover { opacity: 0.9; }
+        .stores a svg { width: 22px; height: 22px; flex-shrink: 0; }
+        .features { list-style: none; display: flex; flex-wrap: wrap; justify-content: center; gap: 0.4rem 0.6rem; margin-bottom: 2.25rem; }
+        .features li { display: inline-flex; align-items: center; gap: 0.4rem; color: var(--muted); font-size: 0.85rem; border: 1px solid var(--border); border-radius: 999px; padding: 0.15rem 0.7rem; }
+        .features li svg { width: 17px; height: 17px; flex-shrink: 0; }
         .links { display: flex; flex-direction: column; gap: 1rem; }
         .links a { display: block; padding: 1rem 1.5rem; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; color: var(--text); text-decoration: none; font-weight: 500; font-size: 1.05rem; transition: border-color 0.2s, background 0.2s; }
         .links a:hover { border-color: var(--primary); background: #1a1228; }
         .links a span { display: block; color: var(--muted); font-size: 0.85rem; font-weight: 400; margin-top: 0.25rem; }
-        footer { position: fixed; bottom: 1.5rem; left: 0; right: 0; text-align: center; color: var(--muted); font-size: 0.8rem; }
+        footer { text-align: center; color: var(--muted); font-size: 0.8rem; margin-top: 2rem; }
+        footer a { color: var(--muted); }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="logo">Vyvent</div>
-        <p class="tagline">Descubre y crea eventos increíbles cerca de ti</p>
-        <div class="links">
+    <main class="container">
+        <header>
+            <img class="logo" src="assets/orbiventt-logo.png" alt="Orbiventt" width="1398" height="493">
+            <h1>Orbiventt: red social de eventos</h1>
+            <p class="tagline">Descubre eventos públicos cerca de ti, crea encuentros públicos o privados y organiza invitaciones, chat, listas colaborativas y proveedores desde un mismo espacio.</p>
+            <p class="availability">Disponible gratis para Android y iPhone.</p>
+            <nav class="stores" aria-label="Descargar la aplicación">
+                <a href="https://play.google.com/store/apps/details?id=com.vyvent.mobile" rel="noopener"><svg viewBox="0 0 512 512" fill="currentColor" aria-hidden="true" focusable="false"><path d="M47 0C34 6.8 25.3 19.2 25.3 35.3v441.3c0 16.1 8.7 28.5 21.7 35.3l256.6-256L47 0zm278.3 234.3L104.6 13l280.8 161.2-60.1 60.1zm146.9-8.7-58.9-34.1-65.7 64.5 65.7 64.5 60.1-34.1c18-14.3 18-46.5-1.2-60.8zM104.6 499l280.8-161.2-60.1-60.1L104.6 499z"/></svg>Descargar en Google Play</a>
+                <a href="https://apps.apple.com/mx/app/orbiventt/id6788249586" rel="noopener"><svg viewBox="0 0 384 512" fill="currentColor" aria-hidden="true" focusable="false"><path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z"/></svg>Descargar en App Store</a>
+            </nav>
+            <ul class="features" aria-label="Funciones principales">
+                <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Eventos públicos y privados</li>
+                <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M13 5v2"/><path d="M13 11v2"/><path d="M13 17v2"/></svg>Invitaciones y pases por código</li>
+                <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>Chat por evento</li>
+                <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="m9 14 2 2 4-4"/></svg>Lista de cosas por llevar</li>
+                <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>Fotos, comentarios y reacciones</li>
+                <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>Proveedores y portafolios</li>
+            </ul>
+        </header>
+        <nav class="links" aria-label="Información y ayuda">
+            <a href="support.html">
+                Soporte y ayuda
+                <span>Contáctanos, preguntas frecuentes y reportar un problema</span>
+            </a>
             <a href="privacy-policy.html">
                 Política de Privacidad
                 <span>Cómo recopilamos, usamos y protegemos tus datos</span>
             </a>
             <a href="terms-of-service.html">
                 Términos de Servicio
-                <span>Reglas y lineamientos para usar Vyvent</span>
+                <span>Reglas y lineamientos para usar Orbiventt</span>
             </a>
             <a href="delete-account.html">
                 Eliminar cuenta y datos
                 <span>Solicita la eliminación de tu cuenta y toda tu información</span>
             </a>
-        </div>
-    </div>
-    <footer>&copy; 2026 Vyvent. Todos los derechos reservados.</footer>
+            <a href="prensa/">
+                Sala de prensa
+                <span>Nota de prensa oficial, descargas y recursos para medios</span>
+            </a>
+        </nav>
+        <footer>&copy; 2026 Orbiventt. Todos los derechos reservados. &middot; <a href="mailto:contact@orbiventt.com">contact@orbiventt.com</a></footer>
+    </main>
 </body>
 </html>

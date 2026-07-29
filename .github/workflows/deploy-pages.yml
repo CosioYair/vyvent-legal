@@ -1,0 +1,48 @@
+name: Deploy static site to Pages
+
+# Reliable GitHub Actions Pages deploy (replaces the flaky legacy Jekyll
+# builder, which repeatedly errored/wedged on this repo). Serves the repo
+# root verbatim — no Jekyll.
+#
+# THIS REPOSITORY IS THE DEVELOPMENT MIRROR.
+# Public URL: https://cosioyair.github.io/vyvent-legal/ — it reads Supabase DEV
+# only (see env.js) and is excluded from every index via robots.txt + noindex.
+# Production lives in CosioYair/orbiventt-legal and serves https://orbiventt.com.
+#
+# Feature branches deploy too, on purpose: this deployment IS the DEV validation
+# surface, so a feature must be testable from a physical device before it is
+# merged, and long-lived feature work must never be forced onto main to be seen.
+# The last workflow run wins, so keep one feature branch deploying at a time.
+
+on:
+  push:
+    branches: [main, 'feature/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+      - name: Upload artifact (repo root)
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
