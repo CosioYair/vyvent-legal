@@ -56,6 +56,10 @@ export const ENV_ONLY_FILES = [
   'robots.txt',  // DEV disallows everything; PROD advertises the sitemap
   'sitemap.xml', // production URLs only
   'CNAME',       // production custom domain only
+  // Generated per deployment by the Pages workflow (branch, commit, timestamp).
+  // It describes a deployment, not the code, so promoting it would publish the
+  // DEV mirror's commit as production's.
+  'deployment.json',
   // Deploy policy differs by design: the DEV mirror also publishes
   // `feature/**` so work can be validated on a device before it is merged,
   // which production must never do. Promoting this file would hand production
