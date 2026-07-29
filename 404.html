@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vyvent</title>
+    <title>Orbiventt</title>
     <!-- SEO is intentionally deferred (external-invitations.md §10). This page
          is client-rendered and served with a 404 status, so it stays noindex
          until the future pre-rendering phase. -->
@@ -12,9 +12,9 @@
          a rich card instead of a bare URL. Generic for now; per-entity OG
          tags require pre-rendering (future phase). -->
     <meta property="og:type" content="website">
-    <meta property="og:title" content="Abrir en Vyvent">
+    <meta property="og:title" content="Abrir en Orbiventt">
     <meta property="og:description" content="Descubre y crea eventos cerca de ti.">
-    <meta property="og:site_name" content="Vyvent">
+    <meta property="og:site_name" content="Orbiventt">
     <style>
         :root { --bg: #05030A; --surface: #15101F; --surface-alt: #1E1630; --text: #E8E0F0; --muted: #9B8FB8; --primary: #A855F7; --accent: #EC4899; --border: #27272F; }
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -80,13 +80,13 @@
 </head>
 <body>
     <div class="container">
-        <div class="logo">Vyvent</div>
+        <div class="logo">Orbiventt</div>
         <p class="tagline" id="tagline">Descubre y crea eventos cerca de ti</p>
 
         <div id="opening" class="card hidden">
             <div class="spinner"></div>
             <div class="card-title" id="openingTitle">Abriendo…</div>
-            <div class="card-sub">Redirigiéndote a la app de Vyvent.</div>
+            <div class="card-sub">Redirigiéndote a la app de Orbiventt.</div>
         </div>
 
         <!-- Provider preview (value-before-install). Populated by JS. -->
@@ -104,8 +104,8 @@
                      portfolio fills automatically through event participation. -->
                 <div class="pv-empty hidden" id="pvEmpty">
                     <div class="pv-empty-title">Portafolio en construcción 🚀</div>
-                    <p class="pv-empty-body">Este proveedor es nuevo en Vyvent y todavía no tiene trabajos publicados en su portafolio.</p>
-                    <p class="pv-empty-body">Los trabajos realizados en eventos dentro de Vyvent se agregan automáticamente a medida que participa.</p>
+                    <p class="pv-empty-body">Este proveedor es nuevo en Orbiventt y todavía no tiene trabajos publicados en su portafolio.</p>
+                    <p class="pv-empty-body">Los trabajos realizados en eventos dentro de Orbiventt se agregan automáticamente a medida que participa.</p>
                 </div>
             </div>
         </div>
@@ -134,19 +134,19 @@
              card above, and this card drives the install to unlock the rest. -->
         <div id="evPrivateNote" class="card private-note hidden">
             <div class="card-title">🔒 Este es un evento privado</div>
-            <div class="card-sub">Para ver la ubicación, asistentes, proveedores y participar en el evento, abre este enlace en Vyvent.</div>
+            <div class="card-sub">Para ver la ubicación, asistentes, proveedores y participar en el evento, abre este enlace en Orbiventt.</div>
         </div>
 
         <div id="fallback" class="card hidden">
-            <div class="card-title" id="fallbackTitle">¿No tienes Vyvent instalado?</div>
+            <div class="card-title" id="fallbackTitle">¿No tienes Orbiventt instalado?</div>
             <div class="card-sub">Descarga la app para continuar.</div>
         </div>
 
         <div id="actions" class="hidden">
-            <a id="openApp" class="btn" href="#">Abrir en Vyvent</a>
+            <a id="openApp" class="btn" href="#">Abrir en Orbiventt</a>
             <a id="playStore" class="btn secondary"
                href="https://play.google.com/store/apps/details?id=com.vyvent.mobile"
-               target="_blank" rel="noopener">Descargar Vyvent</a>
+               target="_blank" rel="noopener">Descargar Orbiventt</a>
         </div>
 
         <div id="notFound" class="card hidden">
@@ -159,7 +159,7 @@
         </div>
 
         <footer>
-            &copy; 2026 Vyvent &middot;
+            &copy; 2026 Orbiventt &middot;
             <a href="/vyvent-legal/">Información legal</a>
         </footer>
     </div>
@@ -219,7 +219,7 @@
 
         // ── Provider preview branch (value-before-install) ───────────────────
         // Unlike events/users, providers RENDER a preview instead of
-        // auto-redirecting, so a non-Vyvent visitor sees value first.
+        // auto-redirecting, so a non-Orbiventt visitor sees value first.
         if (kind === 'p') {
             renderProviderPreview(id);
             return;
@@ -246,7 +246,7 @@
             el('tagline').textContent = 'Abre este evento en la app.';
         } else {
             el('openingTitle').textContent = 'Abriendo perfil…';
-            el('fallbackTitle').textContent = 'Descarga Vyvent para ver este perfil';
+            el('fallbackTitle').textContent = 'Descarga Orbiventt para ver este perfil';
             el('tagline').textContent = 'Abre este perfil en la app.';
         }
 
@@ -266,13 +266,13 @@
             el('openApp').setAttribute('href', deepLink);
             el('fallbackTitle').textContent = '¿Quieres interactuar?';
             el('fallback').querySelector('.card-sub').textContent =
-                'Descarga Vyvent para seguir, contactar y más.';
+                'Descarga Orbiventt para seguir, contactar y más.';
             show('fallback');
             show('actions');
         }
 
         function renderProviderPreview(slug) {
-            el('tagline').textContent = 'Perfil de proveedor en Vyvent';
+            el('tagline').textContent = 'Perfil de proveedor en Orbiventt';
             show('opening');
             el('openingTitle').textContent = 'Cargando perfil…';
 
@@ -296,7 +296,7 @@
                     el('tagline').textContent = '';
                     el('notFound').querySelector('.card-title').textContent = 'Perfil no disponible';
                     el('notFound').querySelector('.card-sub').textContent =
-                        'Este perfil no está disponible públicamente. Ábrelo en Vyvent.';
+                        'Este perfil no está disponible públicamente. Ábrelo en Orbiventt.';
                     show('notFound');
                     setupAppActions(deepLink);
                     return;
@@ -358,14 +358,14 @@
                     });
                 }
 
-                document.title = (pr.display_name || 'Proveedor') + ' · Vyvent';
+                document.title = (pr.display_name || 'Proveedor') + ' · Orbiventt';
                 show('providerPreview');
                 setupAppActions(deepLink);
             })
             .catch(function () {
                 hide('opening');
                 el('notFound').querySelector('.card-title').textContent = 'No se pudo cargar';
-                el('notFound').querySelector('.card-sub').textContent = 'Inténtalo de nuevo o ábrelo en Vyvent.';
+                el('notFound').querySelector('.card-sub').textContent = 'Inténtalo de nuevo o ábrelo en Orbiventt.';
                 show('notFound');
                 setupAppActions('vyvent://p/' + encodeURIComponent(slug));
             });
@@ -394,11 +394,11 @@
         // limited preview — so public events and tokenless private links behave
         // exactly as before.
         function renderEventPreview(eventId, token, code) {
-            el('tagline').textContent = 'Evento en Vyvent';
+            el('tagline').textContent = 'Evento en Orbiventt';
             show('opening');
             el('openingTitle').textContent = 'Cargando evento…';
 
-            // The deep link forwards the invitation code, so "Abrir en Vyvent"
+            // The deep link forwards the invitation code, so "Abrir en Orbiventt"
             // lands the recipient in the app's redeem flow already prefilled.
             var deepLink = 'vyvent://e/' + encodeURIComponent(eventId) +
                            (code ? '?code=' + encodeURIComponent(code) : '');
@@ -409,7 +409,7 @@
                 if (!code) return;
                 el('fallbackTitle').textContent = 'Tienes una invitación a este evento';
                 el('fallback').querySelector('.card-sub').textContent =
-                    '¿Ya tienes Vyvent? Ábrela para canjear tu código al instante. ' +
+                    '¿Ya tienes Orbiventt? Ábrela para canjear tu código al instante. ' +
                     'Si no, descárgala y canjea el código que te compartieron.';
             }
 
@@ -444,7 +444,7 @@
                 .catch(function () {
                     hide('opening');
                     el('notFound').querySelector('.card-title').textContent = 'No se pudo cargar';
-                    el('notFound').querySelector('.card-sub').textContent = 'Inténtalo de nuevo o ábrelo en Vyvent.';
+                    el('notFound').querySelector('.card-sub').textContent = 'Inténtalo de nuevo o ábrelo en Orbiventt.';
                     show('notFound');
                     setupAppActions(deepLink);
                 });
@@ -456,7 +456,7 @@
             el('tagline').textContent = '';
             el('notFound').querySelector('.card-title').textContent = 'Evento privado';
             el('notFound').querySelector('.card-sub').textContent =
-                'Este evento es privado o no está disponible. Ábrelo en Vyvent para verlo.';
+                'Este evento es privado o no está disponible. Ábrelo en Orbiventt para verlo.';
             show('notFound');
             setupAppActions(deepLink);
         }
@@ -548,7 +548,7 @@
                 });
             }
 
-            document.title = (ev.title || 'Evento') + ' · Vyvent';
+            document.title = (ev.title || 'Evento') + ' · Orbiventt';
             show('eventPreview');
 
             // App actions — event-flavored copy. The limited preview additionally
@@ -557,11 +557,11 @@
                 show('evPrivateNote');
                 el('fallbackTitle').textContent = '¿Quieres ver todo el evento?';
                 el('fallback').querySelector('.card-sub').textContent =
-                    'Descarga Vyvent para ver la ubicación, los asistentes y participar.';
+                    'Descarga Orbiventt para ver la ubicación, los asistentes y participar.';
             } else {
                 el('fallbackTitle').textContent = '¿Quieres unirte?';
                 el('fallback').querySelector('.card-sub').textContent =
-                    'Descarga Vyvent para unirte, comentar y ver quién asiste.';
+                    'Descarga Orbiventt para unirte, comentar y ver quién asiste.';
             }
             el('openApp').setAttribute('href', deepLink);
             show('fallback');
