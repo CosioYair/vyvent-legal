@@ -1,0 +1,452 @@
+/* TEMPLATE — wedding_romantic, version 1.
+ *
+ * Marfil, rosa empolvado y oro viejo: a warm, classic wedding invitation meant
+ * to be read on a phone, held in one hand, in a message thread.
+ *
+ * SCOPE RULE: every rule below is scoped under `.tpl-wedding-romantic` — which
+ * main.js puts on <html> (for the page frame) and the renderer puts on the
+ * invitation element (for the content). The only unscoped declarations are the
+ * custom-property overrides on `:root`, which exist precisely to retheme the
+ * shared shell. A second template can therefore be added without touching a
+ * single line of this file.
+ *
+ * VERSION LOCK: this stylesheet is version 1 of the template. A visual change
+ * that would alter an already-published invitation ships as version 2 with its
+ * own directory; these bytes stay as they are so a guest's saved link keeps
+ * looking like the invitation they were sent.
+ */
+
+:root.tpl-wedding-romantic {
+    --inv-bg: #FBF8F4;          /* marfil */
+    --inv-surface: #F3EAE2;     /* papel cálido */
+    --inv-ink: #3B322C;         /* tinta café */
+    --inv-muted: #8A7B6E;
+    --inv-accent: #B98B77;      /* rosa empolvado / terracota */
+    --inv-line: rgba(59, 50, 44, 0.16);
+
+    --tpl-gold: #BFA063;
+    --tpl-sage: #8F9C86;
+    --tpl-blush: #E9D5CB;
+}
+
+:root.tpl-wedding-romantic body { background: var(--inv-bg); }
+
+.tpl-wedding-romantic ::selection { background: var(--tpl-blush); color: var(--inv-ink); }
+
+/* ── Hero ───────────────────────────────────────────────────────────────── */
+.tpl-wedding-romantic .inv-hero {
+    position: relative;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    /* svh keeps mobile browser chrome from cropping the composition; vh is the
+     * fallback for engines that do not know the small-viewport unit. */
+    min-height: 88vh;
+    min-height: 88svh;
+    padding: 3rem 1.25rem 3.25rem;
+    overflow: hidden;
+    background: linear-gradient(170deg, #F7EDE6 0%, #FBF8F4 55%, #F2E4DA 100%);
+}
+
+.tpl-wedding-romantic .inv-hero__media {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+}
+
+.tpl-wedding-romantic .inv-hero__art {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: 50% 32%;
+}
+
+/* The veil keeps the names legible over any artwork without dimming the whole
+ * image: it is transparent across the top two thirds and only builds under the
+ * text block. */
+.tpl-wedding-romantic .inv-hero__veil {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+        to bottom,
+        rgba(251, 248, 244, 0.10) 0%,
+        rgba(251, 248, 244, 0.00) 34%,
+        rgba(251, 248, 244, 0.62) 68%,
+        rgba(251, 248, 244, 0.94) 100%
+    );
+}
+
+.tpl-wedding-romantic .inv-hero__content {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 30rem;
+    text-align: center;
+    animation: tpl-rise 900ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+@keyframes tpl-rise {
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: none; }
+}
+
+.tpl-wedding-romantic .inv-hero__eyebrow {
+    margin: 0 0 1rem;
+    color: var(--inv-muted);
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.26em;
+    text-transform: uppercase;
+}
+
+.tpl-wedding-romantic .inv-hero__names {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.1rem;
+    margin: 0;
+    font-family: var(--inv-font-display);
+    font-weight: 400;
+    /* Fluid, but bounded at both ends so it never overflows 320 px and never
+     * becomes a billboard on a desktop browser. */
+    font-size: clamp(2.6rem, 15vw, 4.25rem);
+    line-height: 1.02;
+    letter-spacing: 0.005em;
+    color: var(--inv-ink);
+    text-wrap: balance;
+}
+
+.tpl-wedding-romantic .inv-hero__amp {
+    font-size: 0.5em;
+    font-style: italic;
+    color: var(--tpl-gold);
+    line-height: 1.6;
+}
+
+/* A drawn ornament: a hairline with a rotated square at its centre. No asset,
+ * no request, and it scales with the text around it. */
+.tpl-wedding-romantic .inv-hero__flourish,
+.tpl-wedding-romantic .inv-closing__flourish {
+    position: relative;
+    display: block;
+    width: 8.5rem;
+    height: 1px;
+    margin: 1.6rem auto;
+    background: linear-gradient(to right, transparent, var(--tpl-gold), transparent);
+}
+
+.tpl-wedding-romantic .inv-hero__flourish::after,
+.tpl-wedding-romantic .inv-closing__flourish::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 6px;
+    height: 6px;
+    margin: -3px 0 0 -3px;
+    background: var(--tpl-gold);
+    transform: rotate(45deg);
+}
+
+.tpl-wedding-romantic .inv-hero__date {
+    margin: 0 0 0.35rem;
+    font-family: var(--inv-font-display);
+    font-size: 1.05rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--inv-ink);
+}
+
+.tpl-wedding-romantic .inv-hero__place {
+    margin: 0;
+    color: var(--inv-muted);
+    font-size: 0.9rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+/* ── Section rhythm ─────────────────────────────────────────────────────── */
+/* Alternating grounds give the long scroll a cadence without adding a single
+ * image. The order is fixed by the template descriptor, so these are explicit
+ * rather than nth-child rules that would silently re-shuffle. */
+.tpl-wedding-romantic .inv-section--message,
+.tpl-wedding-romantic .inv-section--dressCode,
+.tpl-wedding-romantic .inv-section--gifts,
+.tpl-wedding-romantic .inv-section--closing {
+    background: var(--inv-surface);
+}
+
+.tpl-wedding-romantic .inv-heading {
+    font-size: 1.1rem;
+    letter-spacing: 0.22em;
+    color: var(--inv-muted);
+}
+
+/* ── Message ────────────────────────────────────────────────────────────── */
+.tpl-wedding-romantic .inv-message__body {
+    font-family: var(--inv-font-display);
+    font-size: 1.18rem;
+    line-height: 1.75;
+    color: var(--inv-ink);
+    text-wrap: pretty;
+}
+
+.tpl-wedding-romantic .inv-message__hosts {
+    margin-top: 1.75rem;
+    color: var(--inv-muted);
+    font-size: 0.86rem;
+    letter-spacing: 0.04em;
+}
+
+/* ── Countdown ──────────────────────────────────────────────────────────── */
+.tpl-wedding-romantic .inv-countdown {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.4rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.tpl-wedding-romantic .inv-countdown__unit {
+    padding: 0.85rem 0.2rem;
+    border: 1px solid var(--inv-line);
+    border-radius: var(--inv-radius);
+    background: rgba(255, 255, 255, 0.5);
+}
+
+.tpl-wedding-romantic .inv-countdown__value {
+    display: block;
+    font-family: var(--inv-font-display);
+    /* Tabular figures stop the row from twitching as the seconds change. */
+    font-variant-numeric: tabular-nums;
+    font-size: clamp(1.5rem, 8vw, 2.1rem);
+    line-height: 1.1;
+    color: var(--inv-ink);
+}
+
+.tpl-wedding-romantic .inv-countdown__label {
+    display: block;
+    margin-top: 0.3rem;
+    color: var(--inv-muted);
+    font-size: 0.66rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+}
+
+.tpl-wedding-romantic .inv-countdown__done {
+    font-family: var(--inv-font-display);
+    font-size: 1.4rem;
+    color: var(--inv-accent);
+}
+
+/* ── Ceremony / Reception ───────────────────────────────────────────────── */
+.tpl-wedding-romantic .inv-place__when {
+    margin-bottom: 1.1rem;
+    font-family: var(--inv-font-display);
+    font-size: 1.05rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--inv-accent);
+}
+
+.tpl-wedding-romantic .inv-place__venue {
+    margin-bottom: 0.35rem;
+    font-family: var(--inv-font-display);
+    font-size: 1.55rem;
+    line-height: 1.25;
+    color: var(--inv-ink);
+    text-wrap: balance;
+}
+
+.tpl-wedding-romantic .inv-place__address {
+    margin-bottom: 0.6rem;
+    color: var(--inv-muted);
+    font-size: 0.95rem;
+}
+
+.tpl-wedding-romantic .inv-place__note {
+    margin-bottom: 1.5rem;
+    color: var(--inv-muted);
+    font-size: 0.88rem;
+    font-style: italic;
+}
+
+.tpl-wedding-romantic .inv-place__actions { margin: 0; }
+
+/* ── Dress code ─────────────────────────────────────────────────────────── */
+.tpl-wedding-romantic .inv-dress__label {
+    margin-bottom: 1rem;
+    font-family: var(--inv-font-display);
+    font-size: 1.6rem;
+    color: var(--inv-ink);
+}
+
+.tpl-wedding-romantic .inv-dress__description { color: var(--inv-ink); }
+
+.tpl-wedding-romantic .inv-dress__notes {
+    margin: 1.4rem 0 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 0.55rem;
+    text-align: left;
+}
+
+.tpl-wedding-romantic .inv-dress__notes li {
+    position: relative;
+    padding-left: 1.35rem;
+    color: var(--inv-muted);
+    font-size: 0.92rem;
+}
+
+.tpl-wedding-romantic .inv-dress__notes li::before {
+    content: "";
+    position: absolute;
+    left: 0.25rem;
+    top: 0.68em;
+    width: 5px;
+    height: 5px;
+    background: var(--tpl-sage);
+    transform: rotate(45deg);
+}
+
+/* ── Gallery ────────────────────────────────────────────────────────────── */
+.tpl-wedding-romantic .inv-gallery {
+    display: grid;
+    /* Two columns from 320 px up; the tiles are square-ish so two always fit. */
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.6rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.tpl-wedding-romantic .inv-gallery__item {
+    position: relative;
+    overflow: hidden;
+    border-radius: var(--inv-radius);
+    /* Reserved geometry: the tile owns its aspect ratio before the image
+     * arrives, so nothing below it moves when it does. */
+    aspect-ratio: 4 / 5;
+    background: var(--tpl-blush);
+}
+
+.tpl-wedding-romantic .inv-gallery__img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.5s ease;
+}
+
+.tpl-wedding-romantic .inv-gallery__item:hover .inv-gallery__img { transform: scale(1.03); }
+
+/* An image that failed to load leaves a quiet ornament, not a broken icon. */
+.tpl-wedding-romantic .inv-gallery__item.is-failed::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 14px;
+    height: 14px;
+    margin: -7px 0 0 -7px;
+    border: 1px solid var(--inv-accent);
+    opacity: 0.5;
+    transform: rotate(45deg);
+}
+
+/* ── Gifts ──────────────────────────────────────────────────────────────── */
+.tpl-wedding-romantic .inv-gifts__intro { color: var(--inv-ink); }
+
+.tpl-wedding-romantic .inv-gifts {
+    display: grid;
+    gap: 0.7rem;
+    margin: 1.5rem 0 0;
+    padding: 0;
+    list-style: none;
+    justify-items: center;
+}
+
+.tpl-wedding-romantic .inv-gifts .inv-btn { width: 100%; max-width: 22rem; }
+
+.tpl-wedding-romantic .inv-gifts__note {
+    margin: 0.35rem 0 0;
+    color: var(--inv-muted);
+    font-size: 0.82rem;
+}
+
+/* ── Reclamar pases (demo explainer) ────────────────────────────────────── */
+.tpl-wedding-romantic .inv-passes .inv-section__inner {
+    padding: 1.75rem 1.25rem;
+    border: 1px dashed var(--inv-accent);
+    border-radius: var(--inv-radius);
+    background: rgba(233, 213, 203, 0.28);
+}
+
+.tpl-wedding-romantic .inv-passes__code-value {
+    display: inline-block;
+    margin: 0.25rem 0;
+    padding: 0.35rem 0.9rem;
+    border-radius: 999px;
+    background: #fff;
+    border: 1px solid var(--inv-line);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.95rem;
+    letter-spacing: 0.14em;
+}
+
+.tpl-wedding-romantic .inv-passes__note {
+    color: var(--inv-muted);
+    font-size: 0.82rem;
+    font-style: italic;
+}
+
+/* ── Automatic actions ──────────────────────────────────────────────────── */
+.tpl-wedding-romantic .inv-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.7rem;
+}
+
+.tpl-wedding-romantic .inv-actions .inv-btn { flex: 1 1 14rem; max-width: 22rem; }
+
+.tpl-wedding-romantic .inv-actions__status {
+    margin: 1rem 0 0;
+    min-height: 1.4rem;
+    color: var(--inv-muted);
+    font-size: 0.85rem;
+}
+
+/* ── Closing ────────────────────────────────────────────────────────────── */
+.tpl-wedding-romantic .inv-closing__body {
+    font-family: var(--inv-font-display);
+    font-size: 1.12rem;
+    font-style: italic;
+    line-height: 1.8;
+    color: var(--inv-ink);
+    text-wrap: pretty;
+}
+
+.tpl-wedding-romantic .inv-closing__signature {
+    margin-top: 1.4rem;
+    font-family: var(--inv-font-display);
+    font-size: 1.9rem;
+    color: var(--inv-accent);
+}
+
+.tpl-wedding-romantic .inv-closing__flourish { margin-bottom: 0; }
+
+/* ── Wider viewports ────────────────────────────────────────────────────── */
+@media (min-width: 40em) {
+    .tpl-wedding-romantic .inv-hero { min-height: 92vh; min-height: 92svh; }
+    .tpl-wedding-romantic .inv-countdown { gap: 0.75rem; }
+    .tpl-wedding-romantic .inv-countdown__unit { padding: 1.15rem 0.4rem; }
+    .tpl-wedding-romantic .inv-gallery { grid-template-columns: repeat(3, 1fr); gap: 0.8rem; }
+    .tpl-wedding-romantic .inv-place__venue { font-size: 1.8rem; }
+}
+
+@media (min-width: 64em) {
+    .tpl-wedding-romantic .inv-hero__names { font-size: 4.5rem; }
+}
