@@ -2,8 +2,24 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' https://mfaymuisnpfdolqogktx.supabase.co; font-src 'self'; connect-src https://mfaymuisnpfdolqogktx.supabase.co; frame-src https://www.openstreetmap.org; object-src 'none'; base-uri 'self'; form-action 'none'">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vyvent</title>
+    <!-- ENV-SPECIFIC. GitHub Pages project sites serve under /<repo>/ while the
+         custom domain serves at the root, and this file is returned for
+         arbitrary paths, so bare relative URLs cannot resolve on their own.
+         Every relative URL in this document resolves through this one line. -->
+    <base href="/vyvent-legal/">
+    <!-- ENV-SPECIFIC. The single environment boundary for the whole site:
+         Supabase target + DEV marker. Never promoted between repositories. -->
+    <script src="env.js"></script>
+    <!-- SHARED. The single decision point for "Abrir en Orbiventt": the app
+         scheme in production, a validated Expo Go return URL on the DEV mirror.
+         Loaded synchronously, like env.js, so the inline script below can treat
+         it as present-or-definitively-absent (it fails closed either way). -->
+    <script src="app-return.js"></script>
+    <link rel="icon" type="image/png" href="assets/favicon.png">
+    <title>Orbiventt</title>
     <!-- SEO is intentionally deferred (external-invitations.md §10). This page
          is client-rendered and served with a 404 status, so it stays noindex
          until the future pre-rendering phase. -->
@@ -12,15 +28,15 @@
          a rich card instead of a bare URL. Generic for now; per-entity OG
          tags require pre-rendering (future phase). -->
     <meta property="og:type" content="website">
-    <meta property="og:title" content="Abrir en Vyvent">
+    <meta property="og:title" content="Abrir en Orbiventt">
     <meta property="og:description" content="Descubre y crea eventos cerca de ti.">
-    <meta property="og:site_name" content="Vyvent">
+    <meta property="og:site_name" content="Orbiventt">
     <style>
-        :root { --bg: #05030A; --surface: #15101F; --surface-alt: #1E1630; --text: #E8E0F0; --muted: #9B8FB8; --primary: #A855F7; --accent: #EC4899; --border: #27272F; }
+        :root { --bg: #05030A; --surface: #15101F; --surface-alt: #1E1630; --text: #E8E0F0; --muted: #9B8FB8; --primary: #A855F7; --accent: #EC4899; --accent-cyan: #22D3EE; --border: #27272F; }
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 2rem 1rem; }
         .container { max-width: 460px; text-align: center; width: 100%; }
-        .logo { font-size: 2.5rem; font-weight: 800; margin-bottom: 0.5rem; background: linear-gradient(135deg, var(--primary), var(--accent)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .logo { display: block; width: 280px; max-width: 78%; height: auto; margin: 0 auto 0.5rem; }
         .tagline { color: var(--muted); font-size: 1.05rem; margin-bottom: 2rem; }
         .card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 1.75rem 1.5rem; margin-bottom: 1.25rem; }
         .card-title { font-size: 1.1rem; font-weight: 600; margin-bottom: 0.5rem; }
@@ -28,6 +44,36 @@
         .btn { display: block; width: 100%; padding: 0.9rem 1.25rem; background: linear-gradient(135deg, var(--primary), var(--accent)); color: #fff; text-decoration: none; font-weight: 600; font-size: 1rem; border-radius: 12px; border: none; cursor: pointer; margin-bottom: 0.75rem; }
         .btn.secondary { background: var(--surface); border: 1px solid var(--border); color: var(--text); }
         .btn.secondary:hover { border-color: var(--primary); }
+        /* Premium primary CTA — visual match to the mobile reference
+           (assets/new_button.png). STYLING ONLY: gradient, glass border,
+           outer + inner glow, soft depth shadow, hover lift. Layout, size,
+           padding, border-radius and typography are inherited from .btn and
+           left unchanged. Scoped to #openApp so the secondary and the generic
+           "Ir al inicio" .btn are not affected. box-sizing:border-box keeps the
+           1px border from altering the button's size. */
+        #openApp.btn {
+            background: linear-gradient(100deg, #8A18EA 0%, #5A18D4 27%, #3826CE 50%, #2348D6 74%, #1E74E6 100%);
+            border: 1px solid rgba(255, 255, 255, 0.16);
+            box-shadow:
+                0 8px 28px rgba(84, 60, 232, 0.45),
+                0 2px 6px rgba(0, 0, 0, 0.35),
+                inset 0 1px 0 rgba(255, 255, 255, 0.25),
+                inset 0 0 20px rgba(140, 165, 255, 0.20);
+            transition: transform 0.2s ease, box-shadow 0.25s ease, filter 0.2s ease;
+        }
+        #openApp.btn:hover {
+            filter: brightness(1.08);
+            transform: translateY(-2px);
+            box-shadow:
+                0 12px 34px rgba(96, 70, 240, 0.55),
+                0 3px 9px rgba(0, 0, 0, 0.42),
+                inset 0 1px 0 rgba(255, 255, 255, 0.30),
+                inset 0 0 24px rgba(150, 175, 255, 0.26);
+        }
+        #openApp.btn:active {
+            transform: translateY(0);
+            filter: brightness(1.02);
+        }
         .spinner { display: inline-block; width: 28px; height: 28px; border: 3px solid rgba(255,255,255,0.15); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.9s linear infinite; margin-bottom: 1rem; }
         @keyframes spin { to { transform: rotate(360deg); } }
         footer { margin-top: 2rem; color: var(--muted); font-size: 0.8rem; }
@@ -76,17 +122,23 @@
            prompt rather than an error. */
         .private-note { text-align: left; border-color: rgba(168,85,247,0.45); background: linear-gradient(180deg, rgba(168,85,247,0.10), var(--surface)); }
         .private-note .card-title { margin-bottom: 0.4rem; }
+
+        /* Environment marker. Shared markup + styles in both deployments; only
+           env.js decides whether it is ever revealed, so production can never
+           show it and the DEV mirror can never be mistaken for production. */
+        .env-badge { position: fixed; top: 0; right: 0; z-index: 999; padding: 0.2rem 0.6rem; border-bottom-left-radius: 8px; background: var(--accent); color: #fff; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.06em; opacity: 0.85; pointer-events: none; }
     </style>
 </head>
 <body>
+    <div class="env-badge hidden" id="envBadge">DEV</div>
     <div class="container">
-        <div class="logo">Vyvent</div>
+        <img class="logo" src="assets/orbiventt-logo.png" alt="Orbiventt">
         <p class="tagline" id="tagline">Descubre y crea eventos cerca de ti</p>
 
         <div id="opening" class="card hidden">
             <div class="spinner"></div>
             <div class="card-title" id="openingTitle">Abriendo…</div>
-            <div class="card-sub">Redirigiéndote a la app de Vyvent.</div>
+            <div class="card-sub">Redirigiéndote a la app de Orbiventt.</div>
         </div>
 
         <!-- Provider preview (value-before-install). Populated by JS. -->
@@ -104,8 +156,8 @@
                      portfolio fills automatically through event participation. -->
                 <div class="pv-empty hidden" id="pvEmpty">
                     <div class="pv-empty-title">Portafolio en construcción 🚀</div>
-                    <p class="pv-empty-body">Este proveedor es nuevo en Vyvent y todavía no tiene trabajos publicados en su portafolio.</p>
-                    <p class="pv-empty-body">Los trabajos realizados en eventos dentro de Vyvent se agregan automáticamente a medida que participa.</p>
+                    <p class="pv-empty-body">Este proveedor es nuevo en Orbiventt y todavía no tiene trabajos publicados en su portafolio.</p>
+                    <p class="pv-empty-body">Los trabajos realizados en eventos dentro de Orbiventt se agregan automáticamente a medida que participa.</p>
                 </div>
             </div>
         </div>
@@ -134,19 +186,38 @@
              card above, and this card drives the install to unlock the rest. -->
         <div id="evPrivateNote" class="card private-note hidden">
             <div class="card-title">🔒 Este es un evento privado</div>
-            <div class="card-sub">Para ver la ubicación, asistentes, proveedores y participar en el evento, abre este enlace en Vyvent.</div>
+            <div class="card-sub">Para ver la ubicación, asistentes, proveedores y participar en el evento, abre este enlace en Orbiventt.</div>
         </div>
 
         <div id="fallback" class="card hidden">
-            <div class="card-title" id="fallbackTitle">¿No tienes Vyvent instalado?</div>
+            <div class="card-title" id="fallbackTitle">¿No tienes Orbiventt instalado?</div>
             <div class="card-sub">Descarga la app para continuar.</div>
         </div>
 
+        <!-- DEV-only handoff notice. The markup is shared with production, but
+             only a deployment whose env.js declares env:'dev' can ever reach the
+             branch that reveals it (same contract as the DEV badge). It replaces
+             the "Abrir en Orbiventt" button whenever the DEV mirror has no
+             trustworthy Expo Go return URL — deliberately leaving the visitor
+             with no way to open an app from here, because the only app this page
+             could otherwise reach is the PRODUCTION one, reading the PRODUCTION
+             database. -->
+        <div id="devHandoff" class="card private-note hidden">
+            <div class="card-title">🧪 Sitio de desarrollo</div>
+            <div class="card-sub">
+                Este enlace no incluye la dirección del proyecto de Expo Go, así que no
+                se puede abrir la app desde aquí. Genera y comparte el enlace desde la
+                sesión de Expo Go que quieras probar: ese enlace lleva la dirección de
+                tu servidor Metro y regresa al mismo proyecto.
+            </div>
+        </div>
+
         <div id="actions" class="hidden">
-            <a id="openApp" class="btn" href="#">Abrir en Vyvent</a>
-            <a id="playStore" class="btn secondary"
-               href="https://play.google.com/store/apps/details?id=com.vyvent.mobile"
-               target="_blank" rel="noopener">Descargar Vyvent</a>
+            <a id="openApp" class="btn" href="#">Abrir en Orbiventt</a>
+            <!-- Store CTA(s) are injected by renderStoreButtons() based on the
+                 visitor's platform: Google Play on Android, App Store/TestFlight
+                 on iOS, both on desktop. iOS is never sent to Google Play. -->
+            <div id="storeActions"></div>
         </div>
 
         <div id="notFound" class="card hidden">
@@ -155,33 +226,90 @@
         </div>
 
         <div id="genericActions" class="hidden">
-            <a class="btn" href="/vyvent-legal/">Ir al inicio</a>
+            <a class="btn" href="./">Ir al inicio</a>
         </div>
 
         <footer>
-            &copy; 2026 Vyvent &middot;
-            <a href="/vyvent-legal/">Información legal</a>
+            &copy; 2026 Orbiventt &middot;
+            <a href="./">Información legal</a>
         </footer>
     </div>
 
     <script>
     (function () {
         // ── Supabase config ──────────────────────────────────────────────────
-        // Anon key is a publishable JWT (RLS-protected, ships in the app bundle
-        // by design). MUST point at the SAME project the production app uses.
-        // TODO(confirm): verify this is the production project before launch.
-        var SUPA_URL = 'https://lehwxjbjlehsdkqxlzrb.supabase.co';
-        var SUPA_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxlaHd4amJqbGVoc2RrcXhsenJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxNDAxMjcsImV4cCI6MjA5MDcxNjEyN30.Twvct9R8Pj5Bph7KkuqB2ElegYhiVCEz_mW_rlWAFrk';
+        // Both values come from env.js — the single environment boundary of
+        // this site. The anon key it carries is a PUBLISHABLE JWT (role=anon):
+        // it is meant to ship in client code, it is not a secret, and it must
+        // not be removed or rotated merely because it is visible. All safety
+        // comes from backend authorization (RLS + the SECURITY of the preview
+        // RPCs). There is deliberately NO fallback project here: a deployment
+        // whose env.js is missing must fail closed, never silently query the
+        // wrong environment.
+        var ENV = window.__ORB_ENV__ || {};
+        var SUPA_URL = ENV.supaUrl;
+        var SUPA_ANON = ENV.supaAnon;
 
-        var BASE = '/vyvent-legal/';
+        // ── App distribution config (single source of truth) ─────────────────
+        // The ONE place store links live. iOS ships via TestFlight only right
+        // now; the public App Store URL does not exist yet. Fill these in as
+        // they become available — the CTAs light up automatically, no other
+        // edits needed:
+        //   • APP_STORE_URL  → paste once the app is live on the App Store,
+        //                       e.g. 'https://apps.apple.com/app/id0000000000'
+        //   • TESTFLIGHT_URL → paste the public TestFlight invite link to expose
+        //                       the iOS beta CTA, e.g.
+        //                       'https://testflight.apple.com/join/XXXXXXXX'
+        // Precedence on iOS: App Store first, then TestFlight, else an explicit
+        // "beta by invitation" note (never a Google Play link).
+        var STORE = {
+            PLAY_STORE_URL: 'https://play.google.com/store/apps/details?id=com.vyvent.mobile',
+            APP_STORE_URL: null,   // TODO(ios-launch): set when public on the App Store
+            TESTFLIGHT_URL: null   // TODO(ios-launch): set to the public TestFlight invite link
+        };
+
+        // ── Platform detection ───────────────────────────────────────────────
+        // iPadOS 13+ masquerades as desktop Safari ("Macintosh"); the touch
+        // probe re-classifies it as iOS so iPad users still get iOS CTAs.
+        var UA = navigator.userAgent || '';
+        var IS_IOS = /iPhone|iPad|iPod/i.test(UA) ||
+                     (/Macintosh/i.test(UA) && typeof document !== 'undefined' && 'ontouchend' in document);
+        var IS_ANDROID = /Android/i.test(UA);
+        var IS_MOBILE = IS_IOS || IS_ANDROID;
+
+        // Routing works on the path RELATIVE to the deployment root, so a
+        // project-site deployment (served under /<repo>/) and the custom
+        // domain (served at /) share one identical route table below.
         var path = window.location.pathname;
+        var BASE = (ENV.basePath || '').replace(/\/+$/, '');
+        if (BASE && path.indexOf(BASE + '/') === 0) path = path.slice(BASE.length) || '/';
 
         function show(id) { document.getElementById(id).classList.remove('hidden'); }
         function hide(id) { document.getElementById(id).classList.add('hidden'); }
         function el(id) { return document.getElementById(id); }
 
-        // /vyvent-legal/<kind>/<id>[/chat][/]
-        var re = new RegExp('^' + BASE.replace(/\//g, '\\/') + '(e|u|p)\\/([^\\/\\?#]+)(\\/chat)?\\/?$');
+        // Environment marker. Shared code in both deployments; only env.js
+        // decides whether it is ever revealed, so production cannot show it.
+        if (ENV.devBadge) show('envBadge');
+
+        // Pre-populate the platform-correct store CTA(s) so every path that
+        // reveals #actions (previews, protected stubs, redirect fallback) shows
+        // the right buttons without each call site knowing about platforms.
+        renderStoreButtons();
+
+        // Fail closed: a deployment whose env.js did not load must never fall
+        // through to an un-targeted fetch. Store CTAs are already rendered, so
+        // the visitor still gets a usable page.
+        if (!SUPA_URL || !SUPA_ANON) {
+            show('notFound');
+            show('genericActions');
+            return;
+        }
+
+        // /<kind>/<id>[/chat][/] — matched against the deployment-relative path.
+        // The optional legacy /orbiventt-legal prefix keeps old shared
+        // github.io links working even if a proxy ever forwards the full path.
+        var re = new RegExp('^(?:\\/orbiventt-legal)?\\/(e|u|p)\\/([^\\/\\?#]+)(\\/chat)?\\/?$');
         var match = re.exec(path);
 
         if (!match) {
@@ -210,6 +338,34 @@
             if (rawCode && /^[A-Za-z0-9-]{1,20}$/.test(rawCode)) claimCode = rawCode;
         } catch (_) {}
 
+        // App return URL (`?app_return=`). Attached by the mobile app when it
+        // builds a share link from a runtime that does NOT own the `vyvent:`
+        // scheme — i.e. Expo Go, whose address is the developer's Metro server
+        // and therefore cannot be a constant in this file. UNTRUSTED: it is read
+        // raw here and validated in app-return.js before anything is done with
+        // it. Installed builds attach nothing, so production links never carry
+        // this parameter and the production branch never reads it.
+        var appReturn = null;
+        try { appReturn = new URLSearchParams(window.location.search).get('app_return'); } catch (_) {}
+
+        // Every "open the app" decision on this page goes through here. FAILS
+        // CLOSED: if app-return.js did not load there is no href at all, rather
+        // than a hand-rolled scheme link that would be wrong on DEV.
+        var RESOLVER = (window.__ORB_APP_RETURN__ || {}).resolveAppHandoff;
+        function handoffFor(hKind, hId, hIsChat, hCode) {
+            if (typeof RESOLVER !== 'function') {
+                return { open: false, href: null, source: 'none', reason: 'resolver-missing' };
+            }
+            return RESOLVER({
+                env: ENV.env,
+                appReturn: appReturn,
+                kind: hKind,
+                id: hId,
+                isChat: hIsChat === true,
+                code: hCode || null
+            });
+        }
+
         // `/chat` only makes sense for events.
         if (isChat && kind !== 'e') {
             show('notFound');
@@ -219,7 +375,7 @@
 
         // ── Provider preview branch (value-before-install) ───────────────────
         // Unlike events/users, providers RENDER a preview instead of
-        // auto-redirecting, so a non-Vyvent visitor sees value first.
+        // auto-redirecting, so a non-Orbiventt visitor sees value first.
         if (kind === 'p') {
             renderProviderPreview(id);
             return;
@@ -236,7 +392,7 @@
         }
 
         // ── Event-chat / user branch: redirect into the app (existing behavior) ───
-        var deepLink = 'vyvent://' + kind + '/' + encodeURIComponent(id) + (isChat ? '/chat' : '');
+        var handoff = handoffFor(kind, id, isChat, null);
 
         if (kind === 'e' && isChat) {
             el('openingTitle').textContent = 'Abriendo chat del evento…';
@@ -246,37 +402,161 @@
             el('tagline').textContent = 'Abre este evento en la app.';
         } else {
             el('openingTitle').textContent = 'Abriendo perfil…';
-            el('fallbackTitle').textContent = 'Descarga Vyvent para ver este perfil';
+            el('fallbackTitle').textContent = 'Descarga Orbiventt para ver este perfil';
             el('tagline').textContent = 'Abre este perfil en la app.';
         }
 
-        el('openApp').setAttribute('href', deepLink);
-        show('opening');
-        redirectToApp(deepLink);
+        applyHandoff(handoff);
+        // No "Abriendo…" spinner when there is nothing to open — the DEV notice
+        // is the whole answer in that case.
+        if (handoff.open) show('opening');
+        redirectToApp(handoff);
 
         // ── Helpers ──────────────────────────────────────────────────────────
 
+        // Build a Supabase public Storage URL — FAIL CLOSED. Returns null for
+        // anything that isn't a plain relative object path under a validly named
+        // bucket that resolves to the exact Supabase project origin. This is the
+        // single trusted source of image URLs: rejects absolute/protocol-relative/
+        // cross-origin inputs, parent-directory traversal, control characters, and
+        // any character (quote, angle bracket, backtick, backslash) that could
+        // break out of an HTML attribute or a CSS url(). Every segment is
+        // percent-encoded and the result is rebuilt + origin-checked with the URL
+        // API, so the returned string is only ever a safe same-project URL. The
+        // value is assigned exclusively via img.src / a validated background —
+        // never via innerHTML.
         function publicUrl(bucket, p) {
-            if (!p) return null;
-            if (/^https?:\/\//i.test(p)) return p;
-            return SUPA_URL + '/storage/v1/object/public/' + bucket + '/' + String(p).replace(/^\/+/, '');
+            if (typeof bucket !== 'string' || typeof p !== 'string') return null;
+
+            // Bucket must be a legitimate Supabase bucket name (lowercase, digits,
+            // hyphens). This alone rejects any separator/quote/scheme character.
+            if (!/^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/.test(bucket)) return null;
+
+            // Reject protocol-relative / abnormal leading-slash inputs (//host)
+            // before slash-normalization would hide them.
+            if (/^\/\//.test(p)) return null;
+            var path = p.replace(/^\/+/, '');
+            if (path === '') return null;
+            // Reject control chars and characters that can break an attribute or CSS.
+            if (/[\x00-\x1f\x7f"'`<>\\]/.test(path)) return null;
+            // Reject any scheme (http:, https:, javascript:, data:, blob:, …).
+            if (/^[a-z][a-z0-9+.-]*:/i.test(path)) return null;
+            // Reject protocol-relative and empty path segments.
+            if (path.indexOf('//') !== -1) return null;
+            // Reject parent-directory / current-directory traversal segments.
+            if (path.split('/').some(function (seg) { return seg === '..' || seg === '.'; })) return null;
+
+            try {
+                var encoded = path.split('/').map(encodeURIComponent).join('/');
+                var url = new URL('/storage/v1/object/public/' + bucket + '/' + encoded, SUPA_URL);
+                // Confirm the final origin is exactly the expected Supabase project.
+                if (url.origin !== new URL(SUPA_URL).origin) return null;
+                return url.href;
+            } catch (_) {
+                return null;
+            }
         }
 
-        function setupAppActions(deepLink) {
-            el('openApp').setAttribute('href', deepLink);
+        // Safe <img> from a validated Storage URL. Never uses innerHTML, so a
+        // malformed URL cannot create event-handler attributes or extra markup.
+        // Returns null when url is falsy so callers keep their text fallback.
+        function imageEl(url, alt) {
+            if (!url) return null;
+            var img = document.createElement('img');
+            img.src = url;                 // validated by publicUrl(); DOM assignment
+            img.setAttribute('alt', alt || '');
+            return img;
+        }
+
+        // Assign a validated Storage URL as a CSS background. `url` comes from
+        // publicUrl(), which guarantees no quotes/backslashes/control chars and a
+        // fully percent-encoded path, so the double-quoted url() cannot be
+        // terminated or escaped. No-op on falsy url (preserves the CSS fallback).
+        function setCoverBackground(node, url) {
+            if (!url) return;
+            node.style.backgroundImage = 'url("' + url + '")';
+        }
+
+        // Build one store <a> button (secondary style, opens in a new tab).
+        function storeButton(href, label) {
+            var a = document.createElement('a');
+            a.className = 'btn secondary';
+            a.href = href;
+            a.target = '_blank';
+            a.rel = 'noopener';
+            a.textContent = label;
+            return a;
+        }
+
+        // The iOS download CTA. App Store link wins if set; otherwise the public
+        // TestFlight invite; otherwise an explicit "beta by invitation" note with
+        // a support mailto. It NEVER falls back to Google Play.
+        function iosCta() {
+            if (STORE.APP_STORE_URL) return storeButton(STORE.APP_STORE_URL, 'Descargar en App Store');
+            if (STORE.TESTFLIGHT_URL) return storeButton(STORE.TESTFLIGHT_URL, 'Probar la beta (TestFlight)');
+            var note = document.createElement('div');
+            note.className = 'card-sub';
+            note.style.marginTop = '0.35rem';
+            note.innerHTML = 'La app para iPhone está disponible en beta por invitación (TestFlight). ' +
+                'Escríbenos a <a href="mailto:contact@orbiventt.com?subject=Acceso%20TestFlight%20Orbiventt%20(iOS)" ' +
+                'style="color:var(--accent-cyan);text-decoration:underline">soporte</a> para recibir tu invitación.';
+            return note;
+        }
+
+        // Populates #storeActions for the visitor's platform. iOS → App Store /
+        // TestFlight only; Android → Google Play (unchanged); desktop → both.
+        // Runs once at init; platform never changes within a page view.
+        function renderStoreButtons() {
+            var c = el('storeActions');
+            if (!c) return;
+            c.innerHTML = '';
+            if (IS_IOS) {
+                c.appendChild(iosCta());
+            } else if (IS_ANDROID) {
+                c.appendChild(storeButton(STORE.PLAY_STORE_URL, 'Descargar en Google Play'));
+            } else {
+                // Desktop / unknown → offer both platforms.
+                c.appendChild(storeButton(STORE.PLAY_STORE_URL, 'Descargar en Google Play'));
+                c.appendChild(iosCta());
+            }
+        }
+
+        /**
+         * Apply a resolved handoff to the CTA. The button is the only element
+         * that can navigate to an app, so when the handoff is closed the button
+         * is stripped of its href AND hidden — there is no disabled-looking
+         * control left that could still be activated — and the DEV notice takes
+         * its place. On production every handoff is open, so this always takes
+         * the first branch there and the button behaves exactly as before.
+         */
+        function applyHandoff(h) {
+            var btn = el('openApp');
+            if (h && h.open && h.href) {
+                btn.setAttribute('href', h.href);
+                btn.classList.remove('hidden');
+                hide('devHandoff');
+            } else {
+                btn.removeAttribute('href');
+                btn.classList.add('hidden');
+                show('devHandoff');
+            }
+        }
+
+        function setupAppActions(h) {
+            applyHandoff(h);
             el('fallbackTitle').textContent = '¿Quieres interactuar?';
             el('fallback').querySelector('.card-sub').textContent =
-                'Descarga Vyvent para seguir, contactar y más.';
+                'Descarga Orbiventt para seguir, contactar y más.';
             show('fallback');
             show('actions');
         }
 
         function renderProviderPreview(slug) {
-            el('tagline').textContent = 'Perfil de proveedor en Vyvent';
+            el('tagline').textContent = 'Perfil de proveedor en Orbiventt';
             show('opening');
             el('openingTitle').textContent = 'Cargando perfil…';
 
-            var deepLink = 'vyvent://p/' + encodeURIComponent(slug);
+            var providerHandoff = handoffFor('p', slug, false, null);
 
             fetch(SUPA_URL + '/rest/v1/rpc/get_public_provider_preview', {
                 method: 'POST',
@@ -296,22 +576,25 @@
                     el('tagline').textContent = '';
                     el('notFound').querySelector('.card-title').textContent = 'Perfil no disponible';
                     el('notFound').querySelector('.card-sub').textContent =
-                        'Este perfil no está disponible públicamente. Ábrelo en Vyvent.';
+                        'Este perfil no está disponible públicamente. Ábrelo en Orbiventt.';
                     show('notFound');
-                    setupAppActions(deepLink);
+                    setupAppActions(providerHandoff);
                     return;
                 }
 
                 var pr = data.provider;
 
                 // Cover
-                var coverUrl = publicUrl('avatars', pr.cover_path);
-                if (coverUrl) el('pvCover').style.backgroundImage = 'url("' + coverUrl + '")';
+                setCoverBackground(el('pvCover'), publicUrl('avatars', pr.cover_path));
 
                 // Avatar
-                var avatarUrl = publicUrl('avatars', pr.avatar_path);
-                if (avatarUrl) {
-                    el('pvAvatar').innerHTML = '<img src="' + avatarUrl + '" alt="" style="width:100%;height:100%;border-radius:50%;object-fit:cover">';
+                var avatarImg = imageEl(publicUrl('avatars', pr.avatar_path), '');
+                if (avatarImg) {
+                    avatarImg.style.width = '100%';
+                    avatarImg.style.height = '100%';
+                    avatarImg.style.borderRadius = '50%';
+                    avatarImg.style.objectFit = 'cover';
+                    el('pvAvatar').replaceChildren(avatarImg);
                 } else {
                     el('pvAvatar').textContent = (pr.display_name || '?').trim().charAt(0).toUpperCase();
                 }
@@ -358,16 +641,16 @@
                     });
                 }
 
-                document.title = (pr.display_name || 'Proveedor') + ' · Vyvent';
+                document.title = (pr.display_name || 'Proveedor') + ' · Orbiventt';
                 show('providerPreview');
-                setupAppActions(deepLink);
+                setupAppActions(providerHandoff);
             })
             .catch(function () {
                 hide('opening');
                 el('notFound').querySelector('.card-title').textContent = 'No se pudo cargar';
-                el('notFound').querySelector('.card-sub').textContent = 'Inténtalo de nuevo o ábrelo en Vyvent.';
+                el('notFound').querySelector('.card-sub').textContent = 'Inténtalo de nuevo o ábrelo en Orbiventt.';
                 show('notFound');
-                setupAppActions('vyvent://p/' + encodeURIComponent(slug));
+                setupAppActions(providerHandoff);
             });
         }
 
@@ -394,14 +677,16 @@
         // limited preview — so public events and tokenless private links behave
         // exactly as before.
         function renderEventPreview(eventId, token, code) {
-            el('tagline').textContent = 'Evento en Vyvent';
+            el('tagline').textContent = 'Evento en Orbiventt';
             show('opening');
             el('openingTitle').textContent = 'Cargando evento…';
 
-            // The deep link forwards the invitation code, so "Abrir en Vyvent"
-            // lands the recipient in the app's redeem flow already prefilled.
-            var deepLink = 'vyvent://e/' + encodeURIComponent(eventId) +
-                           (code ? '?code=' + encodeURIComponent(code) : '');
+            // The handoff forwards the invitation code, so "Abrir en Orbiventt"
+            // lands the recipient in the app's redeem flow already prefilled —
+            // on production through `vyvent://`, on the DEV mirror through the
+            // validated Expo Go return URL. The code rides on top of whichever
+            // target was resolved, so it survives both.
+            var eventHandoff = handoffFor('e', eventId, false, code);
 
             // Invitation-flavored CTA copy when the link carries a code — the
             // visitor isn't a curious passerby, they hold a pase.
@@ -409,7 +694,7 @@
                 if (!code) return;
                 el('fallbackTitle').textContent = 'Tienes una invitación a este evento';
                 el('fallback').querySelector('.card-sub').textContent =
-                    '¿Ya tienes Vyvent? Ábrela para canjear tu código al instante. ' +
+                    '¿Ya tienes Orbiventt? Ábrela para canjear tu código al instante. ' +
                     'Si no, descárgala y canjea el código que te compartieron.';
             }
 
@@ -418,7 +703,7 @@
                     // A. Public event → rich preview.
                     if (data && !data.not_found && data.event) {
                         hide('opening');
-                        renderEventCard(data.event, deepLink, false);
+                        renderEventCard(data.event, eventHandoff, false);
                         applyInviteCopy();
                         return;
                     }
@@ -429,36 +714,36 @@
                             .then(function (pdata) {
                                 hide('opening');
                                 if (pdata && !pdata.not_found && pdata.event) {
-                                    renderEventCard(pdata.event, deepLink, true);
+                                    renderEventCard(pdata.event, eventHandoff, true);
                                 } else {
-                                    renderEventProtected(deepLink); // invalid token → C
+                                    renderEventProtected(eventHandoff); // invalid token → C
                                 }
                                 applyInviteCopy();
                             });
                     }
                     // C. No token (or unsigned) → protected stub.
                     hide('opening');
-                    renderEventProtected(deepLink);
+                    renderEventProtected(eventHandoff);
                     applyInviteCopy();
                 })
                 .catch(function () {
                     hide('opening');
                     el('notFound').querySelector('.card-title').textContent = 'No se pudo cargar';
-                    el('notFound').querySelector('.card-sub').textContent = 'Inténtalo de nuevo o ábrelo en Vyvent.';
+                    el('notFound').querySelector('.card-sub').textContent = 'Inténtalo de nuevo o ábrelo en Orbiventt.';
                     show('notFound');
-                    setupAppActions(deepLink);
+                    setupAppActions(eventHandoff);
                 });
         }
 
         // State C — protected stub. Identical for "private" and "not found": the
         // RPCs never reveal which (P3, no enumeration).
-        function renderEventProtected(deepLink) {
+        function renderEventProtected(h) {
             el('tagline').textContent = '';
             el('notFound').querySelector('.card-title').textContent = 'Evento privado';
             el('notFound').querySelector('.card-sub').textContent =
-                'Este evento es privado o no está disponible. Ábrelo en Vyvent para verlo.';
+                'Este evento es privado o no está disponible. Ábrelo en Orbiventt para verlo.';
             show('notFound');
-            setupAppActions(deepLink);
+            setupAppActions(h);
         }
 
         // Renders the event card. `limited=true` (state B) draws the basic
@@ -467,10 +752,9 @@
         // (coarse, ~1 km) — plus the private-event conversion card. It still
         // skips the GALLERY (the limited payload contains no gallery) and never
         // shows an exact venue: both previews only ever receive rounded coords.
-        function renderEventCard(ev, deepLink, limited) {
+        function renderEventCard(ev, h, limited) {
             // Cover
-            var coverUrl = publicUrl('event-photos', ev.cover_path);
-            if (coverUrl) el('evCover').style.backgroundImage = 'url("' + coverUrl + '")';
+            setCoverBackground(el('evCover'), publicUrl('event-photos', ev.cover_path));
 
             // Derived status badge (deterministic, frontend-only — cancelled
             // overrides everything, then time-based state vs. now).
@@ -496,10 +780,10 @@
             // Organizer (public profile identity only — no PII)
             if (ev.organizer) {
                 var org = el('evOrganizer');
-                var orgAvatar = publicUrl('avatars', ev.organizer.avatar_path);
                 var orgName = ev.organizer.display_name || ev.organizer.username || '';
-                if (orgAvatar) {
-                    org.innerHTML = '<img src="' + orgAvatar + '" alt="">';
+                var orgImg = imageEl(publicUrl('avatars', ev.organizer.avatar_path), '');
+                if (orgImg) {
+                    org.appendChild(orgImg);
                 } else {
                     var fb = document.createElement('div');
                     fb.className = 'ev-org-fallback';
@@ -548,7 +832,7 @@
                 });
             }
 
-            document.title = (ev.title || 'Evento') + ' · Vyvent';
+            document.title = (ev.title || 'Evento') + ' · Orbiventt';
             show('eventPreview');
 
             // App actions — event-flavored copy. The limited preview additionally
@@ -557,13 +841,13 @@
                 show('evPrivateNote');
                 el('fallbackTitle').textContent = '¿Quieres ver todo el evento?';
                 el('fallback').querySelector('.card-sub').textContent =
-                    'Descarga Vyvent para ver la ubicación, los asistentes y participar.';
+                    'Descarga Orbiventt para ver la ubicación, los asistentes y participar.';
             } else {
                 el('fallbackTitle').textContent = '¿Quieres unirte?';
                 el('fallback').querySelector('.card-sub').textContent =
-                    'Descarga Vyvent para unirte, comentar y ver quién asiste.';
+                    'Descarga Orbiventt para unirte, comentar y ver quién asiste.';
             }
-            el('openApp').setAttribute('href', deepLink);
+            applyHandoff(h);
             show('fallback');
             show('actions');
         }
@@ -661,19 +945,26 @@
             } catch (_) { return ''; }
         }
 
-        function redirectToApp(deepLink) {
-            var ua = navigator.userAgent || '';
-            var isMobile = /Android|iPhone|iPad|iPod/i.test(ua);
-
+        function redirectToApp(h) {
             function revealFallback() {
                 hide('opening');
                 show('fallback');
                 show('actions');
             }
 
-            if (!isMobile) { revealFallback(); return; }
+            // No resolved target → never navigate. On the DEV mirror this is the
+            // ordinary case (no Expo Go return URL was supplied) and the notice
+            // rendered by applyHandoff already explains it. Auto-redirecting to
+            // the app scheme here is precisely what used to launch the installed
+            // PRODUCTION app from a DEV link.
+            if (!h || !h.open || !h.href) { revealFallback(); return; }
 
-            setTimeout(function () { window.location = deepLink; }, 400);
+            // Desktop → no scheme redirect, just show the preview/fallback with
+            // both store options. Mobile (iOS + Android alike) → try the custom
+            // scheme first, then reveal the platform-correct store fallback.
+            if (!IS_MOBILE) { revealFallback(); return; }
+
+            setTimeout(function () { window.location = h.href; }, 400);
             setTimeout(function () { if (!document.hidden) revealFallback(); }, 1800);
             document.addEventListener('visibilitychange', function () {
                 if (!document.hidden) revealFallback();

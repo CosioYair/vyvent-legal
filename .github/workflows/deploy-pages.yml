@@ -1,0 +1,74 @@
+name: Deploy static site to Pages
+
+# Reliable GitHub Actions Pages deploy (replaces the flaky legacy Jekyll
+# builder, which repeatedly errored/wedged on this repo). Serves the repo
+# root verbatim — no Jekyll.
+#
+# THIS REPOSITORY IS THE DEVELOPMENT MIRROR.
+# Public URL: https://cosioyair.github.io/vyvent-legal/ — it reads Supabase DEV
+# only (see env.js) and is excluded from every index via robots.txt + noindex.
+# Production lives in CosioYair/orbiventt-legal and serves https://orbiventt.com.
+#
+# `main` is the stable DEV baseline. ONE named feature branch may also deploy,
+# on purpose: this deployment IS the DEV validation surface, so a feature must be
+# testable from a physical device before it is merged, and long-lived feature
+# work must never be forced onto main just to be seen.
+#
+# The branch is listed EXPLICITLY, never as a `feature/**` wildcard: this is a
+# shared environment, and a wildcard would let any pushed branch silently
+# replace the site other people are validating against. Adding a feature here is
+# a deliberate, reviewable edit, and it must be removed when the feature merges.
+# The GitHub `github-pages` environment carries the same two-entry allowlist.
+
+on:
+  push:
+    branches:
+      - main
+      - feature/digital-event-invitations
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      # Make the live revision verifiable over HTTPS. Without this, "the site is
+      # deployed" and "the site is running the commit I think it is" are two
+      # different claims and only the first one can be checked, which is how a
+      # stale deployment hides behind a green workflow run.
+      # Non-secret identifiers ONLY: never keys, tokens or Supabase config.
+      - name: Write deployment metadata
+        run: |
+          cat > deployment.json <<EOF
+          {
+            "environment": "dev",
+            "repository": "${{ github.repository }}",
+            "branch": "${{ github.ref_name }}",
+            "commit": "${{ github.sha }}",
+            "run_id": "${{ github.run_id }}",
+            "deployed_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          }
+          EOF
+          cat deployment.json
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+      - name: Upload artifact (repo root)
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

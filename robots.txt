@@ -1,0 +1,5 @@
+# ENVIRONMENT-SPECIFIC — DEVELOPMENT MIRROR. Never promoted to production.
+# This deployment serves Orbiventt DEV data and must stay out of every index.
+# Belt and braces: every page here also carries <meta name="robots" content="noindex">.
+User-agent: *
+Disallow: /
