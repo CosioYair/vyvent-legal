@@ -20,6 +20,10 @@
 /** Files that MUST be equivalent in both repositories (modulo ENV_TOKENS). */
 export const SHARED_FILES = [
   '404.html',
+  // The app-handoff resolver. SHARED on purpose: production must run the same
+  // decision code, taking its `env !== 'dev'` branch, so the DEV-only Expo Go
+  // path is proven inert there rather than merely absent.
+  'app-return.js',
   'index.html',
   'support.html',
   'privacy-policy.html',
