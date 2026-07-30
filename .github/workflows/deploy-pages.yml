@@ -9,22 +9,22 @@ name: Deploy static site to Pages
 # only (see env.js) and is excluded from every index via robots.txt + noindex.
 # Production lives in CosioYair/orbiventt-legal and serves https://orbiventt.com.
 #
-# `main` is the stable DEV baseline. ONE named feature branch may also deploy,
-# on purpose: this deployment IS the DEV validation surface, so a feature must be
-# testable from a physical device before it is merged, and long-lived feature
-# work must never be forced onto main just to be seen.
+# `main` is the stable DEV baseline and, normally, the ONLY deploying branch.
+# During active feature validation ONE named feature branch may be added — this
+# deployment IS the DEV validation surface, so a feature must be testable from a
+# physical device before it is merged — and it MUST be removed when the feature
+# merges (feature/digital-event-invitations was, on 2026-07-30).
 #
-# The branch is listed EXPLICITLY, never as a `feature/**` wildcard: this is a
-# shared environment, and a wildcard would let any pushed branch silently
-# replace the site other people are validating against. Adding a feature here is
-# a deliberate, reviewable edit, and it must be removed when the feature merges.
-# The GitHub `github-pages` environment carries the same two-entry allowlist.
+# Any such branch is listed EXPLICITLY, never as a `feature/**` wildcard: this
+# is a shared environment, and a wildcard would let any pushed branch silently
+# replace the site other people are validating against. Adding a branch here is
+# a deliberate, reviewable edit. The GitHub `github-pages` environment carries
+# the same allowlist and must be edited in the same commit's rollout.
 
 on:
   push:
     branches:
       - main
-      - feature/digital-event-invitations
   workflow_dispatch:
 
 permissions:
