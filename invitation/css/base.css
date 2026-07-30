@@ -15,12 +15,20 @@
  */
 
 :root {
-    /* Palette — neutral defaults; templates override. */
+    /* Palette — neutral defaults; templates override.
+     *
+     * TWO ACCENTS ON PURPOSE. `--inv-accent` dresses decoration (rules,
+     * flourishes, ornaments) where contrast is a matter of taste.
+     * `--inv-accent-ink` is the only one allowed to carry TEXT or a control
+     * border, and every template must keep it at or above 4.5:1 against both
+     * `--inv-bg` and `--inv-surface`. Collapsing these into one token is how a
+     * warm, soft palette quietly ends up failing WCAG AA on its buttons. */
     --inv-bg: #ffffff;
     --inv-surface: #f6f4f1;
     --inv-ink: #1d1b1a;
-    --inv-muted: #6b6560;
+    --inv-muted: #64605b;
     --inv-accent: #8a6a55;
+    --inv-accent-ink: #7a5a45;
     --inv-line: rgba(29, 27, 26, 0.14);
 
     /* Type */
@@ -57,14 +65,14 @@ body {
 
 img { max-width: 100%; height: auto; display: block; }
 
-a { color: var(--inv-accent); }
+a { color: var(--inv-accent-ink); }
 
 /* ── Focus ──────────────────────────────────────────────────────────────── */
 /* Always visible, never removed. Two declarations so browsers without
  * :focus-visible still get a ring rather than nothing. */
-:focus { outline: 2px solid var(--inv-accent); outline-offset: 3px; }
+:focus { outline: 2px solid var(--inv-accent-ink); outline-offset: 3px; }
 :focus:not(:focus-visible) { outline: none; }
-:focus-visible { outline: 2px solid var(--inv-accent); outline-offset: 3px; }
+:focus-visible { outline: 2px solid var(--inv-accent-ink); outline-offset: 3px; }
 
 /* ── Accessibility helpers ──────────────────────────────────────────────── */
 .inv-sr-only {
@@ -128,10 +136,10 @@ a { color: var(--inv-accent); }
     /* 48 px tall: a comfortable touch target on a phone. */
     min-height: 48px;
     padding: 0.75rem 1.4rem;
-    border: 1px solid var(--inv-accent);
+    border: 1px solid var(--inv-accent-ink);
     border-radius: 999px;
     background: transparent;
-    color: var(--inv-accent);
+    color: var(--inv-accent-ink);
     font-family: var(--inv-font-body);
     font-size: 0.95rem;
     font-weight: 600;
@@ -143,7 +151,7 @@ a { color: var(--inv-accent); }
     transition: background-color 0.2s ease, color 0.2s ease, transform 0.15s ease;
 }
 
-.inv-btn--solid { background: var(--inv-accent); color: #fff; }
+.inv-btn--solid { background: var(--inv-accent-ink); color: #fff; }
 .inv-btn:hover { transform: translateY(-1px); }
 .inv-btn--ghost:hover { background: var(--inv-surface); }
 .inv-btn:active { transform: translateY(0); }
@@ -169,7 +177,10 @@ a { color: var(--inv-accent); }
     border-top-color: var(--inv-accent);
 }
 
-.inv-loading__mark { animation: inv-spin 1s linear infinite; }
+.inv-loading__mark {
+    border-top-color: var(--inv-accent-ink);
+    animation: inv-spin 1s linear infinite;
+}
 .inv-state__mark { border-top-color: var(--inv-line); }
 
 @keyframes inv-spin { to { transform: rotate(360deg); } }

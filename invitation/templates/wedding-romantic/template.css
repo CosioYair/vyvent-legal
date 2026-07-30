@@ -16,15 +16,28 @@
  * looking like the invitation they were sent.
  */
 
+/* CONTRAST BUDGET (measured against both grounds, #FBF8F4 and #F3EAE2):
+ *
+ *   --inv-ink        11.8 : 1  /  10.5 : 1
+ *   --inv-muted       5.3 : 1  /   4.8 : 1   body copy — WCAG AA
+ *   --inv-accent-ink  5.4 : 1  /   4.8 : 1   buttons, links, control borders
+ *   --tpl-gold        3.3 : 1                decorative + large display only
+ *   --inv-accent      2.8 : 1                DECORATION ONLY — never text
+ *
+ * The soft rose that gives this template its character reads at 2.8:1, which is
+ * fine for a hairline ornament and not fine for a button label. Keeping the two
+ * roles in separate tokens is what lets the palette stay warm without any text
+ * on the page failing AA. */
 :root.tpl-wedding-romantic {
     --inv-bg: #FBF8F4;          /* marfil */
     --inv-surface: #F3EAE2;     /* papel cálido */
     --inv-ink: #3B322C;         /* tinta café */
-    --inv-muted: #8A7B6E;
-    --inv-accent: #B98B77;      /* rosa empolvado / terracota */
+    --inv-muted: #74645A;
+    --inv-accent: #B98B77;      /* rosa empolvado — decoración */
+    --inv-accent-ink: #8E5A42;  /* terracota — texto y controles */
     --inv-line: rgba(59, 50, 44, 0.16);
 
-    --tpl-gold: #BFA063;
+    --tpl-gold: #A8853F;
     --tpl-sage: #8F9C86;
     --tpl-blush: #E9D5CB;
 }
@@ -229,7 +242,11 @@
     display: block;
     margin-top: 0.3rem;
     color: var(--inv-muted);
-    font-size: 0.66rem;
+    /* Fluid at the bottom end so "segundos" — the widest of the four labels —
+     * stops setting the min-content width of its column. Without this the
+     * `repeat(4, 1fr)` tracks stop being equal below ~360 px and the row reads
+     * as four different-sized boxes. */
+    font-size: clamp(0.57rem, 2.6vw, 0.66rem);
     font-weight: 600;
     letter-spacing: 0.14em;
     text-transform: uppercase;
@@ -238,7 +255,7 @@
 .tpl-wedding-romantic .inv-countdown__done {
     font-family: var(--inv-font-display);
     font-size: 1.4rem;
-    color: var(--inv-accent);
+    color: var(--inv-accent-ink);
 }
 
 /* ── Ceremony / Reception ───────────────────────────────────────────────── */
@@ -248,7 +265,7 @@
     font-size: 1.05rem;
     letter-spacing: 0.1em;
     text-transform: uppercase;
-    color: var(--inv-accent);
+    color: var(--inv-accent-ink);
 }
 
 .tpl-wedding-romantic .inv-place__venue {
@@ -433,7 +450,7 @@
     margin-top: 1.4rem;
     font-family: var(--inv-font-display);
     font-size: 1.9rem;
-    color: var(--inv-accent);
+    color: var(--inv-accent-ink);
 }
 
 .tpl-wedding-romantic .inv-closing__flourish { margin-bottom: 0; }
