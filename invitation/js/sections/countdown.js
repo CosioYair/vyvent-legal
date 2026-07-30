@@ -26,6 +26,11 @@ export default function renderCountdown(data, ctx) {
     const initial = countdownParts(ctx.now, data.target.ms);
     if (!initial) return null;
 
+    // Heading is template UI copy. The completed message is interface copy the
+    // couple MAY override — so the config value wins when they wrote one, and
+    // the template supplies the wording when they did not.
+    const completedLabel = data.completedLabel || ctx.labels.countdownCompleted || '';
+
     const values = Object.create(null);
 
     const list = el('ol', {
@@ -53,21 +58,21 @@ export default function renderCountdown(data, ctx) {
 
     const done = el('p', {
         class: 'inv-countdown__done',
-        text: data.completedLabel,
+        text: completedLabel,
         attrs: { hidden: initial.done ? null : true },
         document: d,
     });
 
     const status = el('p', {
         class: 'inv-sr-only',
-        text: countdownLabel(initial, data.completedLabel),
+        text: countdownLabel(initial, completedLabel),
         attrs: { role: 'status', 'aria-live': 'polite' },
         document: d,
     });
 
     if (initial.done) list.setAttribute('hidden', '');
 
-    const node = section('countdown', data.heading, ctx, [list, done, status], { class: 'inv-countdown-section' });
+    const node = section('countdown', ctx.labels.countdownHeading, ctx, [list, done, status], { class: 'inv-countdown-section' });
 
     // The ticker is attached only in a real browser; under test the initial
     // render is the whole observable behavior.
@@ -79,14 +84,14 @@ export default function renderCountdown(data, ctx) {
             if (parts.done) {
                 list.setAttribute('hidden', '');
                 done.removeAttribute('hidden');
-                setText(status, data.completedLabel);
+                setText(status, completedLabel);
                 if (ctx.clearInterval) ctx.clearInterval(handle);
                 return;
             }
             for (const unit of UNITS) setText(values[unit.key], padUnit(unit.key, parts[unit.key]));
             if (parts.minutes !== lastSpokenMinute) {
                 lastSpokenMinute = parts.minutes;
-                setText(status, countdownLabel(parts, data.completedLabel));
+                setText(status, countdownLabel(parts, completedLabel));
             }
         };
         const handle = ctx.setInterval(tick, TICK_MS);

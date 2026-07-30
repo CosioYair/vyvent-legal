@@ -36,7 +36,6 @@ DEMOS.wedding_romantic_v1 = {
             eyebrow: 'Nos casamos',
             partnerA: 'Valentina',
             partnerB: 'Mateo',
-            conjunction: '&',
             date: '2027-04-17T17:00:00-06:00',
             location: 'San Miguel de Allende, Guanajuato',
             image: { source: 'demo', path: 'wedding-romantic/hero.svg' },
@@ -54,12 +53,11 @@ DEMOS.wedding_romantic_v1 = {
 
         countdown: {
             enabled: true,
-            heading: 'Faltan',
+            // The couple's own wording; absent, the template supplies its own.
             completedLabel: '¡Hoy nos casamos!',
         },
 
         ceremony: {
-            heading: 'Ceremonia',
             startsAt: '2027-04-17T17:00:00-06:00',
             venueName: 'Parroquia de la Santa Cruz',
             address: 'Calle del Rosal 128, Centro, San Miguel de Allende, Gto.',
@@ -68,7 +66,6 @@ DEMOS.wedding_romantic_v1 = {
 
         reception: {
             enabled: true,
-            heading: 'Recepción',
             startsAt: '2027-04-17T19:30:00-06:00',
             venueName: 'Hacienda Los Arcos',
             address: 'Camino a La Cañada km 4, San Miguel de Allende, Gto.',
@@ -77,7 +74,6 @@ DEMOS.wedding_romantic_v1 = {
 
         dressCode: {
             enabled: true,
-            heading: 'Código de vestimenta',
             title: 'Formal · Etiqueta jardín',
             description: 'Vestido largo y traje oscuro. La celebración es al aire libre, '
                 + 'sobre pasto y empedrado.',
@@ -90,7 +86,6 @@ DEMOS.wedding_romantic_v1 = {
 
         gallery: {
             enabled: true,
-            heading: 'Nuestra historia',
             items: [
                 {
                     image: { source: 'demo', path: 'wedding-romantic/story-01.svg' },
@@ -121,7 +116,6 @@ DEMOS.wedding_romantic_v1 = {
 
         gifts: {
             enabled: true,
-            heading: 'Mesa de regalos',
             intro: 'Tu presencia es nuestro regalo más importante. Si además quieres consentirnos, '
                 + 'aquí te dejamos algunas ideas. También habrá lluvia de sobres el día de la boda.',
             links: [

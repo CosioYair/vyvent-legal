@@ -17,7 +17,6 @@
  */
 import { parseRoute, MODE } from './route.js';
 import { resolveTemplate } from './registry.js';
-import { demoConfig } from './demo-data.js';
 import { normalizeConfig } from './config.js';
 import { renderInvitation } from './renderer.js';
 import { moduleBases, templateResourceUrl } from './paths.js';
@@ -96,10 +95,31 @@ function revealDevBadge() {
     if (badge) badge.removeAttribute('hidden');
 }
 
+/* DEMO DATA IS NOT IMPORTED AT THE TOP OF THIS FILE, AND THAT IS THE POINT.
+ *
+ * A real invitation must never be able to inherit a demonstration value — not
+ * a couple's name, not a date, not a venue, not an image. A static import would
+ * put the whole fictional wedding into the module graph of EVERY route, one
+ * mistaken line away from a real draft.
+ *
+ * Loading it through a dynamic import with a LITERAL specifier, inside the demo
+ * branch, makes the guarantee physical rather than disciplinary: on the draft
+ * and published routes the browser never fetches `demo-data.js` at all. You can
+ * watch that in the network panel, and a test asserts it.
+ *
+ * The specifier is a constant. There is still no import path anywhere in this
+ * module tree that is derived from input. */
+async function loadDemoConfig(demoId) {
+    const module = await import('./demo-data.js');
+    return module.demoConfig(demoId);
+}
+
 async function renderDemo(route) {
-    const raw = demoConfig(route.demoId);
     const template = resolveTemplate(route.demoId);
-    if (!raw || !template) { showState(STATES.unknownTemplate); return; }
+    if (!template) { showState(STATES.unknownTemplate); return; }
+
+    const raw = await loadDemoConfig(route.demoId);
+    if (!raw) { showState(STATES.unknownTemplate); return; }
 
     const { ok, config } = normalizeConfig(raw);
     if (!ok) { showState(STATES.failed); return; }

@@ -69,7 +69,11 @@ export function externalButton(href, label, ctx, className) {
         children: [
             el('span', { class: 'inv-btn__label', text: label, document: d }),
             el('span', { class: 'inv-btn__ext', text: '↗', attrs: { 'aria-hidden': 'true' }, document: d }),
-            el('span', { class: 'inv-sr-only', text: ' (se abre en una pestaña nueva)', document: d }),
+            el('span', {
+                class: 'inv-sr-only',
+                text: ctx.labels.externalHint || ' (se abre en una pestaña nueva)',
+                document: d,
+            }),
         ],
         document: d,
     });

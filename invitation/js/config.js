@@ -114,8 +114,12 @@ function place(raw) {
 /* ── sections ───────────────────────────────────────────────────────────── */
 
 const SECTION_NORMALIZERS = {
-    /* REQUIRED. Needs both names and the event date; the image is optional and
-     * the template falls back to its own treatment when it is missing. */
+    /* REQUIRED. Needs both names and the wedding date; the image is optional and
+     * the template falls back to its own visual treatment when it is missing.
+     *
+     * The ampersand between the names is NOT here: it is a decorative separator
+     * the template draws, not something the couple wrote. See the `labels` block
+     * in the template descriptor. */
     hero(raw) {
         if (!raw || typeof raw !== 'object') return null;
         const partnerA = sanitizeText(raw.partnerA, LIMITS.NAME);
@@ -126,7 +130,6 @@ const SECTION_NORMALIZERS = {
             eyebrow: sanitizeText(raw.eyebrow, LIMITS.HEADING),
             partnerA,
             partnerB,
-            conjunction: sanitizeText(raw.conjunction, 8) || '&',
             date,
             location: sanitizeText(raw.location, LIMITS.LINE),
             image: imageRef(raw.image),
@@ -146,14 +149,15 @@ const SECTION_NORMALIZERS = {
         };
     },
 
-    /* REQUIRED. Date, time, venue, address and an open-map action. */
+    /* REQUIRED. Date, time, venue, address and an open-map action.
+     *
+     * The heading "Ceremonia" is template UI copy, not a stored field: the
+     * product does not offer to rename it, so storing it would be a default
+     * masquerading as organizer content. */
     ceremony(raw) {
         const p = place(raw);
         if (!p || !p.startsAt) return null;
-        return {
-            heading: sanitizeText(raw && raw.heading, LIMITS.HEADING) || 'Ceremonia',
-            ...p,
-        };
+        return p;
     },
 
     /* OPTIONAL. A live countdown.
@@ -174,21 +178,21 @@ const SECTION_NORMALIZERS = {
         const target = explicit || (ctx.hero && ctx.hero.date) || null;
         if (!target) return null;
         return {
-            heading: sanitizeText(raw.heading, LIMITS.HEADING) || 'Faltan',
             target,
-            completedLabel: sanitizeText(raw.completedLabel, LIMITS.LINE) || '¡Hoy es el día!',
+            // '' means "use the template's wording". The completed message is
+            // interface copy the couple MAY override, so the fallback lives in
+            // the template, not here.
+            completedLabel: sanitizeText(raw.completedLabel, LIMITS.LINE),
         };
     },
 
-    /* OPTIONAL. Same shape as the ceremony; needs a time to be worth showing. */
+    /* OPTIONAL. Same shape as the ceremony; needs both a time and a venue to be
+     * worth showing. Heading "Recepción" is template UI copy. */
     reception(raw) {
         if (!isEnabled(raw)) return null;
         const p = place(raw);
         if (!p || !p.startsAt) return null;
-        return {
-            heading: sanitizeText(raw.heading, LIMITS.HEADING) || 'Recepción',
-            ...p,
-        };
+        return p;
     },
 
     /* OPTIONAL. The dress code: a short title, a general explanation, and a
@@ -199,7 +203,7 @@ const SECTION_NORMALIZERS = {
      * top-level section, and the organizer-facing editor calls it
      * "Indicaciones", never "Notes".
      *
-     * CONTENT RULE: `title` names the dress code ("Formal · Etiqueta jardín")
+     * CONTENT RULE: `title` names the dress code ("Formal", "Black tie")
      * but is not content on its own — a section carrying only a title has
      * nothing to tell a guest. `description` and `guidelines` are each
      * INDEPENDENTLY sufficient: either alone renders the section, both render
@@ -222,7 +226,10 @@ const SECTION_NORMALIZERS = {
         if (!description && guidelines.length === 0) return null;
 
         return {
-            heading: sanitizeText(raw.heading, LIMITS.HEADING) || 'Código de vestimenta',
+            // The dress code's NAME ("Formal", "Black tie") — organizer
+            // content, and distinct from the section heading, which is template
+            // UI copy. It is not content on its own: a section carrying only a
+            // name has nothing to tell a guest.
             title: sanitizeText(raw.title, LIMITS.LINE),
             description,
             guidelines,
@@ -242,10 +249,9 @@ const SECTION_NORMALIZERS = {
             .filter(Boolean)
             .slice(0, LIMITS.GALLERY_ITEMS);
         if (items.length === 0) return null;
-        return {
-            heading: sanitizeText(raw.heading, LIMITS.HEADING) || 'Nuestra historia',
-            items,
-        };
+        // Heading is template UI copy. Order is the organizer's array order and
+        // is never re-sorted.
+        return { items };
     },
 
     /* OPTIONAL. Links that fail validation are dropped, not rendered inert. */
@@ -263,11 +269,9 @@ const SECTION_NORMALIZERS = {
             .slice(0, LIMITS.GIFT_LINKS);
         const intro = sanitizeParagraph(raw.intro, LIMITS.PARAGRAPH);
         if (links.length === 0 && !intro) return null;
-        return {
-            heading: sanitizeText(raw.heading, LIMITS.HEADING) || 'Mesa de regalos',
-            intro,
-            links,
-        };
+        // Heading is template UI copy. No registry brand exists anywhere
+        // outside demo-data.js.
+        return { intro, links };
     },
 
     /* OPTIONAL. The closing note. */
@@ -288,19 +292,20 @@ const SECTION_NORMALIZERS = {
 /**
  * Normalize a stored (or bundled) configuration.
  *
- * @returns {{ok: boolean, config: ?object, errors: string[]}}
+ * @returns {{ok: boolean, config: ?object, errors: string[], incomplete: string[]}}
  *   `ok:false` means a REQUIRED section is missing or unusable and the caller
- *   must show a controlled error state. `errors` names what failed, for the
- *   editor's publish gate in Milestone B/C — it is never shown to a guest.
+ *   must show a controlled state. `errors` names what failed and `incomplete`
+ *   names optional sections the organizer switched ON but left empty. Both feed
+ *   the editor and the publish gate; neither is ever shown to a guest.
  */
 export function normalizeConfig(raw) {
     const errors = [];
     if (!raw || typeof raw !== 'object') {
-        return { ok: false, config: null, errors: ['config:not-an-object'] };
+        return { ok: false, config: null, errors: ['config:not-an-object'], incomplete: [] };
     }
 
     if (raw.contractVersion !== CONTRACT_VERSION) {
-        return { ok: false, config: null, errors: ['config:unsupported-version'] };
+        return { ok: false, config: null, errors: ['config:unsupported-version'], incomplete: [] };
     }
 
     const categoryKey = sanitizeText(raw.categoryKey, 40);
@@ -309,7 +314,7 @@ export function normalizeConfig(raw) {
         ? raw.templateVersion
         : null;
     if (!categoryKey || !templateKey || !templateVersion) {
-        return { ok: false, config: null, errors: ['config:missing-template-identity'] };
+        return { ok: false, config: null, errors: ['config:missing-template-identity'], incomplete: [] };
     }
 
     const rawSections = raw.sections && typeof raw.sections === 'object' ? raw.sections : {};
@@ -323,6 +328,18 @@ export function normalizeConfig(raw) {
         ctx[name] = value;
     }
 
+    /* Enabled-but-empty is a THIRD state, and conflating it with "off" is how an
+     * organizer publishes a reception section that says nothing.
+     *
+     *   off              → not rendered, not a problem.
+     *   on and valid     → rendered.
+     *   on and empty     → not rendered (a guest must never see an empty frame),
+     *                      but RECORDED here so the publish gate can refuse and
+     *                      the editor can say which section needs attention.
+     *
+     * Drafts may sit in the third state indefinitely. Publication may not. */
+    const incomplete = [];
+
     for (const name of OPTIONAL_SECTIONS) {
         let value = null;
         try {
@@ -331,11 +348,12 @@ export function normalizeConfig(raw) {
             // An optional section can never take the page down with it.
             value = null;
         }
+        if (!value && isEnabled(rawSections[name])) incomplete.push(name);
         sections[name] = value;
         ctx[name] = value;
     }
 
-    if (errors.length > 0) return { ok: false, config: null, errors };
+    if (errors.length > 0) return { ok: false, config: null, errors, incomplete };
 
     const rawActions = raw.actions && typeof raw.actions === 'object' ? raw.actions : {};
     const actions = {
@@ -347,6 +365,7 @@ export function normalizeConfig(raw) {
     return {
         ok: true,
         errors: [],
+        incomplete,
         config: {
             contractVersion: CONTRACT_VERSION,
             categoryKey,

@@ -42,12 +42,15 @@ export default function renderHero(data, ctx) {
             el('span', { class: 'inv-hero__name', text: data.partnerA, document: d }),
             el('span', {
                 class: 'inv-hero__amp',
-                text: data.conjunction,
+                // Decorative separator drawn by the template, not something the
+                // couple wrote.
+                text: ctx.labels.heroConjunction || '&',
                 attrs: { 'aria-hidden': 'true' },
                 document: d,
             }),
             // The ampersand is decorative; this is what is announced instead,
-            // so the heading reads "Valentina y Mateo".
+            // so the heading reads "<first name> y <second name>" rather than
+            // the two names run together.
             el('span', { class: 'inv-sr-only', text: ' y ', document: d }),
             el('span', { class: 'inv-hero__name', text: data.partnerB, document: d }),
         ],

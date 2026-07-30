@@ -67,7 +67,7 @@ function calendarControl(config, ctx) {
     return el('a', {
         class: 'inv-btn inv-btn--solid',
         attrs: { href, download: icsFileName(event.title) },
-        children: [el('span', { class: 'inv-btn__label', text: 'Agregar al calendario', document: ctx.document })],
+        children: [el('span', { class: 'inv-btn__label', text: ctx.labels.calendarAction, document: ctx.document })],
         document: ctx.document,
     });
 }
@@ -79,7 +79,7 @@ function shareControl(config, ctx, status) {
     const button = el('button', {
         class: 'inv-btn inv-btn--ghost',
         attrs: { type: 'button' },
-        children: [el('span', { class: 'inv-btn__label', text: 'Compartir invitación', document: d })],
+        children: [el('span', { class: 'inv-btn__label', text: ctx.labels.shareAction, document: d })],
         document: d,
     });
 
@@ -135,7 +135,7 @@ export default function renderActions(_data, ctx) {
         calendarControl(config, ctx),
         shareControl(config, ctx, status),
         config.actions.map && ceremony && ceremony.mapUrl
-            ? externalButton(ceremony.mapUrl, 'Abrir ubicación', ctx)
+            ? externalButton(ceremony.mapUrl, ctx.labels.locationAction, ctx)
             : null,
     ].filter(Boolean);
 

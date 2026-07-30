@@ -98,6 +98,11 @@ are normalized by `DEV_SITE_ORIGIN` / `PROD_SITE_ORIGIN` in
 
 ## Configuration contract — version 1
 
+> **The full field-source matrix — every visible element, its config path, its
+> editor control, its validation and whether it is organizer content or template
+> UI copy — lives in [FIELDS.md](FIELDS.md).** That document is the authority on
+> the boundary between the two; this section is the quick reference.
+
 The object below is what the Milestone B editor will store in a JSONB column
 and what `demo-data.js` already produces. Both go through
 `config.normalizeConfig()`, which is the only way a configuration reaches the
@@ -130,9 +135,9 @@ the editor **before** an organizer can publish.
 
 | Section | Required fields | Optional fields |
 |---|---|---|
-| `hero` | `partnerA`, `partnerB`, `date` | `eyebrow`, `conjunction` (default `&`), `location`, `image`, `imageAlt` |
+| `hero` | `partnerA`, `partnerB`, `date` | `eyebrow`, `location`, `image`, `imageAlt` |
 | `message` | `body` | `heading`, `hosts` |
-| `ceremony` | `startsAt`, `venueName` | `heading` (default `Ceremonia`), `address`, `note`, `mapUrl` |
+| `ceremony` | `startsAt`, `venueName` | `address`, `note`, `mapUrl` |
 
 **Optional.** Rendered only when `enabled === true` **and** the section's own
 required fields survive validation. A disabled, absent, invalid or throwing
@@ -141,11 +146,11 @@ leaves an empty frame.
 
 | Section | Renders when | Optional fields |
 |---|---|---|
-| `countdown` | enabled | `heading` (default `Faltan`), `targetAt` (defaults to `hero.date`), `completedLabel` |
-| `reception` | enabled + `startsAt` + `venueName` | `heading` (default `Recepción`), `address`, `note`, `mapUrl` |
-| `dressCode` | enabled + (`description` **or** ≥1 `guidelines` entry) | `heading`, `title`, `description`, `guidelines[]` |
-| `gallery` | enabled + ≥1 resolvable image | `heading` (default `Nuestra historia`), `items[].alt` |
-| `gifts` | enabled + ≥1 valid link **or** an `intro` | `heading` (default `Mesa de regalos`), `intro`, `links[].note` |
+| `countdown` | enabled | `targetAt` (defaults to `hero.date`), `completedLabel` |
+| `reception` | enabled + `startsAt` + `venueName` | `address`, `note`, `mapUrl` |
+| `dressCode` | enabled + (`description` **or** ≥1 `guidelines` entry) | `title`, `description`, `guidelines[]` |
+| `gallery` | enabled + ≥1 resolvable image | `items[].alt` |
+| `gifts` | enabled + ≥1 valid link **or** an `intro` | `intro`, `links[].note` |
 | `closing` | enabled + `body` | `heading`, `signature` |
 
 ### Dress code
@@ -153,12 +158,14 @@ leaves an empty frame.
 ```ts
 dressCode: {
   enabled: boolean,
-  heading?: string,      // section heading, defaults to "Código de vestimenta"
-  title?: string,        // names the dress code, e.g. "Formal · Etiqueta jardín"
+  title?: string,        // names the dress code, e.g. "Formal", "Black tie"
   description?: string,  // the general explanation
   guidelines?: string[]  // concrete recommendations or restrictions, max 4
 }
 ```
+
+The section heading ("Código de vestimenta") is **template UI copy**, not a
+stored field — the product does not offer to rename it.
 
 `guidelines` belongs **entirely** to this section. It is not a top-level
 section, it never renders outside the dress code, and the organizer-facing

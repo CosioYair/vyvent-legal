@@ -180,12 +180,26 @@ describe('3 + 16 + 17 · demo mode has no backend', () => {
     test('3 · no network primitive exists anywhere in the module tree', () => {
         const forbidden = [
             'fetch(', 'XMLHttpRequest', 'WebSocket', 'EventSource',
-            'sendBeacon', 'navigator.connection', 'import(',
+            'sendBeacon', 'navigator.connection',
         ];
         for (const { rel, source } of sources) {
             const code = codeOnly(source);
             for (const needle of forbidden) {
                 assert.ok(!code.includes(needle), `${rel} contains ${needle}`);
+            }
+        }
+    });
+
+    test('every dynamic import specifier is a LITERAL, never derived from input', () => {
+        // A dynamic import is how demo data is kept off the real routes, so it
+        // cannot be banned outright — but a computed specifier would reopen the
+        // arbitrary-module-loading hole the registry exists to close.
+        for (const { rel, source } of sources) {
+            const code = codeOnly(source);
+            for (const m of code.matchAll(/\bimport\s*\(([^)]*)\)/g)) {
+                const specifier = m[1].trim();
+                assert.match(specifier, /^'\.\/[a-z-]+\.js'$/,
+                    `${rel} has a non-literal dynamic import: ${specifier}`);
             }
         }
     });
@@ -405,6 +419,165 @@ describe('6 · invalid optional sections are skipped safely', () => {
         });
         assert.deepEqual(result.rendered, ['hero', 'message']);
         assert.deepEqual(result.skipped, ['__proto__', 'nope', 'constructor']);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// NO DEFAULT INVITATION CONTENT
+//
+// The product rule this suite exists to make mechanical: a real draft or
+// published invitation must never show a value the organizer did not enter.
+// Not a name, not a date, not a venue, not an image, not a link — and not a
+// heading that looks like something they wrote.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('no real invitation can inherit demonstration content', () => {
+    const MAIN = readFileSync(join(INVITATION, 'js', 'main.js'), 'utf8');
+
+    test('demo data is not in the module graph of the real routes', () => {
+        const code = codeOnly(MAIN);
+        // A static import would pull the entire fictional wedding into every
+        // route's graph, one mistaken line away from a real draft.
+        assert.ok(!/^\s*import\s[^\n]*demo-data/m.test(code),
+            'main.js statically imports demo-data.js');
+        // It is reached exactly once, through a literal dynamic import.
+        const dynamic = [...code.matchAll(/import\s*\(\s*'\.\/demo-data\.js'\s*\)/g)];
+        assert.equal(dynamic.length, 1, 'expected exactly one dynamic demo-data import');
+    });
+
+    test('nothing but main.js and the tests may reference demo data at all', () => {
+        for (const { rel, source } of moduleSources()) {
+            if (rel.endsWith('js/main.js') || rel.endsWith('js/demo-data.js')) continue;
+            const code = codeOnly(source);
+            assert.ok(!code.includes('demo-data'), `${rel} references demo-data`);
+            assert.ok(!code.includes('demoConfig'), `${rel} references demoConfig`);
+        }
+    });
+
+    test('the demo values appear in demo-data.js and nowhere else', () => {
+        const FICTION = [
+            'Valentina', 'Mateo', 'San Miguel de Allende', 'Santa Cruz',
+            'Los Arcos', 'Rosal', 'Serrano', 'Herrera', 'Lozano',
+            '2027-04-17', 'liverpool', 'amazon.com.mx', 'lluvia de sobres',
+            'Etiqueta jard', 'tacón de aguja',
+        ];
+        for (const { rel, source } of moduleSources()) {
+            if (rel.endsWith('js/demo-data.js')) continue;
+            for (const needle of FICTION) {
+                assert.ok(!source.toLowerCase().includes(needle.toLowerCase()),
+                    `${rel} contains the demonstration value "${needle}"`);
+            }
+        }
+        // …including the template, which is the other place a default could hide.
+        const tpl = readFileSync(join(INVITATION, 'templates', 'wedding-romantic', 'template.js'), 'utf8');
+        for (const needle of FICTION) {
+            assert.ok(!tpl.toLowerCase().includes(needle.toLowerCase()),
+                `the template descriptor contains "${needle}"`);
+        }
+    });
+
+    test('the demo artwork is reachable only through a demo image reference', () => {
+        // `{source:'demo'}` is the only way to address the bundled SVGs, and the
+        // editor never writes one — real images are storage references.
+        const ASSET = 'https://example.test/invitation/assets/';
+        assert.ok(resolveImage({ source: 'demo', path: 'wedding-romantic/hero.svg' }, { assetBase: ASSET }));
+        assert.equal(resolveImage({ source: 'storage', bucket: 'event-photos', path: 'wedding-romantic/hero.svg' },
+            { assetBase: ASSET }), null, 'a storage ref resolved into the demo asset directory');
+    });
+
+    test('no organizer-content field carries a built-in default', () => {
+        // Every value below is content a guest reads as the couple's own. If any
+        // of them can be produced without the organizer having typed it, the
+        // product rule is broken.
+        const bare = {
+            contractVersion: 1,
+            categoryKey: 'wedding',
+            templateKey: 'wedding_romantic',
+            templateVersion: 1,
+            sections: {
+                hero: { partnerA: 'A', partnerB: 'B', date: '2030-01-01T12:00:00-06:00' },
+                message: { body: 'Cuerpo.' },
+                ceremony: { startsAt: '2030-01-01T12:00:00-06:00', venueName: 'Lugar' },
+            },
+        };
+        const { ok, config } = normalizeConfig(bare);
+        assert.equal(ok, true);
+
+        const h = config.sections.hero;
+        assert.equal(h.eyebrow, '');
+        assert.equal(h.location, '');
+        assert.equal(h.image, null);
+        assert.equal(h.imageAlt, '');
+        assert.equal(config.sections.message.heading, '');
+        assert.equal(config.sections.message.hosts, '');
+        assert.equal(config.sections.ceremony.address, '');
+        assert.equal(config.sections.ceremony.note, '');
+        // Every optional section is absent, not example-filled.
+        for (const name of OPTIONAL_SECTIONS) {
+            assert.equal(config.sections[name], null, name + ' materialized without organizer input');
+        }
+
+        // And the rendered page shows only what was entered.
+        const { node } = renderDemo({ raw: bare });
+        const text = node.textContent;
+        for (const fiction of ['Valentina', 'Mateo', 'San Miguel', 'Liverpool', 'Amazon', '2027']) {
+            assert.ok(!text.includes(fiction), `a bare invitation rendered "${fiction}"`);
+        }
+        assert.ok(text.includes('A') && text.includes('B') && text.includes('Cuerpo.'));
+        assert.equal(node.querySelectorAll('img').length, 0, 'a bare invitation rendered an image');
+    });
+
+    test('section headings are template UI copy, not stored content', () => {
+        // A heading the organizer never wrote must not be persisted as if they
+        // had — otherwise "no default content" is true only by accident.
+        const { config } = normalizeConfig(demoConfig(DEMO_ID));
+        for (const name of ['ceremony', 'reception', 'dressCode', 'gallery', 'gifts', 'countdown']) {
+            const section = config.sections[name];
+            if (section) assert.equal(section.heading, undefined, name + ' stored a heading');
+        }
+        assert.equal(config.sections.hero.conjunction, undefined, 'hero stored the ampersand');
+
+        // They still reach the page — from the template.
+        const labels = resolveTemplate(DEMO_ID).labels;
+        const { node } = renderDemo();
+        for (const key of ['ceremonyHeading', 'receptionHeading', 'dressCodeHeading', 'galleryHeading', 'giftsHeading', 'countdownHeading']) {
+            assert.ok(labels[key], 'template label missing: ' + key);
+            assert.ok(node.textContent.includes(labels[key]), 'heading not rendered: ' + labels[key]);
+        }
+    });
+});
+
+describe('optional sections that are ON but empty are reported, never filled', () => {
+    const cases = {
+        reception: { enabled: true, venueName: 'Solo el nombre' },     // no startsAt
+        dressCode: { enabled: true, title: 'Formal' },                 // no description, no guidelines
+        gallery: { enabled: true, items: [] },
+        gifts: { enabled: true, links: [] },
+        closing: { enabled: true, body: '   ' },
+    };
+
+    for (const [name, value] of Object.entries(cases)) {
+        test(`${name}: omitted from the page and named as incomplete`, () => {
+            const { ok, config, incomplete } = normalizeConfig(withSection(name, value));
+            assert.equal(ok, true, 'an empty optional section broke the whole config');
+            assert.equal(config.sections[name], null);
+            assert.ok(incomplete.includes(name), `${name} was not reported as incomplete`);
+
+            const { node } = renderDemo({ raw: withSection(name, value) });
+            assert.ok(!sectionsOf(node).includes(name), `${name} rendered anyway`);
+        });
+    }
+
+    test('a section switched OFF is not incomplete — it is just off', () => {
+        const raw = demoConfig(DEMO_ID);
+        for (const name of OPTIONAL_SECTIONS) raw.sections[name] = { enabled: false };
+        const { ok, incomplete } = normalizeConfig(raw);
+        assert.equal(ok, true);
+        assert.deepEqual(incomplete, []);
+    });
+
+    test('a complete demo configuration reports nothing incomplete', () => {
+        const { incomplete } = normalizeConfig(demoConfig(DEMO_ID));
+        assert.deepEqual(incomplete, []);
     });
 });
 

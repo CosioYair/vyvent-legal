@@ -24,7 +24,7 @@ export default function renderPasses(_data, ctx) {
 
     const d = ctx.document;
 
-    return section('passes', 'Reclamar pases', ctx, [
+    return section('passes', ctx.labels.passesHeading, ctx, [
         el('p', {
             class: 'inv-passes__body',
             text: 'Este enlace incluye un código de invitación. En una invitación publicada, '

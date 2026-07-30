@@ -54,6 +54,11 @@ export function renderInvitation(opts) {
     const ctx = {
         config,
         template,
+        // Template UI copy. Section headings, button labels and unit names are
+        // read from HERE, never from the invitation config — that separation is
+        // what guarantees a real invitation cannot inherit somebody else's
+        // wording as if the organizer had written it. See FIELDS.md.
+        labels: (template && template.labels) || {},
         route: o.route || { mode: 'none', code: null },
         document: d,
         assetBase: o.assetBase,

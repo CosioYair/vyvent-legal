@@ -11,7 +11,7 @@ import { el } from '../dom.js';
 import { formatLongDate, formatTime } from '../config.js';
 import { section, timeEl, externalButton } from './shell.js';
 
-export function renderPlace(id, data, ctx) {
+export function renderPlace(id, heading, data, ctx) {
     if (!data) return null;
     const d = ctx.document;
 
@@ -19,7 +19,7 @@ export function renderPlace(id, data, ctx) {
     const timeText = formatTime(data.startsAt.ms, ctx.locale, ctx.timeZone);
     const when = [dateText, timeText ? timeText + ' h' : ''].filter(Boolean).join(' · ');
 
-    return section(id, data.heading, ctx, [
+    return section(id, heading, ctx, [
         when
             ? el('p', {
                 class: 'inv-place__when',
@@ -37,17 +37,20 @@ export function renderPlace(id, data, ctx) {
         data.mapUrl
             ? el('p', {
                 class: 'inv-place__actions',
-                children: [externalButton(data.mapUrl, 'Cómo llegar', ctx)],
+                children: [externalButton(data.mapUrl, ctx.labels.mapAction, ctx)],
                 document: d,
             })
             : null,
     ], { class: 'inv-place' });
 }
 
+/* Headings come from the template's `labels`, not from the config: the product
+ * does not offer to rename "Ceremonia" or "Recepción", so storing them would be
+ * a template default masquerading as organizer content. */
 export function renderCeremony(data, ctx) {
-    return renderPlace('ceremony', data, ctx);
+    return renderPlace('ceremony', ctx.labels.ceremonyHeading, data, ctx);
 }
 
 export function renderReception(data, ctx) {
-    return renderPlace('reception', data, ctx);
+    return renderPlace('reception', ctx.labels.receptionHeading, data, ctx);
 }

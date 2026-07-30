@@ -33,7 +33,7 @@ export default function renderGifts(data, ctx) {
         })
         : null;
 
-    return section('gifts', data.heading, ctx, [
+    return section('gifts', ctx.labels.giftsHeading, ctx, [
         ...paragraphs(data.intro, { class: 'inv-gifts__intro', document: d }),
         list,
     ], { class: 'inv-gifts-section' });

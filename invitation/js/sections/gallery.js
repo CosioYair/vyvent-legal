@@ -69,7 +69,7 @@ export default function renderGallery(data, ctx) {
 
     if (tiles.length === 0) return null;
 
-    return section('gallery', data.heading, ctx, [
+    return section('gallery', ctx.labels.galleryHeading, ctx, [
         el('ul', { class: 'inv-gallery', children: tiles, document: d }),
     ], { class: 'inv-gallery-section' });
 }

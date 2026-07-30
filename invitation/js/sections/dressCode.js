@@ -36,7 +36,7 @@ export default function renderDressCode(data, ctx) {
         })
         : null;
 
-    return section('dressCode', data.heading, ctx, [
+    return section('dressCode', ctx.labels.dressCodeHeading, ctx, [
         data.title
             ? el('p', { class: 'inv-dress__title', text: data.title, document: d })
             : null,

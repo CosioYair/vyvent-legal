@@ -27,9 +27,9 @@ export const LIMITS = {
     LINE: 200,
     ADDRESS: 300,
     PARAGRAPH: 1200,
-    /* One dress-code guideline: a single concrete recommendation ("evita el
-     * tacón de aguja"), not a paragraph. Bounded on its own so a long entry
-     * cannot turn the list into prose the layout was not designed for. */
+    /* One dress-code guideline: a single concrete recommendation or
+     * restriction, not a paragraph. Bounded on its own so a long entry cannot
+     * turn the list into prose the layout was not designed for. */
     GUIDELINE: 160,
 
     /* Collections. */
