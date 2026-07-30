@@ -204,27 +204,54 @@ describe('3 + 16 + 17 · demo mode has no backend', () => {
         }
     });
 
-    test('17 · no Supabase reference of any kind survives in executable code', () => {
+    test('17 · only backend.js may name an endpoint, and only the two READ RPCs', () => {
+        // The page gained a network dependency in Milestone B. What must stay
+        // true is that the reachable surface is a list you can read: two
+        // read-only RPCs, named in one file, behind a closed call table.
         for (const { rel, source } of sources) {
-            const code = codeOnly(source).toLowerCase();
-            for (const needle of ['supabase', 'supaurl', 'supaanon', 'rest/v1', 'apikey']) {
-                assert.ok(!code.includes(needle), `${rel} references ${needle}`);
+            const code = codeOnly(source);
+            if (rel.endsWith('js/backend.js')) continue;
+            for (const needle of ['rest/v1', 'apikey', 'supaAnon', 'Authorization']) {
+                assert.ok(!code.includes(needle), `${rel} talks to the backend directly`);
             }
         }
+
+        const backend = codeOnly(readFileSync(join(INVITATION, 'js', 'backend.js'), 'utf8'));
+        // No WRITE path exists on the web at all. Publishing, editing and
+        // deleting are the mobile editor's business; a page anyone can open
+        // must not even name those functions.
+        for (const write of ['upsert_invitation', 'publish_invitation',
+            'unpublish_invitation', 'delete_invitation', 'get_invitation_preview_token']) {
+            assert.ok(!backend.includes(write), `backend.js names the write RPC ${write}`);
+        }
+        assert.ok(backend.includes('get_invitation_draft'));
+        assert.ok(backend.includes('get_published_invitation'));
     });
 
-    test('17 · the page declares connect-src \'none\', so a request is impossible', () => {
+    test('17 · the CSP names exactly one host, in exactly two directives', () => {
         const csp = /<meta http-equiv="Content-Security-Policy" content="([^"]+)"/.exec(INDEX_HTML);
         assert.ok(csp, 'no CSP meta tag');
-        assert.match(csp[1], /connect-src 'none'/);
-        assert.match(csp[1], /img-src 'self'/);
-        assert.match(csp[1], /object-src 'none'/);
-        assert.match(csp[1], /base-uri 'self'/);
-        assert.match(csp[1], /form-action 'none'/);
-        // No inline script is permitted on this page at all.
-        assert.match(csp[1], /script-src 'self'/);
-        assert.ok(!/script-src[^;]*unsafe-inline/.test(csp[1]));
-        assert.ok(!/script-src[^;]*unsafe-eval/.test(csp[1]));
+        const policy = csp[1];
+
+        const hosts = [...new Set([...policy.matchAll(/https:\/\/[^\s;]+/g)].map((m) => m[0]))];
+        assert.equal(hosts.length, 1, 'CSP names more than one host: ' + hosts.join(', '));
+        assert.match(hosts[0], /^https:\/\/[a-z0-9]+\.supabase\.co$/);
+
+        // Exactly the two directives that need it, and no others.
+        const naming = policy.split(';').map((d) => d.trim())
+            .filter((d) => d.includes(hosts[0]))
+            .map((d) => d.split(' ')[0]);
+        assert.deepEqual(naming.sort(), ['connect-src', 'img-src']);
+
+        // Everything else stays shut.
+        assert.match(policy, /frame-src 'none'/);
+        assert.match(policy, /object-src 'none'/);
+        assert.match(policy, /base-uri 'self'/);
+        assert.match(policy, /form-action 'none'/);
+        assert.match(policy, /script-src 'self'/);
+        assert.ok(!/script-src[^;]*unsafe-inline/.test(policy));
+        assert.ok(!/script-src[^;]*unsafe-eval/.test(policy));
+        assert.ok(!/default-src[^;]*https:/.test(policy), 'default-src was widened');
     });
 
     test('17 · the page contains no inline script', () => {
@@ -232,15 +259,34 @@ describe('3 + 16 + 17 · demo mode has no backend', () => {
         assert.equal(inline, null, 'index.html has an inline <script>');
     });
 
-    test('16 · no invitation database object is referenced', () => {
+    test('16 · the web holds no invitation write path and no SQL', () => {
         for (const { rel, source } of sources) {
             const code = codeOnly(source).toLowerCase();
-            for (const needle of ['rpc/', 'select ', 'insert into', 'invitations_config', 'from public.']) {
-                assert.ok(!code.includes(needle), `${rel} references ${needle}`);
+            for (const needle of ['insert into', 'update public.', 'delete from', 'select * from']) {
+                assert.ok(!code.includes(needle), `${rel} contains SQL`);
             }
         }
-        // And no migration was created anywhere in this repository.
         assert.ok(!readdirSync(ROOT).includes('supabase'), 'a supabase/ directory appeared in the web repo');
+    });
+
+    test('3 · demo mode never reaches the backend', () => {
+        // The demo branch loads a bundled literal and passes NO storage
+        // resolver, so neither an RPC nor an image request can originate there.
+        const main = codeOnly(readFileSync(join(INVITATION, 'js', 'main.js'), 'utf8'));
+        const demoFn = main.slice(main.indexOf('async function renderDemo'),
+            main.indexOf('async function start'));
+        assert.ok(!demoFn.includes('callRpc'), 'renderDemo calls an RPC');
+        assert.ok(!demoFn.includes('storageUrlResolver'), 'renderDemo builds a storage resolver');
+        assert.ok(/paint\(template, config, route, null\)/.test(demoFn),
+            'renderDemo must paint with a null storage resolver');
+    });
+
+    test('3 · a storage reference cannot resolve without a resolver', () => {
+        // Which is what makes the line above load-bearing rather than stylistic.
+        assert.equal(resolveImage(
+            { source: 'storage', bucket: 'event-photos', path: 'a/b.jpg' },
+            { assetBase: 'https://example.test/invitation/assets/' },
+        ), null);
     });
 
     test('3 · demo data is a literal, and each call gets its own copy', () => {

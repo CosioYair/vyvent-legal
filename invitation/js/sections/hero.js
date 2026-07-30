@@ -18,7 +18,10 @@ export default function renderHero(data, ctx) {
     if (!data) return null;
     const d = ctx.document;
 
-    const artSrc = resolveImage(data.image, { assetBase: ctx.assetBase });
+    const artSrc = resolveImage(data.image, {
+        assetBase: ctx.assetBase,
+        storageUrl: ctx.storageUrl,
+    });
     const art = artSrc
         ? el('img', {
             class: 'inv-hero__art',

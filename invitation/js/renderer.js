@@ -62,6 +62,10 @@ export function renderInvitation(opts) {
         route: o.route || { mode: 'none', code: null },
         document: d,
         assetBase: o.assetBase,
+        // Supplied only for STORED invitations. Absent in demo mode, so a
+        // storage reference resolves to null there instead of reaching the
+        // network.
+        storageUrl: typeof o.storageUrl === 'function' ? o.storageUrl : null,
         locale: config.locale,
         timeZone: config.timeZone,
         now: Number.isFinite(o.now) ? o.now : 0,

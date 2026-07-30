@@ -30,7 +30,10 @@ export default function renderGallery(data, ctx) {
 
     const tiles = data.items
         .map((item, index) => {
-            const src = resolveImage(item.image, { assetBase: ctx.assetBase });
+            const src = resolveImage(item.image, {
+                assetBase: ctx.assetBase,
+                storageUrl: ctx.storageUrl,
+            });
             if (!src) return null;
 
             const img = el('img', {
