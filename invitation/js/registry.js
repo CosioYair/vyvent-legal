@@ -1,0 +1,65 @@
+/* THE TEMPLATE REGISTRY — code-first, closed set.
+ *
+ * A registry identifier arrives from the query string, so it is attacker
+ * controlled. Two properties make that harmless:
+ *
+ *   1. Templates are STATICALLY IMPORTED. There is no dynamic `import()`, no
+ *      path built from input, no fetch of a descriptor. Adding a template is a
+ *      code change that ships through review; it can never be a URL.
+ *   2. Lookup is an own-property check on a NULL-PROTOTYPE map, so values like
+ *      `__proto__`, `constructor` or `toString` resolve to nothing instead of
+ *      reaching an inherited member.
+ *
+ * `wedding_romantic_v1` is the first entry. Its identifier is the composed form
+ * `{templateKey}_v{templateVersion}`, and `assertIdentity()` below proves the
+ * three fields and the id agree, so a copy-paste mistake in a future entry
+ * fails at load rather than mislabeling a stored invitation.
+ */
+import weddingRomanticV1 from '../templates/wedding-romantic/template.js';
+
+/** Categories the registry knows. Used by the editor in Milestone B. */
+export const CATEGORIES = Object.freeze({
+    wedding: { key: 'wedding', label: 'Boda' },
+});
+
+function assertIdentity(t) {
+    const expected = t.templateKey + '_v' + t.templateVersion;
+    if (t.id !== expected) {
+        throw new Error('registry: id "' + t.id + '" does not match "' + expected + '"');
+    }
+    if (!Object.prototype.hasOwnProperty.call(CATEGORIES, t.categoryKey)) {
+        throw new Error('registry: unknown category "' + t.categoryKey + '"');
+    }
+    return t;
+}
+
+const TEMPLATES = Object.create(null);
+for (const template of [weddingRomanticV1]) {
+    TEMPLATES[assertIdentity(template).id] = Object.freeze(template);
+}
+
+/**
+ * Resolve a registry identifier to its template descriptor.
+ * @returns {?object} the descriptor, or null for ANY unknown identifier.
+ */
+export function resolveTemplate(id) {
+    if (typeof id !== 'string' || id === '') return null;
+    return Object.prototype.hasOwnProperty.call(TEMPLATES, id) ? TEMPLATES[id] : null;
+}
+
+/** Every registered identifier, for the editor's template picker. */
+export function listTemplates() {
+    return Object.keys(TEMPLATES).map((id) => TEMPLATES[id]);
+}
+
+/**
+ * A configuration and a template agree when the category, key and version all
+ * match. Checked before rendering so a stored invitation can never be drawn by
+ * a template it was not authored for.
+ */
+export function matchesConfig(template, config) {
+    return !!template && !!config
+        && template.categoryKey === config.categoryKey
+        && template.templateKey === config.templateKey
+        && template.templateVersion === config.templateVersion;
+}
