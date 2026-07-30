@@ -293,7 +293,7 @@
 .tpl-wedding-romantic .inv-place__actions { margin: 0; }
 
 /* ── Dress code ─────────────────────────────────────────────────────────── */
-.tpl-wedding-romantic .inv-dress__label {
+.tpl-wedding-romantic .inv-dress__title {
     margin-bottom: 1rem;
     font-family: var(--inv-font-display);
     font-size: 1.6rem;
@@ -302,23 +302,25 @@
 
 .tpl-wedding-romantic .inv-dress__description { color: var(--inv-ink); }
 
-.tpl-wedding-romantic .inv-dress__notes {
+.tpl-wedding-romantic .inv-dress__guidelines {
     margin: 1.4rem 0 0;
     padding: 0;
+    /* The marker is drawn on ::before instead, so it cannot be announced as
+     * content — the element stays a real <ul> for assistive technology. */
     list-style: none;
     display: grid;
     gap: 0.55rem;
     text-align: left;
 }
 
-.tpl-wedding-romantic .inv-dress__notes li {
+.tpl-wedding-romantic .inv-dress__guideline {
     position: relative;
     padding-left: 1.35rem;
     color: var(--inv-muted);
     font-size: 0.92rem;
 }
 
-.tpl-wedding-romantic .inv-dress__notes li::before {
+.tpl-wedding-romantic .inv-dress__guideline::before {
     content: "";
     position: absolute;
     left: 0.25rem;

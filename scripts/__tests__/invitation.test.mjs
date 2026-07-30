@@ -353,7 +353,7 @@ describe('6 · invalid optional sections are skipped safely', () => {
     const broken = {
         countdown: { enabled: true, targetAt: 'not-a-date', heading: 'x' },
         reception: { enabled: true, venueName: 'Hacienda', address: 'x' },   // no startsAt
-        dressCode: { enabled: true },                                        // no label
+        dressCode: { enabled: true, title: 'Formal' },   // a title alone is not content
         gallery: { enabled: true, items: [{ image: 'a-bare-string' }, { image: null }] },
         gifts: { enabled: true, links: [{ label: 'x', url: 'javascript:alert(1)' }] },
         closing: { enabled: true, body: '   ' },
@@ -380,8 +380,9 @@ describe('6 · invalid optional sections are skipped safely', () => {
     test('a section whose data THROWS while being read is skipped, not fatal', () => {
         const hostile = {
             enabled: true,
-            label: 'Formal',
-            get notes() { throw new Error('boom'); },
+            title: 'Formal',
+            description: 'Vestido largo.',
+            get guidelines() { throw new Error('boom'); },
         };
         const { ok, config } = normalizeConfig(withSection('dressCode', hostile));
         assert.equal(ok, true);
@@ -404,6 +405,154 @@ describe('6 · invalid optional sections are skipped safely', () => {
         });
         assert.deepEqual(result.rendered, ['hero', 'message']);
         assert.deepEqual(result.skipped, ['__proto__', 'nope', 'constructor']);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Dress code — the clarified v1 contract
+//
+// `guidelines` (formerly `notes`) is the short list INSIDE the dress-code
+// section. The rules worth pinning down are the ones a future editor could
+// quietly break: that it is not a section of its own, that description and
+// guidelines are each independently sufficient, and that a blank row an
+// organizer left behind never becomes an empty bullet.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('dress code · description and guidelines are independently sufficient', () => {
+    const dress = (over) => withSection('dressCode', { enabled: true, ...over });
+
+    test('description alone renders the section', () => {
+        const { config } = normalizeConfig(dress({ description: 'Vestido largo y traje oscuro.' }));
+        assert.ok(config.sections.dressCode);
+        assert.deepEqual(config.sections.dressCode.guidelines, []);
+
+        const { node, rendered } = renderDemo({ raw: dress({ description: 'Vestido largo y traje oscuro.' }) });
+        assert.ok(rendered.includes('dressCode'));
+        assert.equal(node.querySelectorAll('.inv-dress__description').length, 1);
+        // No empty list is left behind.
+        assert.equal(node.querySelectorAll('.inv-dress__guidelines').length, 0);
+    });
+
+    test('guidelines alone render the section', () => {
+        const raw = dress({ guidelines: ['Evita el tacón de aguja.'] });
+        const { config } = normalizeConfig(raw);
+        assert.ok(config.sections.dressCode);
+        assert.equal(config.sections.dressCode.description, '');
+
+        const { node, rendered } = renderDemo({ raw });
+        assert.ok(rendered.includes('dressCode'));
+        assert.equal(node.querySelectorAll('.inv-dress__guideline').length, 1);
+        // No empty paragraph is left behind.
+        assert.equal(node.querySelectorAll('.inv-dress__description').length, 0);
+    });
+
+    test('neither one means the section is empty and is omitted', () => {
+        for (const over of [
+            {},
+            { title: 'Formal · Etiqueta jardín' },
+            { title: 'Formal', description: '   ', guidelines: [] },
+            { title: 'Formal', description: '', guidelines: ['', '   ', null, 42] },
+            { title: 'Formal', guidelines: 'no soy un arreglo' },
+        ]) {
+            const { ok, config } = normalizeConfig(dress(over));
+            assert.equal(ok, true, 'an empty dress code took the page down');
+            assert.equal(config.sections.dressCode, null,
+                'rendered with nothing to say: ' + JSON.stringify(over));
+        }
+    });
+
+    test('a title is optional, and never keeps an empty section alive on its own', () => {
+        const withTitle = normalizeConfig(dress({ title: 'Formal', description: 'x' })).config;
+        assert.equal(withTitle.sections.dressCode.title, 'Formal');
+
+        const withoutTitle = normalizeConfig(dress({ description: 'x' })).config;
+        assert.equal(withoutTitle.sections.dressCode.title, '');
+        const { node } = renderDemo({ raw: dress({ description: 'x' }) });
+        assert.equal(node.querySelectorAll('.inv-dress__title').length, 0);
+    });
+});
+
+describe('dress code · each guideline is trimmed, non-empty, bounded and semantic', () => {
+    const dress = (guidelines) => withSection('dressCode', { enabled: true, title: 'Formal', guidelines });
+
+    test('entries are trimmed and whitespace-collapsed', () => {
+        const { config } = normalizeConfig(dress(['   Evita   el  tacón   ', '\tLa noche refresca.\n']));
+        assert.deepEqual(config.sections.dressCode.guidelines,
+            ['Evita el tacón', 'La noche refresca.']);
+    });
+
+    test('empty and non-string entries are dropped, not rendered as empty bullets', () => {
+        const raw = dress(['Válida', '', '   ', null, undefined, 42, {}, [], 'También válida']);
+        const { config } = normalizeConfig(raw);
+        assert.deepEqual(config.sections.dressCode.guidelines, ['Válida', 'También válida']);
+
+        const { node } = renderDemo({ raw });
+        const items = node.querySelectorAll('.inv-dress__guideline');
+        assert.equal(items.length, 2);
+        for (const li of items) assert.ok(li.textContent.trim().length > 0);
+    });
+
+    test('each entry is clamped to its own limit', () => {
+        const { config } = normalizeConfig(dress(['x'.repeat(400), 'y'.repeat(50)]));
+        assert.equal(config.sections.dressCode.guidelines[0].length, LIMITS.GUIDELINE);
+        assert.equal(LIMITS.GUIDELINE, 160);
+        // A short entry is untouched.
+        assert.equal(config.sections.dressCode.guidelines[1].length, 50);
+    });
+
+    test('the list is a real <ul> of <li>, in the order the organizer gave', () => {
+        const order = ['Primera', 'Segunda', 'Tercera'];
+        const { node } = renderDemo({ raw: dress(order) });
+        const list = node.querySelector('.inv-dress__guidelines');
+        assert.equal(list.tagName, 'ul');
+        assert.deepEqual(list.children.map((c) => c.tagName), ['li', 'li', 'li']);
+        assert.deepEqual(list.children.map((c) => c.textContent), order);
+    });
+
+    test('a guideline can never become markup', () => {
+        const payload = '<img src=x onerror=alert(1)>';
+        const { node } = renderDemo({ raw: dress([payload]) });
+        const li = node.querySelector('.inv-dress__guideline');
+        assert.equal(li.textContent, payload);
+        assert.equal(node.querySelectorAll('img').length > 0, true);   // hero + gallery only
+        assert.equal(li.querySelectorAll('img').length, 0);
+        assert.ok(serialize(li).includes('&lt;img'));
+    });
+
+    test('guidelines belong to the dress code and are not a section of their own', () => {
+        assert.ok(!sectionIds().includes('guidelines'));
+        assert.ok(!sectionIds().includes('notes'));
+        assert.ok(!resolveTemplate(DEMO_ID).sections.includes('guidelines'));
+        assert.ok(!OPTIONAL_SECTIONS.includes('guidelines'));
+        assert.ok(!REQUIRED_SECTIONS.includes('guidelines'));
+
+        const { node } = renderDemo();
+        const list = node.querySelector('.inv-dress__guidelines');
+        assert.ok(list, 'the demo renders no guideline list');
+        // It lives inside the dress-code section, not beside it.
+        assert.equal(node.querySelectorAll('[data-section="guidelines"]').length, 0);
+        let ancestor = list.parentNode;
+        while (ancestor && ancestor.getAttribute?.('data-section') === null) ancestor = ancestor.parentNode;
+        assert.equal(ancestor.getAttribute('data-section'), 'dressCode');
+    });
+
+    test('the retired name is gone from the contract, with no compatibility alias', () => {
+        // No invitation has ever been persisted, so a legacy alias would be
+        // dead code guarding data that does not exist.
+        const { config } = normalizeConfig(demoConfig(DEMO_ID));
+        assert.equal(config.sections.dressCode.notes, undefined);
+        assert.equal(config.sections.dressCode.label, undefined);
+        assert.ok(Array.isArray(config.sections.dressCode.guidelines));
+
+        for (const { rel, source } of moduleSources()) {
+            const code = codeOnly(source);
+            assert.ok(!/\bnotes\b/.test(code), `${rel} still refers to \`notes\``);
+            assert.ok(!/raw\.label/.test(code), `${rel} still reads \`label\` on the dress code`);
+        }
+        // `notes` is not silently accepted as an alias.
+        const aliased = normalizeConfig(withSection('dressCode', {
+            enabled: true, title: 'Formal', notes: ['no debería aparecer'],
+        }));
+        assert.equal(aliased.config.sections.dressCode, null);
     });
 });
 
@@ -469,13 +618,13 @@ describe('7 · organizer text can never become markup', () => {
     }
 
     test('control characters are stripped and lengths are clamped', () => {
-        assert.equal(sanitizeText('a bc', 80), 'abc');
+        assert.equal(sanitizeText('a\u0000b\u001fc', 80), 'abc');
         assert.equal(sanitizeText('  spaced   out  ', 80), 'spaced out');
         assert.equal(sanitizeText('x'.repeat(300), LIMITS.NAME).length, LIMITS.NAME);
         assert.equal(sanitizeText(42), '');
         assert.equal(sanitizeText(null), '');
         // Paragraph breaks survive; control characters still do not.
-        assert.equal(sanitizeParagraph('one\n\n\n\ntwo'), 'one\n\ntwo');
+        assert.equal(sanitizeParagraph('one\n\n\n\ntwo\u0007'), 'one\n\ntwo');
         assert.equal(sanitizeParagraph('a\r\nb'), 'a\nb');
     });
 
@@ -714,12 +863,24 @@ describe('10 + 11 · collection limits are enforced', () => {
         assert.equal(node.querySelectorAll('.inv-gifts__item').length, LIMITS.GIFT_LINKS);
     });
 
-    test('dress-code notes are capped too', () => {
-        const notes = Array.from({ length: 20 }, (_, i) => 'nota ' + i);
+    test('dress-code guidelines are capped at LIMITS.DRESS_CODE_GUIDELINES', () => {
+        const guidelines = Array.from({ length: 20 }, (_, i) => 'indicación ' + i);
         const { config } = normalizeConfig(withSection('dressCode', {
-            enabled: true, label: 'Formal', notes,
+            enabled: true, title: 'Formal', guidelines,
         }));
-        assert.equal(config.sections.dressCode.notes.length, LIMITS.DRESS_CODE_NOTES);
+        assert.equal(config.sections.dressCode.guidelines.length, LIMITS.DRESS_CODE_GUIDELINES);
+        assert.equal(LIMITS.DRESS_CODE_GUIDELINES, 4);
+
+        const { node } = renderDemo({
+            raw: withSection('dressCode', { enabled: true, title: 'Formal', guidelines }),
+        });
+        assert.equal(node.querySelectorAll('.inv-dress__guideline').length, LIMITS.DRESS_CODE_GUIDELINES);
+    });
+
+    test('the accepted v1 limits are the ones actually enforced', () => {
+        assert.equal(LIMITS.GALLERY_ITEMS, 12);
+        assert.equal(LIMITS.GIFT_LINKS, 6);
+        assert.equal(LIMITS.DRESS_CODE_GUIDELINES, 4);
     });
 
     test('a fully populated configuration stays far below the 64 KB ceiling', () => {
@@ -1092,8 +1253,18 @@ describe('document semantics', () => {
 describe('source hygiene', () => {
     test('no stray control byte survived authoring', () => {
         // A literal control character inside a regex or string is invisible in a
-        // diff and changes behaviour; this catches it mechanically.
-        for (const { rel, source } of moduleSources()) {
+        // diff, makes the file binary to `grep`, and silently changes behaviour.
+        // The test files are scanned too: this suite is where that bug actually
+        // happened — a raw NUL typed into a control-character assertion — so
+        // covering only the shipped module tree would have missed it.
+        const scanned = [
+            ...moduleSources(),
+            ...['invitation.test.mjs', 'dom-stub.mjs', 'app-return.test.mjs'].map((name) => ({
+                rel: 'scripts/__tests__/' + name,
+                source: readFileSync(join(ROOT, 'scripts', '__tests__', name), 'utf8'),
+            })),
+        ];
+        for (const { rel, source } of scanned) {
             const bad = /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.exec(source);
             assert.equal(bad, null, `${rel} contains a control byte at index ${bad && bad.index}`);
         }

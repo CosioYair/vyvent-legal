@@ -191,21 +191,41 @@ const SECTION_NORMALIZERS = {
         };
     },
 
-    /* OPTIONAL. A label plus optional guidance. No external assets required. */
+    /* OPTIONAL. The dress code: a short title, a general explanation, and a
+     * list of concrete recommendations or restrictions. Text only — no swatch
+     * images, no icon set, no external asset of any kind.
+     *
+     * `guidelines` belongs to THIS section and nowhere else. It is not a
+     * top-level section, and the organizer-facing editor calls it
+     * "Indicaciones", never "Notes".
+     *
+     * CONTENT RULE: `title` names the dress code ("Formal · Etiqueta jardín")
+     * but is not content on its own — a section carrying only a title has
+     * nothing to tell a guest. `description` and `guidelines` are each
+     * INDEPENDENTLY sufficient: either alone renders the section, both render
+     * it, neither omits it. Neither is required when the other is present. */
     dressCode(raw) {
         if (!isEnabled(raw)) return null;
-        const label = sanitizeText(raw.label, LIMITS.LINE);
-        if (!label) return null;
+
+        const description = sanitizeParagraph(raw.description, LIMITS.PARAGRAPH);
+        const guidelines = Array.isArray(raw.guidelines)
+            ? raw.guidelines
+                // sanitizeText trims and collapses whitespace; the filter drops
+                // anything that was empty to begin with or became empty here,
+                // so a blank row left behind in the editor never renders as an
+                // empty bullet. Individually clamped, then the list is capped.
+                .map((g) => sanitizeText(g, LIMITS.GUIDELINE))
+                .filter(Boolean)
+                .slice(0, LIMITS.DRESS_CODE_GUIDELINES)
+            : [];
+
+        if (!description && guidelines.length === 0) return null;
+
         return {
             heading: sanitizeText(raw.heading, LIMITS.HEADING) || 'Código de vestimenta',
-            label,
-            description: sanitizeParagraph(raw.description, LIMITS.PARAGRAPH),
-            notes: Array.isArray(raw.notes)
-                ? raw.notes
-                    .map((n) => sanitizeText(n, LIMITS.LINE))
-                    .filter(Boolean)
-                    .slice(0, LIMITS.DRESS_CODE_NOTES)
-                : [],
+            title: sanitizeText(raw.title, LIMITS.LINE),
+            description,
+            guidelines,
         };
     },
 

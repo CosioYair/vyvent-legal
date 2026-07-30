@@ -78,10 +78,10 @@ DEMOS.wedding_romantic_v1 = {
         dressCode: {
             enabled: true,
             heading: 'Código de vestimenta',
-            label: 'Formal · Etiqueta jardín',
+            title: 'Formal · Etiqueta jardín',
             description: 'Vestido largo y traje oscuro. La celebración es al aire libre, '
                 + 'sobre pasto y empedrado.',
-            notes: [
+            guidelines: [
                 'Evita el tacón de aguja: el camino es de piedra.',
                 'La noche refresca; te sugerimos un chal o un saco ligero.',
                 'Reservamos el blanco para la novia.',

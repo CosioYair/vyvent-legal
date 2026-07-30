@@ -143,10 +143,41 @@ leaves an empty frame.
 |---|---|---|
 | `countdown` | enabled | `heading` (default `Faltan`), `targetAt` (defaults to `hero.date`), `completedLabel` |
 | `reception` | enabled + `startsAt` + `venueName` | `heading` (default `Recepción`), `address`, `note`, `mapUrl` |
-| `dressCode` | enabled + `label` | `heading`, `description`, `notes[]` |
+| `dressCode` | enabled + (`description` **or** ≥1 `guidelines` entry) | `heading`, `title`, `description`, `guidelines[]` |
 | `gallery` | enabled + ≥1 resolvable image | `heading` (default `Nuestra historia`), `items[].alt` |
 | `gifts` | enabled + ≥1 valid link **or** an `intro` | `heading` (default `Mesa de regalos`), `intro`, `links[].note` |
 | `closing` | enabled + `body` | `heading`, `signature` |
+
+### Dress code
+
+```ts
+dressCode: {
+  enabled: boolean,
+  heading?: string,      // section heading, defaults to "Código de vestimenta"
+  title?: string,        // names the dress code, e.g. "Formal · Etiqueta jardín"
+  description?: string,  // the general explanation
+  guidelines?: string[]  // concrete recommendations or restrictions, max 4
+}
+```
+
+`guidelines` belongs **entirely** to this section. It is not a top-level
+section, it never renders outside the dress code, and the organizer-facing
+editor must not call it "Notes" — the Spanish label is **"Indicaciones"** (or
+"Recomendaciones de vestimenta").
+
+`description` and `guidelines` are **independently sufficient**: either alone
+renders the section, both render it, and only when neither has valid content is
+the section treated as empty and omitted. Neither is required when the other is
+present. `title` is not content on its own — a dress code carrying only a title
+has nothing to tell a guest, so it does not keep the section alive.
+
+Each guideline is trimmed and whitespace-collapsed, dropped if it is empty
+(a blank row left in the editor never becomes an empty bullet), clamped to
+160 characters, and rendered as an `<li>` inside a real `<ul>` through the safe
+DOM helpers. The list marker is drawn in CSS on `::before`, so the element stays
+a genuine list for assistive technology and the marker is never announced as
+content. Items are a plain ordered array, so the future mobile editor can add,
+edit, remove and reorder them individually with no contract change.
 
 ### Instants
 
@@ -182,7 +213,8 @@ limit are trimmed to the first N items.
 | Paragraph (`message.body`, `closing.body`, `gifts.intro`, `dressCode.description`) | 1200 chars |
 | `gallery.items` | 12 |
 | `gifts.links` | 6 |
-| `dressCode.notes` | 4 |
+| `dressCode.guidelines` | 4 items |
+| One `dressCode.guidelines` entry | 160 chars |
 
 A fully populated configuration lands around 6 KB of text plus image
 references, so the locked **64 KB** JSONB ceiling is a safety net rather than a
