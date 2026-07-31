@@ -24,14 +24,19 @@ export default function renderHero(data, ctx) {
         templateAssets: ctx.templateAssets,
         storageUrl: ctx.storageUrl,
     });
+    // The template's own hero geometry — also what the mobile cropper framed
+    // this photograph to.
+    const place = (ctx.placements && ctx.placements.hero) || null;
+
     const art = artSrc
         ? el('img', {
             class: 'inv-hero__art',
             attrs: {
                 src: artSrc,
+                // Accessibility, never visibility.
                 alt: data.imageAlt || '',
-                width: 1000,
-                height: 1400,
+                width: (place && place.width) || 1000,
+                height: (place && place.height) || 1400,
                 decoding: 'async',
                 // Above the fold: never lazy, and never aria-hidden when it
                 // carries a real description.

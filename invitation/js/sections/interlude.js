@@ -27,7 +27,7 @@ import { el } from '../dom.js';
 import { resolveImage } from '../security.js';
 import { INTERLUDE_SLOTS } from '../config.js';
 
-/** Intrinsic size of the bundled demo bands; also the band's aspect ratio. */
+/** Fallback intrinsic size, used only if a template declares no placement. */
 const BAND_W = 1600;
 const BAND_H = 900;
 
@@ -46,13 +46,20 @@ function renderInterlude(slot, index, ctx) {
     });
     if (!src) return null;
 
+    // The template's own geometry, which is also what the mobile cropper framed
+    // this photograph to — so the reserved box and the file agree exactly.
+    const place = (ctx.placements && ctx.placements.interlude) || null;
+
     const img = el('img', {
         class: 'inv-interlude__img',
         attrs: {
             src,
+            // ALT IS ACCESSIBILITY, NOT VISIBILITY. An empty description makes
+            // the photograph decorative; it never makes it disappear, and the
+            // filename and the storage path are never used to invent one.
             alt: data.alt || '',
-            width: BAND_W,
-            height: BAND_H,
+            width: (place && place.width) || BAND_W,
+            height: (place && place.height) || BAND_H,
             loading: 'lazy',
             decoding: 'async',
             'aria-hidden': data.alt ? null : 'true',

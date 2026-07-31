@@ -20,7 +20,7 @@ import { el } from '../dom.js';
 import { resolveImage } from '../security.js';
 import { section } from './shell.js';
 
-/** Intrinsic size of the bundled demo artwork; also the grid's aspect ratio. */
+/** Fallback intrinsic size, used only if a template declares no placement. */
 const TILE_W = 800;
 const TILE_H = 1000;
 
@@ -38,13 +38,19 @@ export default function renderGallery(data, ctx) {
             });
             if (!src) return null;
 
+            // The template's own tile geometry — also what the mobile cropper
+            // framed this photograph to.
+            const place = (ctx.placements && ctx.placements.gallery) || null;
+
             const img = el('img', {
                 class: 'inv-gallery__img',
                 attrs: {
                     src,
+                    // Accessibility, never visibility: an item with no
+                    // description is decorative, not absent.
                     alt: item.alt || '',
-                    width: TILE_W,
-                    height: TILE_H,
+                    width: (place && place.width) || TILE_W,
+                    height: (place && place.height) || TILE_H,
                     loading: 'lazy',
                     decoding: 'async',
                     'aria-hidden': item.alt ? null : 'true',

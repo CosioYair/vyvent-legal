@@ -1529,6 +1529,163 @@ describe('source hygiene', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// 29 · What shape a photograph is, and what makes it visible
+// ─────────────────────────────────────────────────────────────────────────────
+describe('29 · image placements and alt semantics', () => {
+    const TEMPLATE_CSS = readFileSync(
+        join(INVITATION, 'templates', 'wedding-romantic', 'template.css'), 'utf8');
+    const placements = () => resolveTemplate(DEMO_ID).imagePlacements;
+
+    const storageImg = (p) => ({ source: 'storage', bucket: 'invitation-media', path: p });
+    const renderStored = (raw) => renderDemo({
+        raw, storageUrl: (b, p) => `https://cdn.test/${b}/${p}`,
+    });
+
+    test('the template declares a placement for each of its three frames', () => {
+        const p = placements();
+        assert.ok(p, 'template publishes no imagePlacements');
+        assert.deepEqual(Object.keys(p).sort(), ['gallery', 'hero', 'interlude']);
+        for (const [name, v] of Object.entries(p)) {
+            assert.ok(Number.isInteger(v.width) && v.width > 0, name + ' width');
+            assert.ok(Number.isInteger(v.height) && v.height > 0, name + ' height');
+            // The ratio is not typed twice — it must equal the dimensions.
+            assert.ok(Math.abs(v.aspectRatio - v.width / v.height) < 1e-9, name + ' ratio');
+            assert.ok(Array.isArray(v.trim), name + ' trim');
+        }
+    });
+
+    /* THE NUMBERS THE MOBILE CROPPER FRAMES TO. `imagePlacements.ts` in the app
+     * mirrors this block and pins the same values; if either side is edited
+     * alone, one of the two suites fails. */
+    test('the placements are the agreed contract values', () => {
+        const p = placements();
+        assert.deepEqual(
+            { w: p.hero.width, h: p.hero.height }, { w: 1000, h: 1400 });
+        assert.deepEqual(
+            { w: p.gallery.width, h: p.gallery.height }, { w: 800, h: 1000 });
+        assert.deepEqual(
+            { w: p.interlude.width, h: p.interlude.height }, { w: 1600, h: 900 });
+    });
+
+    test('the STYLESHEET draws the ratios the cropper frames to', () => {
+        // A gallery tile is `aspect-ratio: 4/5`, which is exactly 800×1000.
+        assert.match(TEMPLATE_CSS, /\.inv-gallery__item[^}]*aspect-ratio:\s*4\s*\/\s*5/s);
+        assert.ok(Math.abs(placements().gallery.aspectRatio - 4 / 5) < 1e-9);
+
+        // An interlude band is 16/9 — and the odd-parity rule must NOT change
+        // it, or the same photograph would be cropped two different ways
+        // depending on which slot it landed in.
+        assert.match(TEMPLATE_CSS, /\.inv-interlude\s*\{[^}]*aspect-ratio:\s*16\s*\/\s*9/s);
+        const odd = /\.inv-interlude\[data-parity="odd"\]\s*\{([^}]*)\}/s.exec(TEMPLATE_CSS);
+        assert.ok(odd, 'odd-parity rule missing');
+        assert.ok(!/aspect-ratio/.test(odd[1]),
+            'the odd-parity rule changes the aspect ratio, so the cropper cannot match it');
+        assert.ok(Math.abs(placements().interlude.aspectRatio - 16 / 9) < 1e-9);
+    });
+
+    test('each rendered image declares its placement size, so nothing shifts', () => {
+        const p = placements();
+        const { node } = renderStored(withInterludes({
+            afterMessage: { image: storageImg('a.jpg') },
+        }));
+
+        const hero = node.querySelector('.inv-hero__art');
+        assert.equal(Number(hero.getAttribute('width')), p.hero.width);
+        assert.equal(Number(hero.getAttribute('height')), p.hero.height);
+
+        const tile = node.querySelector('.inv-gallery__img');
+        assert.equal(Number(tile.getAttribute('width')), p.gallery.width);
+        assert.equal(Number(tile.getAttribute('height')), p.gallery.height);
+
+        const band = node.querySelector('.inv-interlude__img');
+        assert.equal(Number(band.getAttribute('width')), p.interlude.width);
+        assert.equal(Number(band.getAttribute('height')), p.interlude.height);
+    });
+
+    /* ── ALT IS ACCESSIBILITY, NEVER VISIBILITY ──────────────────────────── */
+
+    test('an interlude image renders with NO description at all', () => {
+        for (const entry of [
+            { image: storageImg('a.jpg') },
+            { image: storageImg('a.jpg'), alt: '' },
+            { image: storageImg('a.jpg'), alt: '   ' },
+        ]) {
+            const { config, node } = renderStored(withInterludes({ afterCeremony: entry }));
+            assert.ok(config.interludeImages.afterCeremony, 'slot dropped during normalization');
+
+            const bands = node.querySelectorAll('.inv-interlude');
+            assert.equal(bands.length, 1, 'the band did not render without a description');
+            const img = bands[0].querySelector('.inv-interlude__img');
+            assert.ok(img.getAttribute('src'), 'no src');
+            // Decorative: an empty alt, and hidden from assistive technology.
+            assert.equal(img.getAttribute('alt'), '');
+            assert.equal(img.getAttribute('aria-hidden'), 'true');
+        }
+    });
+
+    test('a description changes the SEMANTICS and nothing else', () => {
+        const without = renderStored(withInterludes({
+            afterCeremony: { image: storageImg('a.jpg') },
+        }));
+        const withAlt = renderStored(withInterludes({
+            afterCeremony: { image: storageImg('a.jpg'), alt: 'Nosotros en la playa' },
+        }));
+
+        const pick = (r) => r.node.querySelector('.inv-interlude__img');
+        // Same image, same geometry, same everything visual.
+        for (const attr of ['src', 'width', 'height', 'loading', 'decoding', 'class']) {
+            assert.equal(pick(without).getAttribute(attr), pick(withAlt).getAttribute(attr), attr);
+        }
+        assert.equal(pick(withAlt).getAttribute('alt'), 'Nosotros en la playa');
+        assert.equal(pick(withAlt).getAttribute('aria-hidden'), null);
+    });
+
+    test('the description is NEVER drawn as a visible caption', () => {
+        const { node } = renderStored(withInterludes({
+            afterCeremony: { image: storageImg('a.jpg'), alt: 'UNA DESCRIPCION UNICA' },
+        }));
+        const band = node.querySelector('.inv-interlude');
+        // It exists as an attribute…
+        assert.equal(band.querySelector('img').getAttribute('alt'), 'UNA DESCRIPCION UNICA');
+        // …and appears nowhere as text: no caption, no figcaption, no heading.
+        assert.equal(band.querySelector('figcaption'), null);
+        assert.equal(serialize(band).split('>').filter((s) => s.includes('UNA DESCRIPCION UNICA')).length,
+            1, 'the description was rendered as visible text as well as an attribute');
+    });
+
+    test('an empty description NEVER falls back to a filename or a path', () => {
+        const { node } = renderStored(withInterludes({
+            afterCeremony: { image: storageImg('secreto/mi-archivo-privado.jpg') },
+        }));
+        const img = node.querySelector('.inv-interlude__img');
+        assert.equal(img.getAttribute('alt'), '');
+        for (const leak of ['mi-archivo-privado', 'secreto', '.jpg', 'Imagen', 'imagen']) {
+            assert.ok(!String(img.getAttribute('alt')).includes(leak),
+                'the alt leaked ' + leak);
+        }
+    });
+
+    test('the SAME rule holds for the hero and the gallery', () => {
+        const raw = demoConfig(DEMO_ID);
+        delete raw.sections.hero.imageAlt;
+        raw.sections.hero.image = storageImg('hero.jpg');
+        raw.sections.gallery = { enabled: true, items: [{ image: storageImg('g.jpg') }] };
+
+        const { node, rendered } = renderStored(raw);
+        assert.ok(rendered.includes('hero'));
+        assert.ok(rendered.includes('gallery'), 'a gallery item vanished for want of a description');
+
+        const hero = node.querySelector('.inv-hero__art');
+        assert.ok(hero && hero.getAttribute('src'), 'the hero image vanished without an alt');
+        assert.equal(hero.getAttribute('alt'), '');
+
+        const tile = node.querySelector('.inv-gallery__img');
+        assert.ok(tile && tile.getAttribute('src'), 'the gallery image vanished without an alt');
+        assert.equal(tile.getAttribute('alt'), '');
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // 27 · The template's own artwork, chosen explicitly
 // ─────────────────────────────────────────────────────────────────────────────
 describe('27 · template image references', () => {

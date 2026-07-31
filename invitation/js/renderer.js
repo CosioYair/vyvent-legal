@@ -69,6 +69,10 @@ export function renderInvitation(opts) {
         // ever select one of the files this template shipped.
         templateBase: o.templateBase,
         templateAssets: (template && template.assets) || null,
+        // What shape a photograph is on this page. The section renderers read
+        // their intrinsic width/height from here, so the reserved geometry, the
+        // canonical export size and the mobile crop viewport are one number.
+        placements: (template && template.imagePlacements) || {},
         // Supplied only for STORED invitations. Absent in demo mode, so a
         // storage reference resolves to null there instead of reaching the
         // network.

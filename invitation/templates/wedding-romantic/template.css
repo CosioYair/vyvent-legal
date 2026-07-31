@@ -409,11 +409,16 @@
 
 /* Alternating composition, driven by the FIXED slot index — so filling one more
  * slot never restyles the ones already placed. Even slots sit flush; odd slots
- * are inset and rounded, which breaks the rhythm the way a photo album does. */
+ * are inset and rounded, which breaks the rhythm the way a photo album does.
+ *
+ * The RATIO does not alternate, only the inset and the radius. An alternation
+ * that changed the shape would crop the same photograph two different ways
+ * depending on which slot it landed in, and the mobile cropper — which frames
+ * against `imagePlacements.interlude` — could not have shown the organizer
+ * which one they were choosing. */
 .tpl-wedding-romantic .inv-interlude[data-parity="odd"] {
     margin-inline: 0;
     border-radius: var(--inv-radius);
-    aspect-ratio: 3 / 2;
 }
 
 .tpl-wedding-romantic .inv-interlude[data-parity="odd"] .inv-interlude__img {

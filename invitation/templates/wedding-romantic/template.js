@@ -27,6 +27,59 @@ export default {
 
     stylesheet: 'wedding-romantic/template.css',
 
+    /* WHAT SHAPE A PHOTOGRAPH IS ON THIS PAGE.
+     *
+     * The template decides its own geometry, so the mobile cropper and this
+     * renderer can agree on what the organizer is choosing. Before these
+     * existed, the editor uploaded whatever the picker returned and the page
+     * `object-fit: cover`-cropped it — so the couple saw a full photograph in
+     * the editor and a differently-cropped one on the invitation, with no way
+     * to say which part mattered.
+     *
+     * `width`/`height` are the CANONICAL export size and are exactly the
+     * intrinsic dimensions the section renderers declare on their `<img>`, so
+     * the reserved geometry, the exported file and the crop viewport are one
+     * number rather than three that drift.
+     *
+     * `trim` marks bands the frame may lose on some viewports — the hero is
+     * full-bleed at 88svh, so a narrow phone crops its SIDES. The cropper draws
+     * them as guides; nothing is cut here.
+     *
+     * The mobile editor mirrors this block in
+     * `features/digitalInvitations/imagePlacements.ts`, and a test on each side
+     * pins them to the same numbers. */
+    imagePlacements: {
+        hero: {
+            /* 1000×1400 (5:7). The template's own artwork is authored at this
+             * size and the hero <img> declares it. */
+            width: 1000,
+            height: 1400,
+            aspectRatio: 1000 / 1400,
+            trim: [
+                { x: 0, y: 0, w: 0.14, h: 1, label: 'trim-left' },
+                { x: 0.86, y: 0, w: 0.14, h: 1, label: 'trim-right' },
+            ],
+        },
+        gallery: {
+            /* 4:5 exactly — `.inv-gallery__item` declares `aspect-ratio: 4/5`,
+             * so there is nothing to trim and no guides to draw. */
+            width: 800,
+            height: 1000,
+            aspectRatio: 4 / 5,
+            trim: [],
+        },
+        interlude: {
+            /* 16:9 for BOTH parities. The alternating composition varies the
+             * inset and the corner radius, never the ratio — an alternation
+             * that changed the shape would mean the same photograph was cropped
+             * two different ways depending on which slot it landed in. */
+            width: 1600,
+            height: 900,
+            aspectRatio: 16 / 9,
+            trim: [],
+        },
+    },
+
     /* THE TEMPLATE'S OWN ARTWORK — a closed registry, keyed.
      *
      * An invitation stores `{source:'template', assetKey:'hero-default'}` and
