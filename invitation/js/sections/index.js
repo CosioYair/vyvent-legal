@@ -23,6 +23,7 @@ import renderGifts from './gifts.js';
 import renderPasses from './passes.js';
 import renderActions from './actions.js';
 import renderClosing from './closing.js';
+import { INTERLUDE_RENDERERS, interludeSectionId } from './interlude.js';
 
 const RENDERERS = Object.create(null);
 RENDERERS.hero = { render: renderHero, shell: false };
@@ -36,6 +37,14 @@ RENDERERS.gifts = { render: renderGifts, shell: false };
 RENDERERS.passes = { render: renderPasses, shell: true };
 RENDERERS.actions = { render: renderActions, shell: true };
 RENDERERS.closing = { render: renderClosing, shell: false };
+
+/* The six photograph positions. SHELL sections: they take no configuration
+ * section of their own — each reads its own named slot from
+ * `config.interludeImages` — so the table stays a closed map of literal ids to
+ * functions, with nothing derived from a stored value. */
+for (const entry of INTERLUDE_RENDERERS) {
+    RENDERERS[interludeSectionId(entry.slot)] = { render: entry.render, shell: true };
+}
 
 /** @returns {?{render: Function, shell: boolean}} */
 export function resolveSection(id) {

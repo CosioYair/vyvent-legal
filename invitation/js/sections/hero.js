@@ -20,6 +20,8 @@ export default function renderHero(data, ctx) {
 
     const artSrc = resolveImage(data.image, {
         assetBase: ctx.assetBase,
+        templateBase: ctx.templateBase,
+        templateAssets: ctx.templateAssets,
         storageUrl: ctx.storageUrl,
     });
     const art = artSrc

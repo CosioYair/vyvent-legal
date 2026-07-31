@@ -144,6 +144,11 @@ async function paint(template, config, route, storageUrl) {
         route,
         document,
         assetBase: BASES.assets,
+        // The template's own artwork resolves against the templates root, the
+        // same way its stylesheet does. Both roots come from this module's URL,
+        // so they are correct under the DEV project path and the production
+        // root with no environment-specific string anywhere.
+        templateBase: BASES.templates,
         storageUrl,
         now: Date.now(),
         clock: () => Date.now(),

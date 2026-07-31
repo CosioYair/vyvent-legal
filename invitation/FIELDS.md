@@ -62,7 +62,7 @@ omitted.
 | Date line | `sections.hero.date` | ISO instant | ✅ | date+time picker | parseable, offset required | **event `starts_at`** | **config invalid** | organizer |
 | Date *formatting* | *(none)* | — | — | — | — | — | — | template (`Intl`, `locale`+`timeZone`) |
 | Location line | `sections.hero.location` | text | — | single line | 200 | event location text | element omitted | organizer |
-| Hero artwork | `sections.hero.image` | image ref | — | image picker | tagged ref | event cover photo | template gradient only | organizer |
+| Hero artwork | `sections.hero.image` | image ref | — | image picker (design / event / upload / none) | tagged ref | event cover photo | template gradient only | organizer |
 | Hero image alt | `sections.hero.imageAlt` | text | — | single line | 200 | — | `alt=""` + `aria-hidden` | organizer |
 | Flourish ornament | *(none)* | — | — | — | — | — | — | template (CSS) |
 
@@ -127,11 +127,16 @@ publishing is blocked). Organizer-facing label for the list:
 |---|---|---|---|---|---|---|---|
 | Enabled | `sections.gallery.enabled` | bool | — | toggle | `=== true` | section omitted | technical |
 | Heading ("Nuestra historia") | *(none)* | — | — | — | — | — | **template UI copy** |
-| Images (ordered) | `sections.gallery.items[].image` | image ref | — | pick / remove / reorder | **max 12**, tagged ref | item dropped | organizer |
+| Images (ordered) | `sections.gallery.items[].image` | image ref | — | pick / remove / reorder | **max 6**, tagged ref | item dropped | organizer |
 | Alt text | `sections.gallery.items[].alt` | text | — | single line | 200 | `alt=""` + `aria-hidden` | organizer |
 
 Order is the array order — the renderer never re-sorts. The template renders no
 captions, so the contract has no caption field.
+
+The maximum is **6**, reduced from 12. Twelve tiles made the gallery a scroll of
+its own and pushed the gifts and closing sections off the end of most phones.
+Photographs meant to be read *through* the invitation belong in the six named
+positions below, which are a different job with a different layout.
 
 **Image reference source types** (`image.source`):
 
@@ -139,7 +144,67 @@ captions, so the contract has no caption field.
 |---|---|
 | `{source:'storage', bucket:'event-photos', path}` | an existing **event** photo |
 | `{source:'storage', bucket:'invitation-media', path}` | an image uploaded **for this invitation** |
+| `{source:'template', assetKey}` | the **template's own artwork**, chosen explicitly |
 | `{source:'demo', path}` | bundled demonstration art — **demo route only**, rejected everywhere else |
+
+### `template` references
+
+Stored as a **key**, never a path: `{source:'template', assetKey:'hero-default'}`.
+The invitation already records which template and version authored it, so the
+renderer resolves the key in **that template's** `assets` registry and nowhere
+else. An unknown key resolves to nothing, exactly like any other unusable image.
+
+The key is the security property. A path would be organizer-influenced input
+arriving at a URL; a key can only ever select one of the entries a template
+shipped, so nothing an organizer writes becomes a file reference, a module
+specifier or a stylesheet. The lookup is an own-property check, so `__proto__`
+and `constructor` select nothing.
+
+Offered in the editor as **"Imagen del diseño"** beside "Del evento" and
+"Subir nueva". It is **never a fallback**: an invitation with no hero image
+renders the template's designed no-image treatment, and "Quitar" leaves it that
+way rather than quietly restoring the artwork.
+
+This is not `demo`, which stays forbidden in stored configurations. Template
+artwork carries no couple, no date, no place and no text; demonstration content
+sells one fictional wedding and may never become real invitation content.
+
+## Photographs through the invitation — OPTIONAL
+
+Six **named positions**, at `config.interludeImages` — a **sibling of
+`sections`**, not one of them. They are not a section: no heading, no enable
+switch, no "incomplete" state, and nothing about them appears in the publish
+gate. The editor groups them under *"Fotos a lo largo de la invitación"*, which
+is editor copy and never reaches the page.
+
+| Slot | Renders at | Editor label |
+|---|---|---|
+| `afterMessage` | after the message | Después del mensaje |
+| `afterCountdown` | immediately **before the ceremony** | Después de la cuenta regresiva |
+| `afterCeremony` | between ceremony and reception | Después de la ceremonia |
+| `afterReception` | between the reception and the dress code | Después de la recepción |
+| `afterDressCode` | before the gallery/gifts part of the page | Después del código de vestimenta |
+| `beforeClosing` | immediately before the closing message | Antes del mensaje final |
+
+| Visual element | Config path | Type | Req | Editor control | Validation / max | Absent → | Kind |
+|---|---|---|---|---|---|---|---|
+| Photograph | `interludeImages.<slot>.image` | image ref | — | pick / replace / remove | tagged ref | **slot renders nothing** | organizer |
+| Alt text | `interludeImages.<slot>.alt` | text | — | single line | 200 | `alt=""` + `aria-hidden` | organizer |
+
+**Position is the slot name, never array order.** Modelling these as a list
+would tie each photograph's position to its index, so removing the second one
+would move every later photograph into a different part of the invitation. A
+slot holds a photograph or it holds nothing, and nothing else moves.
+
+**A slot keeps its position when its neighbour is switched off.** The template
+lists the six anchors at fixed points in its own section order, so
+`afterCountdown` sits immediately before the ceremony whether or not there is a
+countdown. An organizer who turned the countdown off did not ask for their
+photograph to move.
+
+A slot that is **present must carry an image** — an empty slot and an absent
+slot must not be two different things. There is no drag-and-drop and no
+reordering, because the position *is* the slot.
 
 ## Gift registry — OPTIONAL
 

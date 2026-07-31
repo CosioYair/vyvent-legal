@@ -133,6 +133,42 @@ DEMOS.wedding_romantic_v1 = {
         },
     },
 
+    /* PHOTOGRAPHS DISTRIBUTED THROUGH THE INVITATION.
+     *
+     * Six named slots, not a second gallery. Here they show what the feature is
+     * FOR: the reader meets a photograph between one part of the invitation and
+     * the next, rather than a block of them at the end. Landscape bands, so
+     * they read as full-bleed interludes and not as gallery tiles.
+     *
+     * A sibling of `sections` — the renderer gives these no heading, and this
+     * demonstration is the only place these files are ever referenced. */
+    interludeImages: {
+        afterMessage: {
+            image: { source: 'demo', path: 'wedding-romantic/band-01.svg' },
+            alt: 'Ilustración de dos argollas entrelazadas sobre lino claro',
+        },
+        afterCountdown: {
+            image: { source: 'demo', path: 'wedding-romantic/band-02.svg' },
+            alt: 'Ilustración de una hilera de velas encendidas',
+        },
+        afterCeremony: {
+            image: { source: 'demo', path: 'wedding-romantic/band-03.svg' },
+            alt: 'Ilustración de los arcos de una hacienda al atardecer',
+        },
+        afterReception: {
+            image: { source: 'demo', path: 'wedding-romantic/band-04.svg' },
+            alt: 'Ilustración de una mesa larga vestida con follaje',
+        },
+        afterDressCode: {
+            image: { source: 'demo', path: 'wedding-romantic/band-05.svg' },
+            alt: 'Ilustración de una guirnalda de eucalipto',
+        },
+        beforeClosing: {
+            image: { source: 'demo', path: 'wedding-romantic/band-06.svg' },
+            alt: 'Ilustración de papel picado y luces colgantes',
+        },
+    },
+
     actions: { calendar: true, share: true, map: true },
 };
 

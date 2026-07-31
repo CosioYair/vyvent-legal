@@ -75,6 +75,19 @@ export function parseInstant(value) {
  */
 function imageRef(value) {
     if (!value || typeof value !== 'object') return null;
+
+    /* A template asset carries a KEY, never a path. Only its SHAPE is checked
+     * here: whether the key names a real asset is a question about the template
+     * descriptor, which `resolveImage` holds and this module does not. An
+     * unknown key survives normalization and then resolves to nothing, which is
+     * the same outcome as any other unusable image. */
+    if (value.source === 'template') {
+        if (typeof value.assetKey !== 'string' || !TEMPLATE_ASSET_KEY.test(value.assetKey)) {
+            return null;
+        }
+        return { source: 'template', assetKey: value.assetKey };
+    }
+
     if (value.source !== 'demo' && value.source !== 'storage') return null;
     if (!safeAssetPath(value.path)) return null;
     const ref = { source: value.source, path: value.path };
@@ -83,6 +96,49 @@ function imageRef(value) {
         ref.bucket = value.bucket;
     }
     return ref;
+}
+
+/** Same bound the renderer's own key check uses. */
+const TEMPLATE_ASSET_KEY = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/;
+
+/**
+ * THE SIX PHOTOGRAPH POSITIONS, in the template's layout order.
+ *
+ * A closed list, so an unknown key in a stored document selects nothing rather
+ * than becoming a seventh position the template has no anchor for.
+ */
+export const INTERLUDE_SLOTS = [
+    'afterMessage',
+    'afterCountdown',
+    'afterCeremony',
+    'afterReception',
+    'afterDressCode',
+    'beforeClosing',
+];
+
+/**
+ * Normalize the distributed photographs.
+ *
+ * These are NOT a section: they have no heading, no enable switch and no
+ * "incomplete" state. A slot either resolves to a usable image or is absent,
+ * and an absent slot renders nothing at all — never a gap, never a placeholder.
+ *
+ * Position comes from the slot NAME, never from order, which is what keeps a
+ * photograph where the organizer put it when a neighbouring section is switched
+ * off.
+ */
+function interludeImages(raw) {
+    if (!raw || typeof raw !== 'object') return {};
+    const out = {};
+    for (const slot of INTERLUDE_SLOTS) {
+        if (!Object.prototype.hasOwnProperty.call(raw, slot)) continue;
+        const entry = raw[slot];
+        if (!entry || typeof entry !== 'object') continue;
+        const image = imageRef(entry.image);
+        if (!image) continue;
+        out[slot] = { image, alt: sanitizeText(entry.alt, LIMITS.LINE) };
+    }
+    return out;
 }
 
 /** True when an optional section is switched on. Absent means off. */
@@ -374,6 +430,9 @@ export function normalizeConfig(raw) {
             locale: sanitizeText(raw.locale, 12) || DEFAULTS.locale,
             timeZone: sanitizeText(raw.timeZone, 60) || DEFAULTS.timeZone,
             sections,
+            // A SIBLING of `sections`, deliberately: these photographs are not
+            // a section and the renderer never gives them a heading.
+            interludeImages: interludeImages(raw.interludeImages),
             actions,
         },
     };

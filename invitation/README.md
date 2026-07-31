@@ -218,7 +218,8 @@ limit are trimmed to the first N items.
 | Single line (venue, note, label, alt, link label) | 200 chars |
 | Address | 300 chars |
 | Paragraph (`message.body`, `closing.body`, `gifts.intro`, `dressCode.description`) | 1200 chars |
-| `gallery.items` | 12 |
+| `gallery.items` | 6 |
+| `interludeImages` | 6 named slots |
 | `gifts.links` | 6 |
 | `dressCode.guidelines` | 4 items |
 | One `dressCode.guidelines` entry | 160 chars |

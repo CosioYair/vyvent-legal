@@ -33,10 +33,22 @@ export const LIMITS = {
     GUIDELINE: 160,
 
     /* Collections. */
-    GALLERY_ITEMS: 12,
+
+    /* The gallery is a GRID a guest takes in at a glance. Twelve tiles made it
+     * a scroll of its own and pushed the gifts and closing sections off the end
+     * of most phones. Photographs meant to be read THROUGH the invitation go in
+     * the six named interlude slots instead — a different job, a different
+     * layout, and a count that does not compete with this one. */
+    GALLERY_ITEMS: 6,
     GIFT_LINKS: 6,
     DRESS_CODE_GUIDELINES: 4,
 };
+
+/**
+ * A template asset key: the identifier of a file the TEMPLATE owns, looked up
+ * in that template's own registry. Never a path — see `resolveImage`.
+ */
+const ASSET_KEY = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/;
 
 /** Schemes an organizer-supplied external link may use. HTTPS only. */
 const EXTERNAL_SCHEMES = { 'https:': true };
@@ -233,12 +245,44 @@ export function safeAssetPath(p) {
  *       `storageUrl` resolver. The shape is validated here and now so the
  *       contract is fixed before anything writes it.
  *
+ *   { source: 'template', assetKey: 'hero-default' }
+ *       Artwork the TEMPLATE owns, which an organizer chose explicitly in the
+ *       editor ("Imagen del diseño"). What is stored is a KEY, and the key is
+ *       resolved by LOOKUP in the descriptor of the template this invitation
+ *       was authored with — `options.templateAssets`. An unknown key resolves
+ *       to null and the section renders as if there were no image.
+ *
+ *       Storing a key instead of a path is the security property. A path would
+ *       be organizer-influenced input arriving at a URL; a key can only ever
+ *       select one of the entries a template shipped, so nothing an organizer
+ *       writes becomes a file reference. The lookup is an own-property check,
+ *       so `constructor` and `__proto__` select nothing.
+ *
  * Anything else — a bare string, an absolute URL, a traversal, a scheme — is
  * rejected. An invitation can therefore never load a third-party image.
  */
 export function resolveImage(ref, opts) {
     if (!ref || typeof ref !== 'object') return null;
     const options = opts || {};
+
+    if (ref.source === 'template') {
+        const assets = options.templateAssets;
+        if (!assets || typeof assets !== 'object') return null;
+        if (typeof ref.assetKey !== 'string' || !ASSET_KEY.test(ref.assetKey)) return null;
+        if (!Object.prototype.hasOwnProperty.call(assets, ref.assetKey)) return null;
+
+        const rel = safeAssetPath(assets[ref.assetKey]);
+        if (!rel || !options.templateBase) return null;
+        try {
+            const base = new URL(options.templateBase);
+            const url = new URL(rel, base);
+            // The registry is ours, but confirm anyway: one bad entry must not
+            // become a way out of the template directory.
+            return url.href.indexOf(base.href) === 0 ? url.href : null;
+        } catch (_) {
+            return null;
+        }
+    }
 
     if (ref.source === 'demo') {
         const path = safeAssetPath(ref.path);

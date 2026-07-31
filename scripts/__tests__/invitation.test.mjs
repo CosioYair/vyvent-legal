@@ -99,6 +99,8 @@ function renderDemo(over = {}) {
         route: over.route || parseRoute('?demo=' + DEMO_ID),
         document,
         assetBase: 'https://cosioyair.github.io/vyvent-legal/invitation/assets/',
+        templateBase: 'https://cosioyair.github.io/vyvent-legal/invitation/templates/',
+        storageUrl: over.storageUrl,
         now: over.now === undefined ? Date.parse('2026-08-01T12:00:00Z') : over.now,
         pageUrl: 'https://cosioyair.github.io/vyvent-legal/invitation/?demo=' + DEMO_ID,
     });
@@ -110,6 +112,19 @@ function withSection(name, value) {
     const raw = demoConfig(DEMO_ID);
     raw.sections[name] = value;
     return raw;
+}
+
+/** A raw demo configuration with its interlude photographs replaced. */
+function withInterludes(value) {
+    const raw = demoConfig(DEMO_ID);
+    raw.interludeImages = value;
+    return raw;
+}
+
+/** The `data-slot` of every interlude the render produced, in document order. */
+function interludeSlots(node) {
+    return Array.from(node.querySelectorAll('.inv-interlude'))
+        .map((n) => n.getAttribute('data-slot'));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1097,9 +1112,24 @@ describe('10 + 11 · collection limits are enforced', () => {
     });
 
     test('the accepted v1 limits are the ones actually enforced', () => {
-        assert.equal(LIMITS.GALLERY_ITEMS, 12);
+        // Six, not twelve: photographs meant to be read THROUGH the invitation
+        // moved to the six named interlude slots, and the gallery went back to
+        // being a grid a guest takes in at a glance.
+        assert.equal(LIMITS.GALLERY_ITEMS, 6);
         assert.equal(LIMITS.GIFT_LINKS, 6);
         assert.equal(LIMITS.DRESS_CODE_GUIDELINES, 4);
+    });
+
+    test('a seventh gallery item is DROPPED, not hidden', () => {
+        const items = Array.from({ length: 7 }, (_, i) => ({
+            image: { source: 'demo', path: 'wedding-romantic/story-01.svg' },
+            alt: 'imagen ' + i,
+        }));
+        const { config } = normalizeConfig(withSection('gallery', { enabled: true, items }));
+        assert.equal(config.sections.gallery.items.length, 6);
+        // The seventh is gone from the normalized document — not merely absent
+        // from the DOM, which would leave it in storage waiting to reappear.
+        assert.ok(!config.sections.gallery.items.some((it) => it.alt === 'imagen 6'));
     });
 
     test('a fully populated configuration stays far below the 64 KB ceiling', () => {
@@ -1495,5 +1525,271 @@ describe('source hygiene', () => {
             assert.ok(!/service_role/.test(source), `${rel} mentions service_role`);
         }
         assert.ok(!/eyJ[A-Za-z0-9_-]{20,}/.test(INDEX_HTML));
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 27 · The template's own artwork, chosen explicitly
+// ─────────────────────────────────────────────────────────────────────────────
+describe('27 · template image references', () => {
+    const TEMPLATE_BASE = 'https://cosioyair.github.io/vyvent-legal/invitation/templates/';
+    const assets = () => resolveTemplate(DEMO_ID).assets;
+
+    const resolveTpl = (ref) => resolveImage(ref, {
+        templateBase: TEMPLATE_BASE,
+        templateAssets: assets(),
+    });
+
+    test('the descriptor publishes a closed asset registry', () => {
+        const a = assets();
+        assert.ok(a && typeof a === 'object', 'template publishes no asset registry');
+        assert.deepEqual(Object.keys(a), ['hero-default']);
+        // Every entry must be a plain relative path the resolver would accept.
+        for (const [key, path] of Object.entries(a)) {
+            assert.ok(safeAssetPath(path), `asset ${key} is not a safe relative path`);
+        }
+    });
+
+    test('a KNOWN key resolves inside the template directory, under both roots', () => {
+        for (const base of [
+            'https://cosioyair.github.io/vyvent-legal/invitation/templates/',
+            'https://orbiventt.com/invitation/templates/',
+        ]) {
+            const href = resolveImage({ source: 'template', assetKey: 'hero-default' }, {
+                templateBase: base, templateAssets: assets(),
+            });
+            assert.equal(href, base + 'wedding-romantic/hero-default.jpg');
+            assert.ok(href.startsWith(base), 'resolved outside the template directory');
+        }
+    });
+
+    test('the resolved file EXISTS in the repository', () => {
+        // A registry entry that points at nothing would render a broken image
+        // on every invitation that chose it, and no other test would notice.
+        for (const path of Object.values(assets())) {
+            const abs = join(INVITATION, 'templates', path);
+            assert.ok(statSync(abs).isFile(), 'missing template asset: ' + path);
+        }
+    });
+
+    test('an UNKNOWN key fails closed — including prototype keys', () => {
+        for (const key of [
+            'nope', 'hero-Default', 'hero-default.jpg', '../hero-default.jpg',
+            '__proto__', 'constructor', 'prototype', 'toString', 'hasOwnProperty', 'valueOf',
+            '', ' ', null, undefined, 42, {}, [],
+        ]) {
+            assert.equal(resolveTpl({ source: 'template', assetKey: key }), null,
+                'accepted asset key ' + JSON.stringify(key));
+        }
+    });
+
+    test('a template reference cannot resolve without a registry or a base', () => {
+        const ref = { source: 'template', assetKey: 'hero-default' };
+        assert.equal(resolveImage(ref, { templateBase: TEMPLATE_BASE }), null);
+        assert.equal(resolveImage(ref, { templateAssets: assets() }), null);
+        assert.equal(resolveImage(ref, {}), null);
+        // Notably: the DEMO asset base is not a substitute for the template base.
+        assert.equal(resolveImage(ref, {
+            assetBase: 'https://cosioyair.github.io/vyvent-legal/invitation/assets/',
+            templateAssets: assets(),
+        }), null);
+    });
+
+    test('normalization keeps the KEY and never invents a path', () => {
+        const raw = withSection('hero', {
+            ...demoConfig(DEMO_ID).sections.hero,
+            image: { source: 'template', assetKey: 'hero-default', path: 'evil.svg', bucket: 'x' },
+        });
+        const { config } = normalizeConfig(raw);
+        assert.deepEqual(config.sections.hero.image, { source: 'template', assetKey: 'hero-default' });
+        // The smuggled path and bucket are gone, not carried along unused.
+        assert.equal(config.sections.hero.image.path, undefined);
+        assert.equal(config.sections.hero.image.bucket, undefined);
+    });
+
+    test('the template image DRAWS when chosen, and nothing draws when cleared', () => {
+        const heroWith = { ...demoConfig(DEMO_ID).sections.hero, image: { source: 'template', assetKey: 'hero-default' } };
+        const chosen = renderDemo({ raw: withSection('hero', heroWith) });
+        const art = chosen.node.querySelector('.inv-hero__art');
+        assert.ok(art, 'the chosen template image did not render');
+        assert.match(art.getAttribute('src'), /templates\/wedding-romantic\/hero-default\.jpg$/);
+
+        // Cleared: the hero still renders (the image is optional) but there is
+        // NO artwork — the template must not quietly restore its own.
+        const heroWithout = { ...demoConfig(DEMO_ID).sections.hero };
+        delete heroWithout.image;
+        const cleared = renderDemo({ raw: withSection('hero', heroWithout) });
+        assert.ok(cleared.rendered.includes('hero'));
+        assert.equal(cleared.node.querySelector('.inv-hero__art'), null,
+            'a cleared hero image was silently replaced by the template artwork');
+    });
+
+    test('`demo` is still a distinct source and never becomes `template`', () => {
+        const ref = { source: 'demo', path: 'wedding-romantic/hero.svg' };
+        // With ONLY a template registry available, a demo reference resolves to
+        // nothing: the two sources never stand in for one another.
+        assert.equal(resolveTpl(ref), null);
+        assert.equal(resolveImage(ref, {
+            assetBase: 'https://cosioyair.github.io/vyvent-legal/invitation/assets/',
+        }), 'https://cosioyair.github.io/vyvent-legal/invitation/assets/demo/wedding-romantic/hero.svg');
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 28 · Photographs distributed through the invitation
+// ─────────────────────────────────────────────────────────────────────────────
+describe('28 · interlude photographs', () => {
+    const SLOTS = [
+        'afterMessage', 'afterCountdown', 'afterCeremony',
+        'afterReception', 'afterDressCode', 'beforeClosing',
+    ];
+    const img = (n) => ({ source: 'demo', path: `wedding-romantic/band-0${n}.svg` });
+    const allSlots = () => Object.fromEntries(SLOTS.map((s, i) => [s, { image: img(i + 1), alt: s }]));
+
+    test('the demonstration fills all six, in template order', () => {
+        const { node } = renderDemo();
+        assert.deepEqual(interludeSlots(node), SLOTS);
+    });
+
+    test('all six render, and each carries its own slot and image', () => {
+        const { node } = renderDemo({ raw: withInterludes(allSlots()) });
+        const nodes = node.querySelectorAll('.inv-interlude');
+        assert.equal(nodes.length, 6);
+        nodes.forEach((n, i) => {
+            assert.equal(n.getAttribute('data-slot'), SLOTS[i]);
+            assert.match(n.querySelector('.inv-interlude__img').getAttribute('src'),
+                new RegExp(`band-0${i + 1}\\.svg$`));
+        });
+    });
+
+    test('an EMPTY slot renders nothing at all — no placeholder, no gap', () => {
+        const { node } = renderDemo({ raw: withInterludes({ afterCeremony: { image: img(3) } }) });
+        assert.deepEqual(interludeSlots(node), ['afterCeremony']);
+        assert.equal(node.querySelectorAll('.inv-interlude').length, 1);
+    });
+
+    test('NO interlude configuration renders no bands and breaks nothing', () => {
+        const { ok, node, rendered } = renderDemo({ raw: withInterludes(undefined) });
+        assert.equal(ok, true);
+        assert.equal(node.querySelectorAll('.inv-interlude').length, 0);
+        for (const id of ['hero', 'message', 'ceremony', 'gallery', 'closing']) {
+            assert.ok(rendered.includes(id), id + ' stopped rendering');
+        }
+    });
+
+    /* THE PROPERTY THE NAMED-SLOT MODEL EXISTS FOR. */
+    test('a slot keeps its POSITION when the section it is named after is off', () => {
+        const raw = withInterludes(allSlots());
+        raw.sections.countdown = { enabled: false };
+        raw.sections.reception = { enabled: false };
+        raw.sections.dressCode = { enabled: false };
+
+        const { node, rendered } = renderDemo({ raw });
+        // Every photograph is still there, still in the same order.
+        assert.deepEqual(interludeSlots(node), SLOTS);
+        // …and the sections really are gone, so this is not a vacuous pass.
+        for (const id of ['countdown', 'reception', 'dressCode']) {
+            assert.ok(!rendered.includes(id), id + ' should not have rendered');
+        }
+
+        // `afterCountdown` now sits immediately before the ceremony, which is
+        // the template position it is anchored to.
+        const order = sectionsOf(node);
+        const band = order.indexOf('interlude');
+        assert.ok(band >= 0);
+        assert.ok(order.indexOf('ceremony') > order.indexOf('message'));
+    });
+
+    test('removing one photograph does not move any other', () => {
+        const full = allSlots();
+        const before = interludeSlots(renderDemo({ raw: withInterludes(full) }).node);
+
+        const minusOne = { ...full };
+        delete minusOne.afterCeremony;
+        const after = interludeSlots(renderDemo({ raw: withInterludes(minusOne) }).node);
+
+        assert.deepEqual(after, before.filter((s) => s !== 'afterCeremony'));
+        // Each surviving photograph still carries the SAME image it had.
+        const nodes = renderDemo({ raw: withInterludes(minusOne) }).node.querySelectorAll('.inv-interlude');
+        for (const n of nodes) {
+            const i = SLOTS.indexOf(n.getAttribute('data-slot'));
+            assert.match(n.querySelector('.inv-interlude__img').getAttribute('src'),
+                new RegExp(`band-0${i + 1}\\.svg$`));
+        }
+    });
+
+    test('parity comes from the FIXED slot index, not from how many are filled', () => {
+        const one = renderDemo({ raw: withInterludes({ afterCountdown: { image: img(2) } }) });
+        const all = renderDemo({ raw: withInterludes(allSlots()) });
+
+        const parityOf = (r, slot) => Array.from(r.node.querySelectorAll('.inv-interlude'))
+            .find((n) => n.getAttribute('data-slot') === slot)
+            .getAttribute('data-parity');
+
+        // afterCountdown is index 1 → odd, whether it is alone or one of six.
+        assert.equal(parityOf(one, 'afterCountdown'), 'odd');
+        assert.equal(parityOf(all, 'afterCountdown'), 'odd');
+        assert.equal(parityOf(all, 'afterMessage'), 'even');
+    });
+
+    test('an UNKNOWN slot name is ignored, and cannot become a seventh position', () => {
+        const { config, node } = renderDemo({
+            raw: withInterludes({
+                afterMessage: { image: img(1) },
+                somewhereElse: { image: img(2) },
+                __proto__: { image: img(3) },
+                constructor: { image: img(4) },
+            }),
+        });
+        assert.deepEqual(Object.keys(config.interludeImages), ['afterMessage']);
+        assert.deepEqual(interludeSlots(node), ['afterMessage']);
+    });
+
+    test('an UNUSABLE image drops the slot rather than the invitation', () => {
+        const { config, ok } = normalizeConfig(withInterludes({
+            afterMessage: { image: { source: 'storage', path: '../../secret.jpg', bucket: 'x' } },
+            afterCeremony: { image: 'https://evil.example/x.jpg' },
+            afterReception: { image: { source: 'demo', path: 'javascript:alert(1)' } },
+            beforeClosing: { image: img(6), alt: 'válida' },
+        }));
+        assert.equal(ok, true);
+        assert.deepEqual(Object.keys(config.interludeImages), ['beforeClosing']);
+    });
+
+    test('interludes are lazy, sized, and never a titled section', () => {
+        const { node } = renderDemo();
+        for (const n of node.querySelectorAll('.inv-interlude')) {
+            const image = n.querySelector('.inv-interlude__img');
+            assert.equal(image.getAttribute('loading'), 'lazy');
+            assert.equal(image.getAttribute('decoding'), 'async');
+            assert.ok(Number(image.getAttribute('width')) > 0);
+            assert.ok(Number(image.getAttribute('height')) > 0);
+            // No heading anywhere inside a band: it is not a section.
+            assert.equal(n.querySelector('h2'), null);
+            assert.equal(n.querySelector('h3'), null);
+        }
+        // …and the editor's own group name never reaches the page.
+        assert.ok(!serialize(node).includes('Fotos a lo largo'));
+    });
+
+    test('a template asset may fill a slot; an unknown key leaves it empty', () => {
+        const good = renderDemo({
+            raw: withInterludes({ afterMessage: { image: { source: 'template', assetKey: 'hero-default' } } }),
+        });
+        assert.deepEqual(interludeSlots(good.node), ['afterMessage']);
+
+        const bad = renderDemo({
+            raw: withInterludes({ afterMessage: { image: { source: 'template', assetKey: 'no-such-asset' } } }),
+        });
+        assert.deepEqual(interludeSlots(bad.node), []);
+    });
+
+    test('interludes never reach a backend of their own', () => {
+        // Demo mode supplies no storage resolver, so a storage-backed slot
+        // resolves to nothing rather than reaching for the network.
+        const { node } = renderDemo({
+            raw: withInterludes({ afterMessage: { image: { source: 'storage', bucket: 'invitation-media', path: 'e/a.jpg' } } }),
+        });
+        assert.deepEqual(interludeSlots(node), []);
     });
 });

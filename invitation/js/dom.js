@@ -43,6 +43,14 @@ const ALLOWED_ATTRS = {
     'aria-describedby': true,
     'data-section': true,
     'data-unit': true,
+    /* Both are RENDERER-COMPUTED and closed: `data-slot` is one of the six
+     * interlude slot names from the contract's own list, `data-parity` is
+     * "even" or "odd" derived from that slot's fixed index. Neither is ever an
+     * organizer value, and a `data-*` attribute cannot execute — the allowlist
+     * exists to stop config text reaching `onclick`, `src` or `srcdoc`, and
+     * these reach a CSS selector. */
+    'data-slot': true,
+    'data-parity': true,
 };
 
 function doc(d) {

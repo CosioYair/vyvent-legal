@@ -375,6 +375,80 @@
     transform: rotate(45deg);
 }
 
+/* ── Interludes ─────────────────────────────────────────────────────────── */
+/* A photograph the reader passes THROUGH, between two parts of the invitation.
+ *
+ * Deliberately nothing like a gallery tile: full-bleed rather than gridded,
+ * landscape rather than portrait, and with no heading, border or caption
+ * furniture around it. Six copies of the gallery tile scattered down the page
+ * would read as a gallery that lost its grid — this has to read as the page
+ * opening up for a moment.
+ *
+ * The band breaks OUT of the section gutter with a negative margin rather than
+ * using `100vw`, which overflows horizontally whenever a scrollbar is present.
+ * `overflow-x` therefore stays clean on every viewport. */
+.tpl-wedding-romantic .inv-interlude {
+    position: relative;
+    margin: 0 calc(var(--inv-gutter) * -1);
+    /* Reserved geometry before a byte arrives: no layout shift. */
+    aspect-ratio: 16 / 9;
+    overflow: hidden;
+    background: var(--tpl-blush);
+}
+
+.tpl-wedding-romantic .inv-interlude__img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    /* The slow drift gives the band a little life without ever moving the
+     * layout. Disabled outright under prefers-reduced-motion, below. */
+    transform: scale(1.04);
+    transition: transform 1.2s ease;
+}
+
+/* Alternating composition, driven by the FIXED slot index — so filling one more
+ * slot never restyles the ones already placed. Even slots sit flush; odd slots
+ * are inset and rounded, which breaks the rhythm the way a photo album does. */
+.tpl-wedding-romantic .inv-interlude[data-parity="odd"] {
+    margin-inline: 0;
+    border-radius: var(--inv-radius);
+    aspect-ratio: 3 / 2;
+}
+
+.tpl-wedding-romantic .inv-interlude[data-parity="odd"] .inv-interlude__img {
+    transform: none;
+}
+
+/* A hairline of the template's gold above and below the flush bands, so the
+ * photograph is framed by the invitation rather than dropped into it. */
+.tpl-wedding-romantic .inv-interlude[data-parity="even"]::before,
+.tpl-wedding-romantic .inv-interlude[data-parity="even"]::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: var(--tpl-gold);
+    opacity: 0.35;
+}
+
+.tpl-wedding-romantic .inv-interlude[data-parity="even"]::before { top: 0; }
+.tpl-wedding-romantic .inv-interlude[data-parity="even"]::after { bottom: 0; }
+
+/* An image that failed to load collapses the band entirely: a blank strip
+ * mid-invitation is worse than the page simply moving on. */
+.tpl-wedding-romantic .inv-interlude.is-failed {
+    display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .tpl-wedding-romantic .inv-interlude__img {
+        transform: none;
+        transition: none;
+    }
+}
+
 /* ── Gifts ──────────────────────────────────────────────────────────────── */
 .tpl-wedding-romantic .inv-gifts__intro { color: var(--inv-ink); }
 

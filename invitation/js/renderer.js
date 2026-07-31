@@ -31,6 +31,7 @@ import { matchesConfig } from './registry.js';
  *   route     {object}   output of parseRoute()
  *   document  {Document}
  *   assetBase {string}   absolute href of invitation/assets/
+ *   templateBase {string} absolute href of invitation/templates/
  *   now       {number}   epoch ms used for the first countdown paint
  *   clock     {Function} returns epoch ms for subsequent ticks
  *   setInterval / clearInterval {Function} omitted in tests → no ticker
@@ -62,6 +63,12 @@ export function renderInvitation(opts) {
         route: o.route || { mode: 'none', code: null },
         document: d,
         assetBase: o.assetBase,
+        // Where the template's OWN artwork lives, and the closed registry that
+        // says which keys exist. Both come from the descriptor and the module's
+        // own URL — never from the invitation — so a stored `assetKey` can only
+        // ever select one of the files this template shipped.
+        templateBase: o.templateBase,
+        templateAssets: (template && template.assets) || null,
         // Supplied only for STORED invitations. Absent in demo mode, so a
         // storage reference resolves to null there instead of reaching the
         // network.

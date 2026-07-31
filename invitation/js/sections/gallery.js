@@ -32,6 +32,8 @@ export default function renderGallery(data, ctx) {
         .map((item, index) => {
             const src = resolveImage(item.image, {
                 assetBase: ctx.assetBase,
+                templateBase: ctx.templateBase,
+                templateAssets: ctx.templateAssets,
                 storageUrl: ctx.storageUrl,
             });
             if (!src) return null;
