@@ -314,6 +314,27 @@ export function safeCode(raw) {
 }
 
 /**
+ * An `?app_return=` CANDIDATE, or null.
+ *
+ * This is a carry gate, not the validator: `app-return.js` re-derives the whole
+ * URL from validated parts (scheme allowlist, no credentials, no query, and the
+ * path must equal the route of THIS page) before anything is opened. What is
+ * refused here is what should never even travel through the route object — a
+ * value that is not an Expo Go development address, or that contains characters
+ * with no business in any URL. Production links never carry this parameter, so
+ * a null costs nothing there.
+ */
+const APP_RETURN_SCHEME = /^exps?:\/\//i;
+const APP_RETURN_HOSTILE = /[\x00-\x20\x7f"'`<>\\]/;
+
+export function safeAppReturn(raw) {
+    if (typeof raw !== 'string' || raw === '' || raw.length > 200) return null;
+    if (!APP_RETURN_SCHEME.test(raw)) return null;
+    if (APP_RETURN_HOSTILE.test(raw)) return null;
+    return raw;
+}
+
+/**
  * An opaque identifier from the query string (invitation id, preview token).
  * Validated here so the routes cannot become a path- or scheme-injection
  * surface.

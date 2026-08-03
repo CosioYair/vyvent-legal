@@ -37,6 +37,7 @@ import { matchesConfig } from './registry.js';
  *   setInterval / clearInterval {Function} omitted in tests → no ticker
  *   navigator {object}   share/clipboard provider
  *   pageUrl   {string}   the URL the share action offers
+ *   handoff   {?object}  resolved app handoff for a pass-claim code (app-return.js)
  *
  * @returns {{ok: boolean, node: ?Element, rendered: string[], skipped: string[],
  *            reason: ?string}}
@@ -85,6 +86,11 @@ export function renderInvitation(opts) {
         clearInterval: o.clearInterval,
         navigator: o.navigator || null,
         pageUrl: typeof o.pageUrl === 'string' ? o.pageUrl : '',
+        // The resolved app handoff for a pass-claim code ({open, href, …} from
+        // app-return.js), or null. Only the `passes` shell section reads it.
+        // Built by the CALLER through the shared resolver — the renderer and
+        // its sections never assemble an app URL themselves.
+        handoff: o.handoff || null,
     };
 
     const rendered = [];

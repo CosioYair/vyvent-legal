@@ -148,7 +148,7 @@ export default {
         dressCodeHeading: 'Código de vestimenta',
         galleryHeading: 'Nuestra historia',
         giftsHeading: 'Mesa de regalos',
-        passesHeading: 'Reclamar pases',
+        passesHeading: 'Reclama tus pases',
 
         mapAction: 'Cómo llegar',
         calendarAction: 'Agregar al calendario',

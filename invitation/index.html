@@ -78,6 +78,14 @@
          is deliberately no fallback project — a deployment whose env.js did not
          load fails closed rather than querying the wrong environment. -->
     <script src="env.js"></script>
+    <!-- The SHARED app-handoff resolver — the same classic script 404.html
+         loads, exposing `window.__ORB_APP_RETURN__`. The pass-claim card's
+         "Abrir Orbiventt" destination is resolved exclusively through it, so
+         this page inherits the event-preview page's exact DEV/production
+         behavior: production links open `vyvent://`, the DEV mirror only ever
+         opens a re-validated Expo Go return address, and never falls back
+         across environments. Same-origin, so `script-src 'self'` allows it. -->
+    <script src="app-return.js"></script>
 </head>
 <body>
     <div class="env-badge" id="envBadge" hidden>DEV</div>

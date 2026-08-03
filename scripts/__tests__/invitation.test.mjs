@@ -46,6 +46,7 @@ import {
 import { countdownParts, countdownLabel } from '../../invitation/js/countdown.js';
 import { buildIcs, escapeIcsText, icsFileName } from '../../invitation/js/calendar.js';
 import { calendarEventFromConfig } from '../../invitation/js/sections/actions.js';
+import { displayCode } from '../../invitation/js/sections/passes.js';
 import { sectionIds, resolveSection } from '../../invitation/js/sections/index.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -2177,22 +2178,21 @@ describe('the published route', () => {
         assert.equal(storedRequest(null), null);
     });
 
-    test('a code= on a published link is carried and never acted on', async () => {
+    test('a code= on a published link never reaches the backend', async () => {
         const route = parseRoute('?i=q7m2k9x4pt3wz8ab&code=ABCDEFGHIJKL');
         assert.equal(route.mode, MODE.PUBLISHED);
         assert.equal(route.code, 'ABCDEFGHIJKL');
 
-        // It reaches no request…
+        // The card the code produces is Milestone D's — but the WEB's backend
+        // conversation is unchanged: one slug-addressed request, and neither
+        // the code nor the return address ever appears in it. Validity,
+        // claiming and every outcome stay the app's monopoly.
         const rec = recorder(publishedPayload());
         await resolveStored(route, deps(rec.callRpc));
+        assert.equal(rec.calls.length, 1);
         assert.deepEqual(rec.calls[0].params, { p_slug: 'q7m2k9x4pt3wz8ab' });
         assert.equal(JSON.stringify(rec.calls).includes('ABCDEFGHIJKL'), false);
-
-        // …and no claim affordance is rendered for it.
-        const { node } = renderDemo({ route });
-        const html = serialize(node);
-        assert.ok(!/reclamar/i.test(html), 'a pass-claim action appeared');
-        assert.ok(!html.includes('ABCDEFGHIJKL'), 'the code was written into the page');
+        assert.equal(JSON.stringify(rec.calls).includes('app_return'), false);
     });
 
     test('the stored routes cannot reach demonstration data', () => {
@@ -2210,10 +2210,14 @@ describe('the published route', () => {
         const out = await resolveStored(parseRoute('?i=q7m2k9x4pt3wz8ab'), deps(rec.callRpc));
         const carried = JSON.stringify(out.invitation);
         assert.ok(!carried.includes('11111111'), 'the invitation id was carried');
-        assert.ok(!carried.includes('22222222'), 'the event id was carried');
         assert.ok(!carried.includes('slug'));
+        // The EVENT ID is carried since Milestone D — it exists for the app
+        // handoff route (`e/{eventId}`, the shape every event-preview URL
+        // already exposes publicly) and is never rendered as text. The closed
+        // key list is the guarantee nothing else rides along.
+        assert.equal(out.invitation.eventId, '22222222-2222-4222-8222-222222222222');
         assert.deepEqual(Object.keys(out.invitation).sort(),
-            ['categoryKey', 'templateKey', 'templateVersion']);
+            ['categoryKey', 'eventId', 'templateKey', 'templateVersion']);
     });
 
     test('the gallery ceiling holds on a published invitation', async () => {
@@ -2269,5 +2273,262 @@ describe('the published route', () => {
             assert.ok(!copy.toLowerCase().includes(leak.toLowerCase()),
                 'the unavailable copy mentions ' + leak);
         }
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Milestone D · the pass-claim card on the PUBLISHED route
+// ─────────────────────────────────────────────────────────────────────────────
+describe('the pass-claim card (published)', () => {
+    const CODE = 'ABCDEFGHIJKL';
+    const HANDOFF = { open: true, href: 'vyvent://e/91000001-0000-4000-8000-000000000001?code=' + CODE, source: 'app-scheme', reason: null };
+
+    /** A published invitation rendered with an optional code and handoff. */
+    function renderPublished(over = {}) {
+        const template = resolveTemplate(DEMO_ID);
+        const { ok, config } = normalizeConfig(demoConfig(DEMO_ID));
+        assert.equal(ok, true);
+        const document = createDocument();
+        const result = renderInvitation({
+            template,
+            config,
+            route: over.route || parseRoute('?i=q7m2k9x4pt3wz8ab' + (over.noCode ? '' : '&code=' + CODE)),
+            document,
+            assetBase: 'https://cosioyair.github.io/vyvent-legal/invitation/assets/',
+            templateBase: 'https://cosioyair.github.io/vyvent-legal/invitation/templates/',
+            now: Date.parse('2026-08-01T12:00:00Z'),
+            navigator: over.navigator,
+            pageUrl: 'https://cosioyair.github.io/vyvent-legal/invitation/?i=q7m2k9x4pt3wz8ab',
+            handoff: 'handoff' in over ? over.handoff : HANDOFF,
+        });
+        return { ...result, document };
+    }
+
+    function passesNode(result) {
+        return result.node.querySelector('[data-section="passes"]');
+    }
+
+    test('a published invitation without a code renders no claim card', () => {
+        const out = renderPublished({ noCode: true, handoff: null });
+        assert.ok(!out.rendered.includes('passes'));
+        assert.ok(!sectionsOf(out.node).includes('passes'));
+    });
+
+    test('a published invitation with a code renders the card, formatted and labelled', () => {
+        const out = renderPublished();
+        const node = passesNode(out);
+        assert.ok(node, 'no claim card rendered');
+        assert.match(node.textContent, /Reclama tus pases/);
+        assert.match(node.textContent, /Usa este código en Orbiventt para reclamar y asignar tus pases\./);
+        // The code is visible, in the same XXXX-XXXX-XXXX form the app shows.
+        assert.match(node.textContent, /ABCD-EFGH-IJKL/);
+        // The manual fallback is always present.
+        assert.match(node.textContent, /copia el código e ingrésalo/);
+        // It is the REAL card, not the demo explainer.
+        assert.ok(!/Demostración/.test(node.textContent));
+        assert.ok(!node.getAttribute('class') || true);
+        assert.ok(!serialize(node).includes('is-demo'));
+    });
+
+    test('the card renders the invitation itself untouched around it', () => {
+        const withCard = renderPublished();
+        const withoutCard = renderPublished({ noCode: true, handoff: null });
+        const others = (r) => sectionsOf(r.node).filter((s) => s !== 'passes');
+        assert.deepEqual(others(withCard), others(withoutCard));
+    });
+
+    test('"Abrir Orbiventt" uses exactly the pre-resolved handoff href', () => {
+        const out = renderPublished();
+        const node = passesNode(out);
+        const open = node.querySelectorAll('a').find((a) => /Abrir Orbiventt/.test(a.textContent));
+        assert.ok(open, 'no open control');
+        assert.equal(open.getAttribute('href'), HANDOFF.href);
+    });
+
+    test('without a usable handoff there is no automatic button, and the card survives', () => {
+        for (const handoff of [null, { open: false, href: null, source: 'none', reason: 'expo-go-required' }]) {
+            const out = renderPublished({ handoff });
+            const node = passesNode(out);
+            assert.ok(node, 'the card vanished with the handoff');
+            const open = node.querySelectorAll('a').find((a) => /Abrir Orbiventt/.test(a.textContent));
+            assert.equal(open, undefined, 'an open control rendered without a destination');
+            // The copy path still carries the guest.
+            assert.match(node.textContent, /Copiar código/);
+            assert.match(node.textContent, /ABCD-EFGH-IJKL/);
+        }
+    });
+
+    test('"Copiar código" copies ONLY the code, and confirms', async () => {
+        const written = [];
+        const out = renderPublished({
+            navigator: { clipboard: { writeText: (v) => { written.push(v); return Promise.resolve(); } } },
+        });
+        const node = passesNode(out);
+        const button = node.querySelectorAll('button')[0];
+        assert.ok(button, 'no copy button');
+        assert.equal(button.getAttribute('type'), 'button');
+        assert.equal(button.getAttribute('aria-label'), 'Copiar código de invitación');
+
+        button.dispatch('click');
+        await new Promise((r) => setTimeout(r, 0));
+
+        assert.deepEqual(written, ['ABCD-EFGH-IJKL']);
+        // Only the code: no slug, no token, no URL, no scheme.
+        assert.ok(!written[0].includes('q7m2k9x4pt3wz8ab'));
+        assert.ok(!written[0].includes('http'));
+        assert.ok(!written[0].includes('://'));
+        const status = node.querySelectorAll('[role="status"]')[0];
+        assert.equal(status.textContent, 'Código copiado');
+    });
+
+    test('a clipboard that fails or does not exist falls back to a controlled hint', async () => {
+        for (const navigator of [
+            {},
+            { clipboard: {} },
+            { clipboard: { writeText: () => Promise.reject(new Error('denied')) } },
+        ]) {
+            const out = renderPublished({ navigator });
+            const node = passesNode(out);
+            node.querySelectorAll('button')[0].dispatch('click');
+            await new Promise((r) => setTimeout(r, 0));
+            const status = node.querySelectorAll('[role="status"]')[0];
+            assert.equal(status.textContent, 'Mantén presionado el código para copiarlo.');
+        }
+    });
+
+    test('a draft preview never renders the claim card, even with a code', () => {
+        const out = renderPublished({
+            route: parseRoute('?d=abc123&t=tok-en_1&code=' + CODE),
+            handoff: null,
+        });
+        assert.ok(!out.rendered.includes('passes'));
+    });
+
+    test('a malformed code renders the invitation with no card and no handoff', () => {
+        const out = renderPublished({
+            route: parseRoute('?i=q7m2k9x4pt3wz8ab&code=' + encodeURIComponent('../evil code')),
+            handoff: null,
+        });
+        assert.ok(!out.rendered.includes('passes'));
+        assert.ok(sectionsOf(out.node).includes('hero'));
+    });
+
+    test('displayCode mirrors the app: canonical codes grouped, everything else verbatim', () => {
+        assert.equal(displayCode('ABCDEFGHIJKL'), 'ABCD-EFGH-IJKL');
+        assert.equal(displayCode('abcd-efgh-ijkl'), 'ABCD-EFGH-IJKL');
+        assert.equal(displayCode('SHORT'), 'SHORT');
+        assert.equal(displayCode('TOOLONGFORTHECODE'), 'TOOLONGFORTHECODE');
+    });
+
+    test('the passes module never logs, stores, or transmits the code', () => {
+        const source = codeOnly(readFileSync(join(INVITATION, 'js', 'sections', 'passes.js'), 'utf8'));
+        for (const forbidden of ['console.', 'localStorage', 'sessionStorage', 'fetch(', 'XMLHttpRequest', 'track(', 'vyvent://', 'exp://']) {
+            assert.ok(!source.includes(forbidden), 'passes.js contains ' + forbidden);
+        }
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Milestone D · the app handoff plumbing
+// ─────────────────────────────────────────────────────────────────────────────
+describe('the app handoff plumbing', () => {
+    const APP_RETURN = 'exp://192.168.1.42:8081/--/e/91000001-0000-4000-8000-000000000001';
+
+    test('parseRoute carries a valid Expo Go return address on every mode', () => {
+        const published = parseRoute('?i=q7m2k9x4pt3wz8ab&code=ABCDEFGHIJKL&app_return=' + encodeURIComponent(APP_RETURN));
+        assert.equal(published.mode, MODE.PUBLISHED);
+        assert.equal(published.appReturn, APP_RETURN);
+
+        const demo = parseRoute('?demo=wedding_romantic_v1&app_return=' + encodeURIComponent(APP_RETURN));
+        assert.equal(demo.appReturn, APP_RETURN);
+    });
+
+    test('a hostile app_return never survives into the route', () => {
+        for (const value of [
+            'vyvent://e/x',
+            'https://evil.example/--/e/x',
+            'javascript:alert(1)',
+            'exp://host/--/e/x"onload="x',
+            'exp://host/--/e/<script>',
+            'exp://' + 'a'.repeat(300),
+            '',
+        ]) {
+            const r = parseRoute('?i=q7m2k9x4pt3wz8ab&app_return=' + encodeURIComponent(value));
+            assert.equal(r.appReturn, null, 'accepted ' + JSON.stringify(value));
+        }
+    });
+
+    test('resolveStored surfaces a UUID-shaped event id, and only that shape', async () => {
+        const payload = (eventId) => ({
+            invitation: {
+                categoryKey: 'wedding', templateKey: 'wedding_romantic', templateVersion: 1,
+                eventId,
+                config: demoConfig(DEMO_ID),
+            },
+        });
+        const deps = (value) => ({
+            callRpc: async () => payload(value),
+            resolveTemplate,
+            normalizeConfig,
+        });
+
+        const good = await resolveStored(parseRoute('?i=q7m2k9x4pt3wz8ab'), deps('91000001-0000-4000-8000-000000000001'));
+        assert.equal(good.result, RESULT.OK);
+        assert.equal(good.invitation.eventId, '91000001-0000-4000-8000-000000000001');
+
+        for (const bad of [undefined, null, 42, 'not-a-uuid', 'e/91000001-0000-4000-8000-000000000001', '<script>']) {
+            const out = await resolveStored(parseRoute('?i=q7m2k9x4pt3wz8ab'), deps(bad));
+            assert.equal(out.result, RESULT.OK, 'the verdict must not change');
+            assert.equal(out.invitation.eventId, null, 'accepted ' + JSON.stringify(bad));
+        }
+    });
+
+    test('main.js funnels the handoff through the shared resolver, published mode only', () => {
+        const code = codeOnly(readFileSync(join(INVITATION, 'js', 'main.js'), 'utf8'));
+        assert.ok(code.includes('__ORB_APP_RETURN__'), 'main.js does not use the shared resolver');
+        assert.ok(code.includes('resolveAppHandoff'), 'main.js does not call resolveAppHandoff');
+        assert.ok(!code.includes("'vyvent://"), 'main.js hand-builds an app scheme');
+        assert.ok(!code.includes('"vyvent://'), 'main.js hand-builds an app scheme');
+        assert.ok(code.includes('MODE.PUBLISHED\n        ? passHandoff') || /mode === MODE\.PUBLISHED\s*\?\s*passHandoff/.test(code),
+            'the handoff is not gated to the published mode');
+    });
+
+    test('no module in the invitation tree hand-builds an app URL', () => {
+        for (const { rel, source } of moduleSources()) {
+            const code = codeOnly(source);
+            for (const needle of ["'vyvent://", '"vyvent://', "'exp://", '"exp://']) {
+                assert.ok(!code.includes(needle), `${rel} hard-codes ${needle}`);
+            }
+        }
+    });
+
+    test('the page loads the shared resolver before the module bootstrap', () => {
+        assert.ok(INDEX_HTML.includes('<script src="app-return.js"></script>'));
+        assert.ok(
+            INDEX_HTML.indexOf('app-return.js') < INDEX_HTML.indexOf('invitation/js/main.js'),
+            'app-return.js must load before main.js',
+        );
+    });
+
+    test('the demo route still reaches no backend and no app scheme', () => {
+        // The demo card renders with a code and never gains a live control.
+        const document = createDocument();
+        const template = resolveTemplate(DEMO_ID);
+        const { config } = normalizeConfig(demoConfig(DEMO_ID));
+        const out = renderInvitation({
+            template, config,
+            route: parseRoute('?demo=' + DEMO_ID + '&code=ABCDEFGHIJKL&app_return=' + encodeURIComponent(APP_RETURN)),
+            document,
+            assetBase: 'https://cosioyair.github.io/vyvent-legal/invitation/assets/',
+            templateBase: 'https://cosioyair.github.io/vyvent-legal/invitation/templates/',
+            now: Date.parse('2026-08-01T12:00:00Z'),
+            pageUrl: 'x',
+            handoff: null,
+        });
+        const node = out.node.querySelector('[data-section="passes"]');
+        assert.ok(node);
+        assert.match(node.textContent, /Demostración/);
+        assert.equal(node.querySelectorAll('button').length, 0);
+        assert.equal(node.querySelectorAll('a').length, 0);
     });
 });

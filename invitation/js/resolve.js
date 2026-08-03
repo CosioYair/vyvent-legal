@@ -42,6 +42,9 @@ export const RESULT = {
     INCOMPLETE: 'incomplete',
 };
 
+/** The only shape an event id may have on its way into a deep-link route. */
+const EVENT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /** The closed call table. Returns null for a mode that reaches no backend. */
 export function storedRequest(route) {
     if (!route) return null;
@@ -106,11 +109,18 @@ export async function resolveStored(route, deps) {
         result: RESULT.OK,
         template,
         config: normalized.config,
-        // Identity only — never the organizer id, the event id or the raw row.
+        // Identity plus the invitation's EVENT ID — never the organizer id and
+        // never the raw row. The event id exists for exactly one consumer: the
+        // app handoff, whose deep-link route is `e/{eventId}` (the same shape
+        // the event-preview page has always used, so this reveals nothing the
+        // payload and those public URLs do not already carry). It is never
+        // rendered as text. UUID-shaped or absent — a payload that names an
+        // event the database could not have keyed simply loses its handoff.
         invitation: {
             categoryKey: invitation.categoryKey,
             templateKey: invitation.templateKey,
             templateVersion: invitation.templateVersion,
+            eventId: EVENT_ID.test(String(invitation.eventId)) ? invitation.eventId : null,
         },
     };
 }

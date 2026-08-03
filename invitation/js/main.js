@@ -142,7 +142,7 @@ async function loadDemoConfig(demoId) {
  * absent, so a `{source:'storage'}` reference resolves to null rather than
  * quietly reaching for the network.
  */
-async function paint(template, config, route, storageUrl) {
+async function paint(template, config, route, storageUrl, handoff) {
     await loadTemplateStylesheet(templateResourceUrl(BASES.templates, template.stylesheet));
     document.documentElement.classList.add(template.themeClass);
 
@@ -164,6 +164,7 @@ async function paint(template, config, route, storageUrl) {
         clearInterval: window.clearInterval.bind(window),
         navigator: typeof navigator !== 'undefined' ? navigator : null,
         pageUrl: window.location.href,
+        handoff: handoff || null,
     });
 
     if (!result.ok || !result.node) { showState(STATES.failed); return false; }
@@ -208,9 +209,49 @@ async function renderStored(route, mode) {
     const backend = backendConfig();
     const storageUrl = backend ? storageUrlResolver(backend.url) : null;
 
-    if (await paint(resolved.template, resolved.config, route, storageUrl)) {
+    // The app handoff for the pass-claim card — PUBLISHED mode only, and only
+    // when the link carries a code. Draft previews are the organizer's private
+    // rehearsal; they never offer a claim.
+    const handoff = mode === MODE.PUBLISHED
+        ? passHandoff(route, resolved.invitation && resolved.invitation.eventId)
+        : null;
+
+    if (await paint(resolved.template, resolved.config, route, storageUrl, handoff)) {
         document.body.setAttribute('data-mode', mode);
     }
+}
+
+/**
+ * Resolve the "Abrir Orbiventt" destination for a pass-claim code.
+ *
+ * EVERYTHING here goes through `app-return.js` — the exact resolver the
+ * event-preview page uses, loaded as the same classic script. This module never
+ * concatenates an app scheme itself, so DEV and production behave as they
+ * always have: production gets `vyvent://e/{eventId}?code=…`; the DEV mirror
+ * gets a re-validated Expo Go return address or, failing that, NO automatic
+ * button — never a `vyvent://` link that would open the production app against
+ * the production database (the exact crossing `app-return.js` exists to
+ * prevent).
+ *
+ * The route is `e/{eventId}` with the event id from the PUBLISHED PAYLOAD —
+ * the server's answer for this slug, not anything the URL claimed. The app
+ * independently re-verifies that the code belongs to that event on a trusted
+ * backend surface before it opens the claim flow, so a hand-edited URL cannot
+ * ride this handoff into another event's claim.
+ */
+function passHandoff(route, eventId) {
+    if (!route || !route.code || !eventId) return null;
+    const resolver = (typeof window !== 'undefined' && window.__ORB_APP_RETURN__) || null;
+    if (!resolver || typeof resolver.resolveAppHandoff !== 'function') return null;
+    const env = (typeof window !== 'undefined' && window.__ORB_ENV__ && window.__ORB_ENV__.env) || null;
+    return resolver.resolveAppHandoff({
+        env,
+        appReturn: route.appReturn,
+        kind: 'e',
+        id: eventId,
+        isChat: false,
+        code: route.code,
+    });
 }
 
 async function renderDemo(route) {
@@ -246,8 +287,9 @@ async function start() {
     // token makes no request, because there is nothing a request could add.
     //
     // PUBLISHED — reachable by slug alone, because that is what publishing
-    // means: no token, no account, no app. `?code=` is carried and not acted
-    // on; the pass-claim lifecycle is a later milestone.
+    // means: no token, no account, no app. `?code=` additionally renders the
+    // pass-claim card: the code is shown, copyable, and handed to the app,
+    // which owns the whole redemption lifecycle. This page never claims.
     if (route.mode === MODE.DRAFT || route.mode === MODE.PUBLISHED) {
         await renderStored(route, route.mode);
         return;

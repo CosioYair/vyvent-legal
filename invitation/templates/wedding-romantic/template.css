@@ -474,12 +474,34 @@
     font-size: 0.82rem;
 }
 
-/* ── Reclamar pases (demo explainer) ────────────────────────────────────── */
+/* ── Reclama tus pases ──────────────────────────────────────────────────── */
 .tpl-wedding-romantic .inv-passes .inv-section__inner {
     padding: 1.75rem 1.25rem;
-    border: 1px dashed var(--inv-accent);
+    border: 1px solid var(--inv-accent);
     border-radius: var(--inv-radius);
     background: rgba(233, 213, 203, 0.28);
+    text-align: center;
+}
+
+/* The demonstration explainer keeps its sketchy dashed frame — it is a mockup
+   of the card, and should read as one. */
+.tpl-wedding-romantic .inv-passes.is-demo .inv-section__inner {
+    border-style: dashed;
+}
+
+.tpl-wedding-romantic .inv-passes__actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.75rem;
+    margin-top: 1rem;
+}
+
+.tpl-wedding-romantic .inv-passes__status {
+    min-height: 1.2em;
+    margin: 0.6rem 0 0;
+    color: var(--inv-muted);
+    font-size: 0.85rem;
 }
 
 .tpl-wedding-romantic .inv-passes__code-value {

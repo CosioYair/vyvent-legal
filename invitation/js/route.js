@@ -16,11 +16,19 @@
  *                                       and resolvable only while the
  *                                       invitation is actually published.
  *
- *   ?i={slug}&code={smartInvitationCode} published + a pass-claim code. The code
- *                                       is PARSED and carried, and nothing acts
- *                                       on it — the claim lifecycle is a later
- *                                       milestone. Accepting the shape now is
- *                                       what keeps those links from breaking.
+ *   ?i={slug}&code={smartInvitationCode} published + a pass-claim code. The
+ *                                       PUBLISHED page renders the claim card
+ *                                       for it: the code is displayed, copyable
+ *                                       and handed to the Orbiventt app, which
+ *                                       owns the entire redemption lifecycle.
+ *                                       The web never redeems anything.
+ *
+ *   &app_return={expoGoUrl}             optional, DEV only: the Expo Go return
+ *                                       address the app attached at share time.
+ *                                       Carried for `app-return.js`, which
+ *                                       re-validates it from scratch before the
+ *                                       "Abrir Orbiventt" button will use it —
+ *                                       exactly as the event-preview page does.
  *
  * The three data modes stay isolated: each reaches exactly one source, and no
  * mode can fall through to another's. Demo data is not even in the module graph
@@ -29,7 +37,7 @@
  * `demo` is NOT a way to reach stored data. It selects a registry key, and the
  * registry is a closed set of literals — see registry.js.
  */
-import { safeCode, safeToken, safeSlug } from './security.js';
+import { safeCode, safeToken, safeSlug, safeAppReturn } from './security.js';
 
 export const MODE = {
     DEMO: 'demo',
@@ -56,6 +64,7 @@ export function parseRoute(search) {
         previewToken: null,
         slug: null,
         code: null,
+        appReturn: null,
     };
 
     let params;
@@ -75,6 +84,7 @@ export function parseRoute(search) {
     };
 
     const code = safeCode(get('code'));
+    const appReturn = safeAppReturn(get('app_return'));
 
     const demo = get('demo');
     if (demo !== null) {
@@ -82,7 +92,7 @@ export function parseRoute(search) {
         // An unrecognized `?demo=` value is still DEMO mode: the renderer must
         // answer "that template does not exist", not fall through to a route
         // the visitor never asked for.
-        return { ...empty, mode: MODE.DEMO, demoId, code };
+        return { ...empty, mode: MODE.DEMO, demoId, code, appReturn };
     }
 
     const invitationId = safeToken(get('d'), 64);
@@ -93,6 +103,7 @@ export function parseRoute(search) {
             invitationId,
             previewToken: safeToken(get('t'), 128),
             code,
+            appReturn,
         };
     }
 
@@ -101,8 +112,8 @@ export function parseRoute(search) {
     // NONE, so it never becomes a request. See `safeSlug`.
     const slug = safeSlug(get('i'));
     if (slug) {
-        return { ...empty, mode: MODE.PUBLISHED, slug, code };
+        return { ...empty, mode: MODE.PUBLISHED, slug, code, appReturn };
     }
 
-    return { ...empty, code };
+    return { ...empty, code, appReturn };
 }
