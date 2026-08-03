@@ -68,6 +68,40 @@ export function storedRequest(route) {
 }
 
 /**
+ * The pass-summary request for a published route carrying a code, or null when
+ * that request must not exist (any other mode, no code, no slug). Like
+ * `storedRequest`, this is data: the ONE extra call the claim card may make.
+ */
+export function passSummaryRequest(route) {
+    if (!route || route.mode !== MODE.PUBLISHED) return null;
+    if (!route.slug || !route.code) return null;
+    return {
+        rpc: 'get_invitation_pass_summary',
+        params: { p_slug: route.slug, p_code: route.code },
+    };
+}
+
+/** Pass counts a card may render. Bounds mirror the database's own
+ *  `seat_capacity between 1 and 1000` CHECK; anything outside them is a payload
+ *  this backend could not have produced, and renders nothing. */
+const MAX_SEATS = 1000;
+
+/**
+ * Validate a pass-summary payload into `{seatCapacity, seatsRemaining}`, or
+ * null. Null means the card simply omits the allocation line — never a made-up
+ * number, never an error a guest has to read.
+ */
+export function normalizePassSummary(payload) {
+    if (!payload || typeof payload !== 'object' || payload.not_found) return null;
+    const capacity = payload.seat_capacity;
+    const remaining = payload.seats_remaining;
+    if (!Number.isInteger(capacity) || !Number.isInteger(remaining)) return null;
+    if (capacity < 1 || capacity > MAX_SEATS) return null;
+    if (remaining < 0 || remaining > capacity) return null;
+    return { seatCapacity: capacity, seatsRemaining: remaining };
+}
+
+/**
  * Fetch and validate a stored invitation.
  *
  * @param {object} route     from `parseRoute`

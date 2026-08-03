@@ -489,6 +489,13 @@
     border-style: dashed;
 }
 
+.tpl-wedding-romantic .inv-passes__allocation {
+    margin: 0.2rem 0 0.4rem;
+    font-weight: 600;
+    color: var(--inv-ink);
+    font-size: 0.95rem;
+}
+
 .tpl-wedding-romantic .inv-passes__actions {
     display: flex;
     flex-wrap: wrap;

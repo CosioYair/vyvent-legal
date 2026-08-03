@@ -16,7 +16,9 @@
  * Supabase fields are never read here.
  */
 import { parseRoute, MODE } from './route.js';
-import { resolveStored, RESULT } from './resolve.js';
+import {
+    resolveStored, RESULT, passSummaryRequest, normalizePassSummary,
+} from './resolve.js';
 import { resolveTemplate } from './registry.js';
 import { normalizeConfig } from './config.js';
 import { renderInvitation } from './renderer.js';
@@ -142,7 +144,7 @@ async function loadDemoConfig(demoId) {
  * absent, so a `{source:'storage'}` reference resolves to null rather than
  * quietly reaching for the network.
  */
-async function paint(template, config, route, storageUrl, handoff) {
+async function paint(template, config, route, storageUrl, handoff, passSummary) {
     await loadTemplateStylesheet(templateResourceUrl(BASES.templates, template.stylesheet));
     document.documentElement.classList.add(template.themeClass);
 
@@ -165,6 +167,7 @@ async function paint(template, config, route, storageUrl, handoff) {
         navigator: typeof navigator !== 'undefined' ? navigator : null,
         pageUrl: window.location.href,
         handoff: handoff || null,
+        passSummary: passSummary || null,
     });
 
     if (!result.ok || !result.node) { showState(STATES.failed); return false; }
@@ -216,8 +219,26 @@ async function renderStored(route, mode) {
         ? passHandoff(route, resolved.invitation && resolved.invitation.eventId)
         : null;
 
-    if (await paint(resolved.template, resolved.config, route, storageUrl, handoff)) {
+    // The card's pass count, from the one extra read the claim card is allowed
+    // (`get_invitation_pass_summary`: published slug + exact code, counts out).
+    // Every failure is null and the card simply omits the line — the page never
+    // blocks, errors or guesses over a number that is decoration here and law
+    // only inside the app's claim flow.
+    const passSummary = await fetchPassSummary(route, mode);
+
+    if (await paint(resolved.template, resolved.config, route, storageUrl, handoff, passSummary)) {
         document.body.setAttribute('data-mode', mode);
+    }
+}
+
+async function fetchPassSummary(route, mode) {
+    if (mode !== MODE.PUBLISHED) return null;
+    const request = passSummaryRequest(route);
+    if (!request) return null;
+    try {
+        return normalizePassSummary(await callRpc(request.rpc, request.params));
+    } catch (_) {
+        return null;
     }
 }
 

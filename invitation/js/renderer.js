@@ -38,6 +38,7 @@ import { matchesConfig } from './registry.js';
  *   navigator {object}   share/clipboard provider
  *   pageUrl   {string}   the URL the share action offers
  *   handoff   {?object}  resolved app handoff for a pass-claim code (app-return.js)
+ *   passSummary {?object} validated pass counts for the claim card (resolve.js)
  *
  * @returns {{ok: boolean, node: ?Element, rendered: string[], skipped: string[],
  *            reason: ?string}}
@@ -91,6 +92,9 @@ export function renderInvitation(opts) {
         // Built by the CALLER through the shared resolver — the renderer and
         // its sections never assemble an app URL themselves.
         handoff: o.handoff || null,
+        // Validated pass counts ({seatCapacity, seatsRemaining} from
+        // normalizePassSummary), or null → the card omits the allocation line.
+        passSummary: o.passSummary || null,
     };
 
     const rendered = [];

@@ -20,10 +20,14 @@
  */
 
 /** RPCs this page may call. A closed set: `callRpc` refuses anything else, so a
- *  future edit cannot turn a value into an endpoint. */
+ *  future edit cannot turn a value into an endpoint.
+ *  `get_invitation_pass_summary` is the claim card's pass count — read-only,
+ *  answering only to the published slug + exact code pair, with the same
+ *  uniform `{not_found}` stub as everything else (migration 20260803190000). */
 const RPCS = Object.create(null);
 RPCS.get_invitation_draft = true;
 RPCS.get_published_invitation = true;
+RPCS.get_invitation_pass_summary = true;
 
 /** Buckets an invitation image may live in. Mirrors the database's
  *  `digital_invitations_known_buckets` constraint — an image from anywhere else

@@ -46,6 +46,32 @@ export function displayCode(raw) {
     return normalized.replace(/(.{4})(?=.)/g, '$1-');
 }
 
+/**
+ * The allocation sentence, or null when there is nothing trustworthy to say.
+ *
+ * Built ONLY from the validated pass summary (`normalizePassSummary` — the
+ * backend's own `seat_capacity` / `seats_remaining` for this exact slug+code
+ * pair). Numbers, never names: no claimant, no label, no id. When the summary
+ * is absent the card says nothing about quantity rather than guessing —
+ * the app's claim flow remains the authority on what a claim will get.
+ */
+export function allocationLine(summary) {
+    if (!summary) return null;
+    const capacity = summary.seatCapacity;
+    const remaining = summary.seatsRemaining;
+    if (!Number.isInteger(capacity) || !Number.isInteger(remaining)) return null;
+    if (capacity < 1 || remaining < 0 || remaining > capacity) return null;
+
+    const people = capacity === 1
+        ? 'Invitación para 1 persona.'
+        : 'Invitación para ' + capacity + ' personas.';
+    if (remaining === capacity) return people;
+    // Some passes are already claimed — say what is actually left.
+    return people + ' ' + (remaining === 1
+        ? 'Queda 1 de ' + capacity + ' pases disponibles.'
+        : 'Quedan ' + remaining + ' de ' + capacity + ' pases disponibles.');
+}
+
 function demoCard(code, ctx) {
     const d = ctx.document;
     return section('passes', ctx.labels.passesHeading, ctx, [
@@ -128,12 +154,17 @@ export default function renderPasses(_data, ctx) {
         })
         : null;
 
+    const allocation = allocationLine(ctx.passSummary);
+
     return section('passes', ctx.labels.passesHeading, ctx, [
         el('p', {
             class: 'inv-passes__body',
             text: 'Usa este código en Orbiventt para reclamar y asignar tus pases.',
             document: d,
         }),
+        allocation
+            ? el('p', { class: 'inv-passes__allocation', text: allocation, document: d })
+            : null,
         el('p', {
             class: 'inv-passes__code',
             children: [

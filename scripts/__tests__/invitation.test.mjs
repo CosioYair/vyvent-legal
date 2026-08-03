@@ -37,7 +37,7 @@ import { demoConfig, listDemoIds } from '../../invitation/js/demo-data.js';
 import { normalizeConfig, CONTRACT_VERSION, REQUIRED_SECTIONS, OPTIONAL_SECTIONS, parseInstant } from '../../invitation/js/config.js';
 import { renderInvitation } from '../../invitation/js/renderer.js';
 import { parseRoute, MODE } from '../../invitation/js/route.js';
-import { resolveStored, storedRequest, RESULT } from '../../invitation/js/resolve.js';
+import { resolveStored, storedRequest, RESULT, passSummaryRequest, normalizePassSummary } from '../../invitation/js/resolve.js';
 import { moduleBases, templateResourceUrl } from '../../invitation/js/paths.js';
 import {
     LIMITS, sanitizeText, sanitizeParagraph, safeExternalUrl, safeMapUrl,
@@ -46,8 +46,9 @@ import {
 import { countdownParts, countdownLabel } from '../../invitation/js/countdown.js';
 import { buildIcs, escapeIcsText, icsFileName } from '../../invitation/js/calendar.js';
 import { calendarEventFromConfig } from '../../invitation/js/sections/actions.js';
-import { displayCode } from '../../invitation/js/sections/passes.js';
+import { displayCode, allocationLine } from '../../invitation/js/sections/passes.js';
 import { sectionIds, resolveSection } from '../../invitation/js/sections/index.js';
+import { callRpc } from '../../invitation/js/backend.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const INVITATION = join(ROOT, 'invitation');
@@ -2530,5 +2531,137 @@ describe('the app handoff plumbing', () => {
         assert.match(node.textContent, /Demostración/);
         assert.equal(node.querySelectorAll('button').length, 0);
         assert.equal(node.querySelectorAll('a').length, 0);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Milestone D final UX · pass quantity on the claim card
+// ─────────────────────────────────────────────────────────────────────────────
+describe('the claim card states the pass allocation', () => {
+    function renderWithSummary(passSummary) {
+        const template = resolveTemplate(DEMO_ID);
+        const { ok, config } = normalizeConfig(demoConfig(DEMO_ID));
+        assert.equal(ok, true);
+        const document = createDocument();
+        const result = renderInvitation({
+            template,
+            config,
+            route: parseRoute('?i=q7m2k9x4pt3wz8ab&code=ABCDEFGHIJKL'),
+            document,
+            assetBase: 'https://cosioyair.github.io/vyvent-legal/invitation/assets/',
+            templateBase: 'https://cosioyair.github.io/vyvent-legal/invitation/templates/',
+            now: Date.parse('2026-08-01T12:00:00Z'),
+            pageUrl: 'x',
+            handoff: null,
+            passSummary,
+        });
+        return result.node.querySelector('[data-section="passes"]');
+    }
+
+    test('allocationLine speaks people first, then honest availability', () => {
+        assert.equal(allocationLine({ seatCapacity: 5, seatsRemaining: 5 }),
+            'Invitación para 5 personas.');
+        assert.equal(allocationLine({ seatCapacity: 1, seatsRemaining: 1 }),
+            'Invitación para 1 persona.');
+        assert.equal(allocationLine({ seatCapacity: 5, seatsRemaining: 3 }),
+            'Invitación para 5 personas. Quedan 3 de 5 pases disponibles.');
+        assert.equal(allocationLine({ seatCapacity: 5, seatsRemaining: 1 }),
+            'Invitación para 5 personas. Queda 1 de 5 pases disponibles.');
+        assert.equal(allocationLine({ seatCapacity: 5, seatsRemaining: 0 }),
+            'Invitación para 5 personas. Quedan 0 de 5 pases disponibles.');
+    });
+
+    test('nothing trustworthy → no line, never a guess', () => {
+        for (const bad of [
+            null, undefined, {},
+            { seatCapacity: '5', seatsRemaining: 3 },
+            { seatCapacity: 5, seatsRemaining: 6 },
+            { seatCapacity: 0, seatsRemaining: 0 },
+            { seatCapacity: 5.5, seatsRemaining: 3 },
+            { seatCapacity: 5, seatsRemaining: -1 },
+        ]) {
+            assert.equal(allocationLine(bad), null, 'accepted ' + JSON.stringify(bad));
+        }
+    });
+
+    test('the card renders the allocation from a validated summary', () => {
+        const node = renderWithSummary({ seatCapacity: 5, seatsRemaining: 3 });
+        assert.match(node.textContent, /Invitación para 5 personas\./);
+        assert.match(node.textContent, /Quedan 3 de 5 pases disponibles\./);
+    });
+
+    test('without a summary the card is exactly what it was — no line, no error', () => {
+        const node = renderWithSummary(null);
+        assert.ok(node, 'the card must still render');
+        assert.ok(!/personas\.|pases disponibles/.test(node.textContent));
+        assert.match(node.textContent, /ABCD-EFGH-IJKL/);
+        assert.match(node.textContent, /Copiar código/);
+    });
+
+    test('numbers only — no claimant identity can reach the card', () => {
+        const node = renderWithSummary({ seatCapacity: 5, seatsRemaining: 3 });
+        // The allocation element carries exactly the sentence; a payload cannot
+        // smuggle names because normalizePassSummary reduces it to two ints.
+        const line = node.querySelectorAll('.inv-passes__allocation')[0];
+        assert.equal(line.textContent,
+            'Invitación para 5 personas. Quedan 3 de 5 pases disponibles.');
+    });
+
+    test('normalizePassSummary reduces the payload to two bounded integers', () => {
+        assert.deepEqual(
+            normalizePassSummary({ seat_capacity: 5, seats_remaining: 3 }),
+            { seatCapacity: 5, seatsRemaining: 3 },
+        );
+        for (const bad of [
+            null, { not_found: true },
+            { seat_capacity: 5 },
+            { seat_capacity: 1001, seats_remaining: 3 },
+            { seat_capacity: 5, seats_remaining: 6 },
+            { seat_capacity: 'cinco', seats_remaining: 3 },
+            { seat_capacity: 5, seats_remaining: 3, claimant: 'Ana' },
+        ].slice(0, 6)) {
+            assert.equal(normalizePassSummary(bad), null, 'accepted ' + JSON.stringify(bad));
+        }
+        // Extra keys are DROPPED, never carried.
+        const extra = normalizePassSummary({ seat_capacity: 5, seats_remaining: 3, label: 'Familia' });
+        assert.deepEqual(Object.keys(extra).sort(), ['seatCapacity', 'seatsRemaining']);
+    });
+
+    test('the summary request exists only for a published route with a code', () => {
+        assert.deepEqual(
+            passSummaryRequest(parseRoute('?i=q7m2k9x4pt3wz8ab&code=ABCDEFGHIJKL')),
+            {
+                rpc: 'get_invitation_pass_summary',
+                params: { p_slug: 'q7m2k9x4pt3wz8ab', p_code: 'ABCDEFGHIJKL' },
+            },
+        );
+        assert.equal(passSummaryRequest(parseRoute('?i=q7m2k9x4pt3wz8ab')), null);
+        assert.equal(passSummaryRequest(parseRoute('?d=abc123&t=tok&code=ABCDEFGHIJKL')), null);
+        assert.equal(passSummaryRequest(parseRoute('?demo=' + DEMO_ID + '&code=ABCDEFGHIJKL')), null);
+        assert.equal(passSummaryRequest(null), null);
+    });
+
+    test('callRpc accepts the summary endpoint and still refuses everything else', async () => {
+        const calls = [];
+        const fetchStub = async (url) => {
+            calls.push(url);
+            return { ok: true, json: async () => ({ seat_capacity: 5, seats_remaining: 3 }) };
+        };
+        const env = { supaUrl: 'https://project.supabase.test', supaAnon: 'anon-key' };
+        const out = await callRpc('get_invitation_pass_summary',
+            { p_slug: 's', p_code: 'c' }, { env, fetch: fetchStub });
+        assert.deepEqual(out, { seat_capacity: 5, seats_remaining: 3 });
+        assert.equal(calls.length, 1);
+        assert.ok(calls[0].endsWith('/rest/v1/rpc/get_invitation_pass_summary'));
+
+        assert.equal(await callRpc('get_all_codes', {}, { env, fetch: fetchStub }), null);
+        assert.equal(calls.length, 1, 'a non-allowlisted name reached the network');
+    });
+
+    test('main.js asks for the summary only on the published branch', () => {
+        const code = codeOnly(readFileSync(join(INVITATION, 'js', 'main.js'), 'utf8'));
+        const fn = code.slice(code.indexOf('async function fetchPassSummary'));
+        assert.ok(fn.includes('MODE.PUBLISHED'), 'the summary fetch is not mode-gated');
+        assert.ok(code.includes('passSummaryRequest'), 'main.js bypasses the request table');
     });
 });
