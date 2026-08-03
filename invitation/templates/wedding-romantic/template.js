@@ -41,23 +41,36 @@ export default {
      * the reserved geometry, the exported file and the crop viewport are one
      * number rather than three that drift.
      *
-     * `trim` marks bands the frame may lose on some viewports — the hero is
-     * full-bleed at 88svh, so a narrow phone crops its SIDES. The cropper draws
-     * them as guides; nothing is cut here.
+     * `trim` marks bands the frame may lose on some viewports. The cropper
+     * draws them as guides; nothing is cut here.
      *
      * The mobile editor mirrors this block in
      * `features/digitalInvitations/imagePlacements.ts`, and a test on each side
      * pins them to the same numbers. */
     imagePlacements: {
         hero: {
-            /* 1000×1400 (5:7). The template's own artwork is authored at this
-             * size and the hero <img> declares it. */
-            width: 1000,
-            height: 1400,
-            aspectRatio: 1000 / 1400,
+            /* 1080×1920 (9:16) — THE PHONE'S SHAPE.
+             *
+             * The hero is full-bleed at 88svh inside a page that is a CENTRED
+             * COLUMN (`.inv-page { max-width: 46rem }`), so its width is capped
+             * at 736–768px however wide the screen is. Measured:
+             *
+             *   iPhone   390×844  → 390×~743 ≈ 0.52
+             *   iPad     768×1024 → 736×~901 ≈ 0.82
+             *   Desktop 1440×900  → 768×~828 ≈ 0.93  (width capped)
+             *
+             * Portrait on every viewport, landscape on none. The previous 5:7
+             * master sat in the middle of that band and so matched nothing: on
+             * a phone `cover` discarded ~27% of the width the organizer framed.
+             * 9:16 is the phone's shape to within 8%, so what the organizer
+             * confirms is what a guest sees; wider screens trim the top and
+             * bottom instead, which is what `trim` marks. */
+            width: 1080,
+            height: 1920,
+            aspectRatio: 1080 / 1920,
             trim: [
-                { x: 0, y: 0, w: 0.14, h: 1, label: 'trim-left' },
-                { x: 0.86, y: 0, w: 0.14, h: 1, label: 'trim-right' },
+                { x: 0, y: 0, w: 1, h: 0.2, label: 'trim-top' },
+                { x: 0, y: 0.8, w: 1, h: 0.2, label: 'trim-bottom' },
             ],
         },
         gallery: {
