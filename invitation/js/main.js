@@ -253,7 +253,13 @@ async function start() {
         return;
     }
 
-    showState(STATES.unknownTemplate);
+    // Nothing recognizable in the query: a bare `/invitation/`, a truncated
+    // link, a mistyped one, or an `?i=` whose value the database could not have
+    // stored. The SAME answer a resolvable-looking slug that does not resolve
+    // gets — otherwise the difference between "malformed" and "not found" would
+    // be readable off the page, and this is the one page where every dead end
+    // must look identical.
+    showState(STATES.unavailable);
 }
 
 start().catch(() => showState(STATES.failed));

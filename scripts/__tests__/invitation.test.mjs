@@ -2241,6 +2241,18 @@ describe('the published route', () => {
         assert.ok(!INDEX_HTML.includes('Renata'));
     });
 
+    test('a link that resolves to nothing always reads the same', () => {
+        // An unknown slug, a malformed one and a bare /invitation/ must be
+        // indistinguishable. `unknownTemplate` survives for demo mode alone,
+        // where naming the missing template is useful and reveals nothing.
+        const code = codeOnly(readFileSync(join(INVITATION, 'js', 'main.js'), 'utf8'));
+        const start = code.slice(code.indexOf('async function start'));
+        assert.ok(start.includes('STATES.unavailable'),
+            'an unrecognized route does not show the shared unavailable state');
+        assert.ok(!start.includes('STATES.unknownTemplate'),
+            'an unrecognized route still shows a distinguishable state');
+    });
+
     test('every stored-route failure shows ONE state, and it names nothing', () => {
         const main = readFileSync(join(INVITATION, 'js', 'main.js'), 'utf8');
         const code = codeOnly(main);
