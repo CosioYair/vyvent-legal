@@ -5,24 +5,31 @@
  * it is handed on — an unparseable or hostile query resolves to a controlled
  * state, never to a partially-trusted one.
  *
- *   ?demo={registryId}                MILESTONE A — bundled demonstration data.
- *                                     No database record, no authentication, no
- *                                     preview token, no network at all.
+ *   ?demo={registryId}                  bundled demonstration data. No database
+ *                                       record, no authentication, no preview
+ *                                       token, no network at all.
  *
- *   ?d={invitationId}&t={previewToken}  RESERVED — organizer draft preview.
- *   ?i={slug}                           RESERVED — published invitation.
- *   ?i={slug}&code={smartInvitationCode} RESERVED — published + pass claim.
+ *   ?d={invitationId}&t={previewToken}  the ORGANIZER's private draft preview.
+ *                                       Token-gated; renders any status.
  *
- * The reserved modes are RECOGNIZED here, deliberately, and resolve to an
- * explicit "not available yet" state. Recognizing them now fixes the contract
- * before anything mints a URL against it, and leaves no ambiguity about which
- * shapes Milestone B has to honor. Nothing simulates their network behavior:
- * there is no mock fetch, no fake payload and no placeholder record.
+ *   ?i={slug}                           the PUBLISHED invitation. Anonymous,
+ *                                       and resolvable only while the
+ *                                       invitation is actually published.
+ *
+ *   ?i={slug}&code={smartInvitationCode} published + a pass-claim code. The code
+ *                                       is PARSED and carried, and nothing acts
+ *                                       on it — the claim lifecycle is a later
+ *                                       milestone. Accepting the shape now is
+ *                                       what keeps those links from breaking.
+ *
+ * The three data modes stay isolated: each reaches exactly one source, and no
+ * mode can fall through to another's. Demo data is not even in the module graph
+ * of the two stored routes.
  *
  * `demo` is NOT a way to reach stored data. It selects a registry key, and the
  * registry is a closed set of literals — see registry.js.
  */
-import { safeCode, safeToken } from './security.js';
+import { safeCode, safeToken, safeSlug } from './security.js';
 
 export const MODE = {
     DEMO: 'demo',
@@ -89,7 +96,10 @@ export function parseRoute(search) {
         };
     }
 
-    const slug = safeToken(get('i'), 96);
+    // The published slug is validated against the DATABASE's shape rule, not the
+    // looser token rule: a value the database could not have stored resolves to
+    // NONE, so it never becomes a request. See `safeSlug`.
+    const slug = safeSlug(get('i'));
     if (slug) {
         return { ...empty, mode: MODE.PUBLISHED, slug, code };
     }

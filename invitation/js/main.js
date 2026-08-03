@@ -16,6 +16,7 @@
  * Supabase fields are never read here.
  */
 import { parseRoute, MODE } from './route.js';
+import { resolveStored, RESULT } from './resolve.js';
 import { resolveTemplate } from './registry.js';
 import { normalizeConfig } from './config.js';
 import { renderInvitation } from './renderer.js';
@@ -34,10 +35,17 @@ const STATES = {
         body: 'Este enlace no corresponde a ninguna invitación. Revisa que esté completo o '
             + 'pídeselo de nuevo a los anfitriones.',
     },
-    notAvailableYet: {
-        title: 'Invitación no disponible',
-        body: 'Este enlace todavía no puede abrirse. Si lo recibiste de los anfitriones, '
-            + 'inténtalo de nuevo más tarde.',
+    /* THE ONE ANSWER FOR EVERY STORED-INVITATION FAILURE.
+     *
+     * Unknown slug, a draft, an unpublished invitation, a deleted one, a
+     * moderated event, a template this build does not have, a configuration
+     * that will not normalize, a network error. Deliberately says nothing about
+     * which — a guest must not be able to learn from this page whether a
+     * private invitation exists, and an organizer who unpublished theirs must
+     * not have that fact announced to whoever still holds the link. */
+    unavailable: {
+        title: 'Esta invitación no está disponible',
+        body: 'Revisa que el enlace esté completo o pídeselo de nuevo a los anfitriones.',
     },
     // A DRAFT whose required fields are not filled in yet. Distinct from
     // "failed" on purpose: nothing is broken, the invitation is simply not
@@ -171,40 +179,36 @@ async function paint(template, config, route, storageUrl) {
 /**
  * Render a STORED invitation — the draft and published routes.
  *
+ * The decision of what to fetch and what every failure means lives in
+ * `resolve.js`, which is DOM-free and asserted directly. This function is what
+ * is left once that is factored out: paint the verdict.
+ *
  * The payload arrives from the network and is trusted no further than the
  * bundled demo literal is: it goes through the same `normalizeConfig()`, the
  * same template registry and the same renderer. Nothing here merges, defaults
  * to, or falls back on demonstration data — `demo-data.js` is not even in this
  * function's module graph.
  */
-async function renderStored(route, rpc, params, mode) {
-    const payload = await callRpc(rpc, params);
+async function renderStored(route, mode) {
+    const resolved = await resolveStored(route, {
+        callRpc,
+        resolveTemplate,
+        normalizeConfig,
+    });
 
-    // One controlled state for every failure: unknown id, wrong token, unknown
-    // slug, unpublished, removed event, network error. The backend already
-    // refuses to distinguish them; neither does this.
-    if (!payload || payload.not_found || !payload.invitation) {
-        showState(STATES.notAvailableYet);
+    if (resolved.result === RESULT.INCOMPLETE) {
+        showState(STATES.incompleteDraft);
         return;
     }
-
-    const invitation = payload.invitation;
-    const template = resolveTemplate(invitation.templateKey + '_v' + invitation.templateVersion);
-    if (!template) { showState(STATES.failed); return; }
-
-    const { ok, config } = normalizeConfig(invitation.config);
-    if (!ok) {
-        // A draft the organizer has not finished is not an error — it is a
-        // draft. A PUBLISHED invitation that fails to normalize is a real
-        // problem, because the publish gate should have caught it.
-        showState(mode === MODE.DRAFT ? STATES.incompleteDraft : STATES.failed);
+    if (resolved.result !== RESULT.OK) {
+        showState(STATES.unavailable);
         return;
     }
 
     const backend = backendConfig();
     const storageUrl = backend ? storageUrlResolver(backend.url) : null;
 
-    if (await paint(template, config, route, storageUrl)) {
+    if (await paint(resolved.template, resolved.config, route, storageUrl)) {
         document.body.setAttribute('data-mode', mode);
     }
 }
@@ -239,28 +243,13 @@ async function start() {
 
     // DRAFT — the organizer previewing their own unpublished work. Requires
     // BOTH the invitation id and a token the backend can verify; a missing
-    // token is answered without a request, because there is nothing a request
-    // could usefully add.
-    if (route.mode === MODE.DRAFT) {
-        if (!route.previewToken) { showState(STATES.notAvailableYet); return; }
-        await renderStored(
-            route,
-            'get_invitation_draft',
-            { p_invitation_id: route.invitationId, p_token: route.previewToken },
-            MODE.DRAFT,
-        );
-        return;
-    }
-
+    // token makes no request, because there is nothing a request could add.
+    //
     // PUBLISHED — reachable by slug alone, because that is what publishing
-    // means. Milestone C wires the pass-claim handoff that `?code=` carries.
-    if (route.mode === MODE.PUBLISHED) {
-        await renderStored(
-            route,
-            'get_published_invitation',
-            { p_slug: route.slug },
-            MODE.PUBLISHED,
-        );
+    // means: no token, no account, no app. `?code=` is carried and not acted
+    // on; the pass-claim lifecycle is a later milestone.
+    if (route.mode === MODE.DRAFT || route.mode === MODE.PUBLISHED) {
+        await renderStored(route, route.mode);
         return;
     }
 

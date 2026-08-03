@@ -314,14 +314,34 @@ export function safeCode(raw) {
 }
 
 /**
- * An opaque identifier from the query string (invitation id, preview token,
- * published slug). Not resolved to anything in Milestone A — validated here so
- * the reserved routes cannot become a path- or scheme-injection surface the day
- * they are wired up.
+ * An opaque identifier from the query string (invitation id, preview token).
+ * Validated here so the routes cannot become a path- or scheme-injection
+ * surface.
  */
 export function safeToken(raw, max) {
     if (typeof raw !== 'string' || raw === '') return null;
     const limit = Number.isInteger(max) && max > 0 ? max : 128;
     if (raw.length > limit) return null;
     return /^[A-Za-z0-9._~-]+$/.test(raw) ? raw : null;
+}
+
+/**
+ * The PUBLIC SLUG of a published invitation.
+ *
+ * Narrower than `safeToken` on purpose, and pinned to the database's own
+ * `digital_invitations_slug_shape` constraint:
+ *
+ *     ^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$
+ *
+ * A value the database could not possibly have stored is rejected HERE, before
+ * a request is built — so a malformed or hostile `?i=` costs no network call,
+ * reaches no RPC, and is answered with the same controlled state as a slug that
+ * simply does not exist. Lowercase only, because that is what
+ * `publish_invitation` stores; accepting `?i=ABC` and querying it would be a
+ * lookup that can only miss.
+ */
+const SLUG = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
+
+export function safeSlug(raw) {
+    return typeof raw === 'string' && SLUG.test(raw) ? raw : null;
 }

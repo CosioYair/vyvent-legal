@@ -37,10 +37,11 @@ import { demoConfig, listDemoIds } from '../../invitation/js/demo-data.js';
 import { normalizeConfig, CONTRACT_VERSION, REQUIRED_SECTIONS, OPTIONAL_SECTIONS, parseInstant } from '../../invitation/js/config.js';
 import { renderInvitation } from '../../invitation/js/renderer.js';
 import { parseRoute, MODE } from '../../invitation/js/route.js';
+import { resolveStored, storedRequest, RESULT } from '../../invitation/js/resolve.js';
 import { moduleBases, templateResourceUrl } from '../../invitation/js/paths.js';
 import {
     LIMITS, sanitizeText, sanitizeParagraph, safeExternalUrl, safeMapUrl,
-    buildMapUrl, resolveImage, safeAssetPath, safeCode, safeToken,
+    buildMapUrl, resolveImage, safeAssetPath, safeCode, safeToken, safeSlug,
 } from '../../invitation/js/security.js';
 import { countdownParts, countdownLabel } from '../../invitation/js/countdown.js';
 import { buildIcs, escapeIcsText, icsFileName } from '../../invitation/js/calendar.js';
@@ -1534,6 +1535,9 @@ describe('source hygiene', () => {
 describe('29 · image placements and alt semantics', () => {
     const TEMPLATE_CSS = readFileSync(
         join(INVITATION, 'templates', 'wedding-romantic', 'template.css'), 'utf8');
+    // The page frame lives in base.css and is what caps the hero's WIDTH, so
+    // the hero's shape cannot be read from the template stylesheet alone.
+    const BASE_CSS = readFileSync(join(INVITATION, 'css', 'base.css'), 'utf8');
     const placements = () => resolveTemplate(DEMO_ID).imagePlacements;
 
     const storageImg = (p) => ({ source: 'storage', bucket: 'invitation-media', path: p });
@@ -1560,11 +1564,34 @@ describe('29 · image placements and alt semantics', () => {
     test('the placements are the agreed contract values', () => {
         const p = placements();
         assert.deepEqual(
-            { w: p.hero.width, h: p.hero.height }, { w: 1000, h: 1400 });
+            { w: p.hero.width, h: p.hero.height }, { w: 1080, h: 1920 });
         assert.deepEqual(
             { w: p.gallery.width, h: p.gallery.height }, { w: 800, h: 1000 });
         assert.deepEqual(
             { w: p.interlude.width, h: p.interlude.height }, { w: 1600, h: 900 });
+    });
+
+    /* THE HERO IS A TALL COLUMN. Its width is capped by the page frame and its
+     * height is the viewport, so it is portrait on every screen and landscape
+     * on none — which is why the cropper frames 9:16 and not a landscape band.
+     * If either rule below is ever relaxed, the chosen ratio stops being the
+     * phone's shape and this test is the thing that says so. */
+    test('the hero is a portrait column on every viewport', () => {
+        const p = placements();
+        assert.ok(p.hero.aspectRatio < 1, 'the hero placement is not portrait');
+        assert.ok(Math.abs(p.hero.aspectRatio - 9 / 16) < 1e-9, 'the hero is not 9:16');
+
+        // Full-bleed to the viewport height…
+        assert.match(TEMPLATE_CSS, /\.inv-hero\s*\{[^}]*min-height:\s*88svh/s);
+        assert.match(TEMPLATE_CSS, /\.inv-hero__art[^}]*object-fit:\s*cover/s);
+        // …inside a page that is a centred column, which is what caps the
+        // width and keeps the hero portrait even on a desktop.
+        assert.match(BASE_CSS, /\.inv-page\s*\{[^}]*max-width:\s*4[68]rem/s);
+
+        // The widest supported hero is the capped column against the tallest
+        // viewport; even there the frame stays portrait.
+        const widestHero = 768 / (0.92 * 900);
+        assert.ok(widestHero < 1, 'the hero can render landscape somewhere');
     });
 
     test('the STYLESHEET draws the ratios the cropper frames to', () => {
@@ -1948,5 +1975,287 @@ describe('28 · interlude photographs', () => {
             raw: withInterludes({ afterMessage: { image: { source: 'storage', bucket: 'invitation-media', path: 'e/a.jpg' } } }),
         });
         assert.deepEqual(interludeSlots(node), []);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MILESTONE C · the publication lifecycle, from the guest's side
+//
+// Everything below runs the SHIPPED `resolve.js` against a stub RPC, so the
+// assertions are about the file GitHub Pages serves and not about a description
+// of it. What is being pinned:
+//
+//   • the published route reaches exactly one endpoint, with exactly one
+//     parameter, and never a preview token;
+//   • a draft, an unpublished invitation, an unknown slug, an unknown template
+//     and an unrenderable configuration are INDISTINGUISHABLE to a guest;
+//   • the organizer's saved values render exactly, with no demonstration data
+//     anywhere in the module graph.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('the published route', () => {
+    /** A publishable configuration with recognisable values. */
+    const savedConfig = () => ({
+        contractVersion: CONTRACT_VERSION,
+        categoryKey: 'wedding',
+        templateKey: 'wedding_romantic',
+        templateVersion: 1,
+        locale: 'es-MX',
+        timeZone: 'America/Mexico_City',
+        sections: {
+            hero: { partnerA: 'Renata', partnerB: 'Emiliano', date: '2027-03-14' },
+            message: { body: 'Nos encantaría que nos acompañaras.' },
+            ceremony: {
+                startsAt: '2027-03-14T18:00:00-06:00',
+                venueName: 'Capilla del Bosque',
+                address: 'Av. Reforma 100',
+            },
+        },
+    });
+
+    /** The published payload the backend returns for a live invitation. */
+    const publishedPayload = (config) => ({
+        payload_version: 1,
+        mode: 'published',
+        invitation: {
+            id: '11111111-1111-4111-8111-111111111111',
+            eventId: '22222222-2222-4222-8222-222222222222',
+            categoryKey: 'wedding',
+            templateKey: 'wedding_romantic',
+            templateVersion: 1,
+            contractVersion: CONTRACT_VERSION,
+            slug: 'q7m2k9x4pt3wz8ab',
+            updatedAt: '2026-08-03T10:00:00Z',
+            config: config || savedConfig(),
+        },
+    });
+
+    /** A recording stub in the shape `callRpc` presents. */
+    function recorder(reply) {
+        const calls = [];
+        return {
+            calls,
+            callRpc: async (name, params) => { calls.push({ name, params }); return reply; },
+        };
+    }
+
+    const deps = (rpc) => ({ callRpc: rpc, resolveTemplate, normalizeConfig });
+
+    test('a published slug resolves and renders, with no account and no token', async () => {
+        const rec = recorder(publishedPayload());
+        const route = parseRoute('?i=q7m2k9x4pt3wz8ab');
+        const out = await resolveStored(route, deps(rec.callRpc));
+
+        assert.equal(out.result, RESULT.OK);
+        assert.equal(rec.calls.length, 1, 'exactly one backend request');
+        assert.equal(rec.calls[0].name, 'get_published_invitation');
+        assert.deepEqual(rec.calls[0].params, { p_slug: 'q7m2k9x4pt3wz8ab' });
+        // NO preview token, under any name.
+        assert.equal(JSON.stringify(rec.calls[0].params).includes('token'), false);
+
+        // …and it draws the organizer's own values.
+        const document = createDocument();
+        const drawn = renderInvitation({
+            template: out.template,
+            config: out.config,
+            route,
+            document,
+            assetBase: 'https://cosioyair.github.io/vyvent-legal/invitation/assets/',
+            templateBase: 'https://cosioyair.github.io/vyvent-legal/invitation/templates/',
+            now: Date.parse('2026-08-01T12:00:00Z'),
+            pageUrl: 'https://cosioyair.github.io/vyvent-legal/invitation/?i=q7m2k9x4pt3wz8ab',
+        });
+        assert.equal(drawn.ok, true);
+        const html = serialize(drawn.node);
+        assert.ok(html.includes('Renata'));
+        assert.ok(html.includes('Emiliano'));
+        assert.ok(html.includes('Capilla del Bosque'));
+        assert.ok(html.includes('Nos encantaría que nos acompañaras.'));
+    });
+
+    test('a draft, an unpublished invitation and an unknown slug are the SAME answer', async () => {
+        // The backend returns the identical stub for all three — it refuses to
+        // distinguish them, and neither does the page.
+        for (const label of ['unknown slug', 'still a draft', 'unpublished']) {
+            const rec = recorder({ not_found: true });
+            const out = await resolveStored(parseRoute('?i=q7m2k9x4pt3wz8ab'), deps(rec.callRpc));
+            assert.equal(out.result, RESULT.UNAVAILABLE, label);
+            assert.equal(out.template, undefined, label);
+            assert.equal(out.config, undefined, label);
+        }
+    });
+
+    test('a network failure is the same answer too', async () => {
+        // `callRpc` returns null for a non-2xx, a thrown fetch or an unparseable
+        // body, so a server hiccup and a withdrawn invitation look identical.
+        const rec = recorder(null);
+        const out = await resolveStored(parseRoute('?i=q7m2k9x4pt3wz8ab'), deps(rec.callRpc));
+        assert.equal(out.result, RESULT.UNAVAILABLE);
+    });
+
+    test('a MALFORMED slug makes no request at all', async () => {
+        const hostile = [
+            'A'.repeat(10),              // the database stores lowercase only
+            '../../etc/passwd',
+            'a b',
+            '-leading-hyphen',
+            'trailing-hyphen-',
+            'x'.repeat(120),
+            'javascript:alert(1)',
+            'sección',
+        ];
+        for (const value of hostile) {
+            const route = parseRoute('?i=' + encodeURIComponent(value));
+            assert.notEqual(route.mode, MODE.PUBLISHED, 'accepted ' + JSON.stringify(value));
+
+            const rec = recorder(publishedPayload());
+            const out = await resolveStored(route, deps(rec.callRpc));
+            assert.equal(out.result, RESULT.UNAVAILABLE, value);
+            assert.equal(rec.calls.length, 0, 'contacted the backend for ' + JSON.stringify(value));
+        }
+    });
+
+    test('the slug rule is the DATABASE rule, character for character', () => {
+        // Pinned to `digital_invitations_slug_shape` in migration 20260730170000.
+        assert.equal(safeSlug('q7m2k9x4pt3wz8ab'), 'q7m2k9x4pt3wz8ab');
+        assert.equal(safeSlug('a'), 'a');
+        assert.equal(safeSlug('valentina-y-mateo'), 'valentina-y-mateo');
+        assert.equal(safeSlug('a'.repeat(63)), 'a'.repeat(63));
+        assert.equal(safeSlug('a'.repeat(64)), null);
+        assert.equal(safeSlug('-a'), null);
+        assert.equal(safeSlug('a-'), null);
+        assert.equal(safeSlug('A'), null);
+        assert.equal(safeSlug('a_b'), null);
+        assert.equal(safeSlug(''), null);
+        assert.equal(safeSlug(null), null);
+        assert.equal(safeSlug(42), null);
+    });
+
+    test('an UNKNOWN template fails closed rather than picking a design', async () => {
+        const payload = publishedPayload();
+        payload.invitation.templateKey = 'wedding_brutalist';
+        const rec = recorder(payload);
+        const out = await resolveStored(parseRoute('?i=q7m2k9x4pt3wz8ab'), deps(rec.callRpc));
+        assert.equal(out.result, RESULT.UNAVAILABLE);
+        assert.equal(out.template, undefined);
+    });
+
+    test('an unrenderable PUBLISHED configuration is unavailable, not "incomplete"', async () => {
+        // "Incomplete" is a message for the author of a draft. A guest holding a
+        // published link must never be told the couple left a field blank.
+        const payload = publishedPayload({ ...savedConfig(), sections: {} });
+        const rec = recorder(payload);
+        const out = await resolveStored(parseRoute('?i=q7m2k9x4pt3wz8ab'), deps(rec.callRpc));
+        assert.equal(out.result, RESULT.UNAVAILABLE);
+    });
+
+    test('the same unfinished configuration IS "incomplete" on the draft route', async () => {
+        const payload = publishedPayload({ ...savedConfig(), sections: {} });
+        payload.mode = 'draft';
+        const rec = recorder(payload);
+        const out = await resolveStored(parseRoute('?d=abc123&t=' + 'k'.repeat(40)), deps(rec.callRpc));
+        assert.equal(out.result, RESULT.INCOMPLETE);
+    });
+
+    test('the draft route still needs its token, and makes no request without one', async () => {
+        const rec = recorder(publishedPayload());
+        const out = await resolveStored(parseRoute('?d=abc123'), deps(rec.callRpc));
+        assert.equal(out.result, RESULT.UNAVAILABLE);
+        assert.equal(rec.calls.length, 0);
+    });
+
+    test('the call table is closed: one endpoint per mode, and nothing for the rest', () => {
+        assert.deepEqual(storedRequest(parseRoute('?i=q7m2k9x4pt3wz8ab')), {
+            rpc: 'get_published_invitation',
+            params: { p_slug: 'q7m2k9x4pt3wz8ab' },
+        });
+        assert.deepEqual(storedRequest(parseRoute('?d=abc123&t=' + 'k'.repeat(40))), {
+            rpc: 'get_invitation_draft',
+            params: { p_invitation_id: 'abc123', p_token: 'k'.repeat(40) },
+        });
+        assert.equal(storedRequest(parseRoute('?demo=' + DEMO_ID)), null);
+        assert.equal(storedRequest(parseRoute('')), null);
+        assert.equal(storedRequest(null), null);
+    });
+
+    test('a code= on a published link is carried and never acted on', async () => {
+        const route = parseRoute('?i=q7m2k9x4pt3wz8ab&code=ABCDEFGHIJKL');
+        assert.equal(route.mode, MODE.PUBLISHED);
+        assert.equal(route.code, 'ABCDEFGHIJKL');
+
+        // It reaches no request…
+        const rec = recorder(publishedPayload());
+        await resolveStored(route, deps(rec.callRpc));
+        assert.deepEqual(rec.calls[0].params, { p_slug: 'q7m2k9x4pt3wz8ab' });
+        assert.equal(JSON.stringify(rec.calls).includes('ABCDEFGHIJKL'), false);
+
+        // …and no claim affordance is rendered for it.
+        const { node } = renderDemo({ route });
+        const html = serialize(node);
+        assert.ok(!/reclamar/i.test(html), 'a pass-claim action appeared');
+        assert.ok(!html.includes('ABCDEFGHIJKL'), 'the code was written into the page');
+    });
+
+    test('the stored routes cannot reach demonstration data', () => {
+        // `resolve.js` is the whole data path for both stored routes. Demo data
+        // is not in its module graph, is not imported by it, and is not named
+        // by it — so no published invitation can inherit a fictional value.
+        const source = codeOnly(readFileSync(join(INVITATION, 'js', 'resolve.js'), 'utf8'));
+        assert.ok(!source.includes('demo-data'), 'resolve.js references demo data');
+        assert.ok(!source.includes('demoConfig'));
+        assert.ok(!/\bimport\b[^\n]*demo/i.test(source));
+    });
+
+    test('the resolver leaks no organizer-private identifier', async () => {
+        const rec = recorder(publishedPayload());
+        const out = await resolveStored(parseRoute('?i=q7m2k9x4pt3wz8ab'), deps(rec.callRpc));
+        const carried = JSON.stringify(out.invitation);
+        assert.ok(!carried.includes('11111111'), 'the invitation id was carried');
+        assert.ok(!carried.includes('22222222'), 'the event id was carried');
+        assert.ok(!carried.includes('slug'));
+        assert.deepEqual(Object.keys(out.invitation).sort(),
+            ['categoryKey', 'templateKey', 'templateVersion']);
+    });
+
+    test('the gallery ceiling holds on a published invitation', async () => {
+        const config = savedConfig();
+        config.sections.gallery = {
+            enabled: true,
+            items: Array.from({ length: 20 }, (_, i) => ({
+                image: { source: 'demo', path: 'wedding-romantic/band-0' + ((i % 6) + 1) + '.svg' },
+            })),
+        };
+        const rec = recorder(publishedPayload(config));
+        const out = await resolveStored(parseRoute('?i=q7m2k9x4pt3wz8ab'), deps(rec.callRpc));
+        assert.equal(out.result, RESULT.OK);
+        assert.equal(out.config.sections.gallery.items.length, LIMITS.GALLERY_ITEMS);
+        assert.equal(LIMITS.GALLERY_ITEMS, 6);
+    });
+
+    test('the page still declares its generic, static Open Graph metadata', () => {
+        // Deliberately NOT invitation-specific: GitHub Pages serves a static
+        // file, so a per-invitation title would be a promise the host cannot
+        // keep. The page CONTENT is the real invitation once JavaScript runs.
+        assert.ok(INDEX_HTML.includes('Invitación digital · Orbiventt'));
+        assert.ok(/property="og:title"/.test(INDEX_HTML));
+        assert.ok(/property="og:description"/.test(INDEX_HTML));
+        assert.ok(!INDEX_HTML.includes('Renata'));
+    });
+
+    test('every stored-route failure shows ONE state, and it names nothing', () => {
+        const main = readFileSync(join(INVITATION, 'js', 'main.js'), 'utf8');
+        const code = codeOnly(main);
+        // The published branch has exactly one non-OK outcome besides the
+        // organizer-only "incomplete draft".
+        assert.ok(code.includes('STATES.unavailable'));
+        assert.ok(!code.includes('notAvailableYet'), 'a second unavailable state survives');
+        // The copy itself must not mention status, ids or the backend.
+        // The state's OWN literal, not the neighbouring ones: `incompleteDraft`
+        // sits between it and `failed`, and it is allowed to say "draft".
+        const start = main.indexOf('unavailable: {');
+        const copy = main.slice(start, main.indexOf('},', start));
+        for (const leak of ['borrador', 'draft', 'despublic', 'unpublish', 'slug', 'RPC']) {
+            assert.ok(!copy.toLowerCase().includes(leak.toLowerCase()),
+                'the unavailable copy mentions ' + leak);
+        }
     });
 });
