@@ -34,7 +34,7 @@ import { createDocument, serialize, sectionsOf } from './dom-stub.mjs';
 
 import { resolveTemplate, listTemplates, matchesConfig, CATEGORIES } from '../../invitation/js/registry.js';
 import { demoConfig, listDemoIds } from '../../invitation/js/demo-data.js';
-import { normalizeConfig, CONTRACT_VERSION, REQUIRED_SECTIONS, OPTIONAL_SECTIONS, parseInstant } from '../../invitation/js/config.js';
+import { normalizeConfig, CONTRACT_VERSION, REQUIRED_SECTIONS, OPTIONAL_SECTIONS, parseInstant, INTERLUDE_SLOTS } from '../../invitation/js/config.js';
 import { renderInvitation } from '../../invitation/js/renderer.js';
 import { parseRoute, MODE } from '../../invitation/js/route.js';
 import { resolveStored, storedRequest, RESULT, passSummaryRequest, normalizePassSummary } from '../../invitation/js/resolve.js';
@@ -2663,5 +2663,124 @@ describe('the claim card states the pass allocation', () => {
         const fn = code.slice(code.indexOf('async function fetchPassSummary'));
         assert.ok(fn.includes('MODE.PUBLISHED'), 'the summary fetch is not mode-gated');
         assert.ok(code.includes('passSummaryRequest'), 'main.js bypasses the request table');
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Layout contract · nothing may be wider or narrower than the invitation
+// ─────────────────────────────────────────────────────────────────────────────
+describe('the invitation fits its viewport exactly', () => {
+    const BASE = readFileSync(join(INVITATION, 'css', 'base.css'), 'utf8');
+    const TPL = readFileSync(
+        join(INVITATION, 'templates', 'wedding-romantic', 'template.css'), 'utf8');
+    /** A rule body by selector, comments stripped. */
+    const ruleFor = (css, selector) => {
+        const stripped = css.replace(/\/\*[\s\S]*?\*\//g, '');
+        const at = stripped.indexOf(selector + ' {');
+        if (at < 0) return null;
+        return stripped.slice(at, stripped.indexOf('}', at));
+    };
+
+    test('the shell gives the page no margin and a border-box world', () => {
+        assert.match(ruleFor(BASE, 'body'), /margin:\s*0/);
+        assert.ok(BASE.includes('*, *::before, *::after { box-sizing: border-box; }'));
+        // The invitation canvas centres itself; it never carries a one-sided pad.
+        const page = ruleFor(BASE, '.inv-page');
+        assert.match(page, /margin:\s*0 auto/);
+        assert.match(page, /padding:\s*0/);
+    });
+
+    test('images are block-level, so no baseline gap can open under one', () => {
+        assert.match(ruleFor(BASE, 'img'), /display:\s*block/);
+        assert.match(ruleFor(TPL, '.tpl-wedding-romantic .inv-interlude__img'), /display:\s*block/);
+    });
+
+    /* THE REGRESSION. The band is a direct child of `.inv-invitation`, which has
+     * no horizontal padding, so a negative `--inv-gutter` margin did not pull it
+     * out to the page edges — it pushed it 24 px PAST them on both sides,
+     * making the document wider than the viewport at every mobile width. */
+    test('no full-bleed band escapes a gutter its parent does not have', () => {
+        const band = ruleFor(TPL, '.tpl-wedding-romantic .inv-interlude');
+        assert.ok(!/margin[^;]*calc\(var\(--inv-gutter\)\s*\*\s*-1\)/.test(band),
+            'the interlude band still uses a negative-gutter margin');
+        assert.match(band, /margin-inline:\s*0/);
+        assert.match(band, /width:\s*100%/);
+        assert.match(band, /max-width:\s*100%/);
+        assert.match(band, /min-width:\s*0/);
+        assert.match(band, /overflow:\s*hidden/);
+    });
+
+    test('neither parity is inset, so no band leaves a pale margin beside it', () => {
+        const odd = ruleFor(TPL, '.tpl-wedding-romantic .inv-interlude[data-parity="odd"]');
+        assert.ok(!/margin-inline:\s*var\(--inv-gutter\)/.test(odd),
+            'odd bands are inset and would show background beside them');
+        assert.match(odd, /border-radius/);
+    });
+
+    test('all six slots share ONE geometry rule — none overrides its own width', () => {
+        const stripped = TPL.replace(/\/\*[\s\S]*?\*\//g, '');
+        for (const slot of ['afterMessage', 'afterCountdown', 'afterCeremony',
+            'afterReception', 'afterDressCode', 'beforeClosing']) {
+            assert.ok(!stripped.includes(`data-slot="${slot}"`),
+                `${slot} has its own geometry rule and can drift from the others`);
+        }
+        // The renderer really does emit all six.
+        assert.equal(INTERLUDE_SLOTS.length, 6);
+    });
+
+    test('nothing in the invitation sizes itself with 100vw', () => {
+        // `100vw` includes the scrollbar, so it overflows by 15-17 px on every
+        // desktop browser that shows one. Width is always relative to the parent.
+        for (const [name, css] of [['base.css', BASE], ['template.css', TPL]]) {
+            const code = css.replace(/\/\*[\s\S]*?\*\//g, '');
+            assert.ok(!/\b100vw\b/.test(code), `${name} sizes something with 100vw`);
+        }
+    });
+
+    test('full-bleed photographs stay COVER, so the mobile crop is what shows', () => {
+        const img = ruleFor(TPL, '.tpl-wedding-romantic .inv-interlude__img');
+        assert.match(img, /object-fit:\s*cover/);
+        // The shell's `img { max-width: 100% }` must not cap the drifting image.
+        assert.match(img, /max-width:\s*none/);
+        // The band paints the template's own colour behind any transparency.
+        assert.match(ruleFor(TPL, '.tpl-wedding-romantic .inv-interlude'),
+            /background:\s*var\(--tpl-/);
+    });
+
+    test('the hero measures one screen in svh, with a vh fallback first', () => {
+        const hero = ruleFor(TPL, '.tpl-wedding-romantic .inv-hero');
+        const vhAt = hero.indexOf('min-height: 88vh');
+        const svhAt = hero.indexOf('min-height: 88svh');
+        assert.ok(vhAt > -1 && svhAt > vhAt,
+            'svh must come after vh so old browsers keep the fallback');
+        // min-height, never height: the hero may grow, so nothing is cropped.
+        assert.ok(!/[^-]height:\s*\d+s?vh/.test(hero), 'the hero pins an exact viewport height');
+    });
+
+    test('the narrowest supported viewport is declared once, and is 320', () => {
+        assert.match(ruleFor(BASE, 'html'), /min-width:\s*320px/);
+        const code = TPL.replace(/\/\*[\s\S]*?\*\//g, '');
+        assert.ok(!/min-width:\s*(3[3-9]\d|[4-9]\d\d)px/.test(code),
+            'the template forces a minimum wider than a 320 px phone');
+    });
+
+    test('overflow-x on the body is a GUARD, not the fix', () => {
+        // It may stay — but the band it used to hide is now the right width, and
+        // the test above is what keeps it that way.
+        assert.match(ruleFor(BASE, 'body'), /overflow-x:\s*hidden/);
+    });
+
+    test('the pass card wraps instead of overflowing', () => {
+        const actions = ruleFor(TPL, '.tpl-wedding-romantic .inv-passes__actions');
+        assert.match(actions, /flex-wrap:\s*wrap/);
+        assert.match(actions, /justify-content:\s*center/);
+    });
+
+    test('the code chip cannot be pushed past the card edge', () => {
+        // A 12-character monospace chip with letter-spacing is the widest atom
+        // in the card; it must be allowed to sit inside the measure.
+        const chip = ruleFor(TPL, '.tpl-wedding-romantic .inv-passes__code-value');
+        assert.match(chip, /display:\s*inline-block/);
+        assert.ok(!/width:\s*\d/.test(chip), 'the code chip declares a fixed width');
     });
 });

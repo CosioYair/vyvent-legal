@@ -384,12 +384,25 @@
  * would read as a gallery that lost its grid — this has to read as the page
  * opening up for a moment.
  *
- * The band breaks OUT of the section gutter with a negative margin rather than
- * using `100vw`, which overflows horizontally whenever a scrollbar is present.
- * `overflow-x` therefore stays clean on every viewport. */
+ * THERE IS NO GUTTER TO ESCAPE, and assuming there was is what used to break
+ * this band. The figure is a DIRECT CHILD of `.inv-invitation`, which carries
+ * no horizontal padding — the gutter belongs to `.inv-section`, i.e. to the
+ * band's SIBLINGS, not to its parent. A negative `--inv-gutter` margin
+ * therefore did not pull the band out to the page edges; it pushed it 24 px
+ * PAST them on both sides, making the document 24 px wider than the viewport.
+ * That is what produced the horizontal pan, and what exposed a white strip
+ * beside every correctly-sized section once the page was dragged into it.
+ *
+ * `width: 100%` on a block-level child of a zero-padding parent already IS the
+ * full invitation width — no negative margin, and no `100vw` (which overflows
+ * by the scrollbar width whenever one is present). */
 .tpl-wedding-romantic .inv-interlude {
     position: relative;
-    margin: 0 calc(var(--inv-gutter) * -1);
+    /* Full bleed by construction: exactly the invitation's own width. */
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    margin-inline: 0;
     /* Reserved geometry before a byte arrives: no layout shift. */
     aspect-ratio: 16 / 9;
     overflow: hidden;
@@ -400,6 +413,12 @@
     display: block;
     width: 100%;
     height: 100%;
+    /* `img { max-width: 100% }` in the shell would otherwise cap the scaled
+     * image; the band clips it instead, so the drift below has room to move. */
+    max-width: none;
+    /* COVER, always: the mobile cropper framed this photograph to the band's
+     * own 16:9 placement, so filling the slot shows exactly the frame the
+     * organizer approved. Never `contain` — that would letterbox their crop. */
     object-fit: cover;
     /* The slow drift gives the band a little life without ever moving the
      * layout. Disabled outright under prefers-reduced-motion, below. */
@@ -416,8 +435,10 @@
  * depending on which slot it landed in, and the mobile cropper — which frames
  * against `imagePlacements.interlude` — could not have shown the organizer
  * which one they were choosing. */
+/* Odd slots keep the album-like break in rhythm through the rounding and the
+ * still framing — NOT through an inset. Both parities span the full invitation
+ * width, so no band ever leaves a pale margin beside itself. */
 .tpl-wedding-romantic .inv-interlude[data-parity="odd"] {
-    margin-inline: 0;
     border-radius: var(--inv-radius);
 }
 
