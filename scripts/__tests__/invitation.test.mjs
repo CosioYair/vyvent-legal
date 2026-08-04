@@ -4305,3 +4305,76 @@ describe('every design resets the lists its markup emits', () => {
         }
     });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// One page, one design: the theme lifecycle
+// ─────────────────────────────────────────────────────────────────────────────
+describe('a document is only ever themed once', () => {
+    const MAIN = readFileSync(join(INVITATION, 'js', 'main.js'), 'utf8');
+    const CODE = codeOnly(MAIN);
+
+    /* `paint()` ADDS a theme class and APPENDS a stylesheet link, and removes
+     * neither. That is correct only because a document is painted exactly once:
+     * `start()` runs on load, picks ONE of the stored/demo branches, and there
+     * is no in-page navigation to paint a second design over the first.
+     *
+     * These tests pin that precondition rather than the cleanup code. The day
+     * someone adds a client-side route, the first of them fails and says why —
+     * which is better than shipping removal logic that never runs today. */
+    test('paint is reached from exactly two mutually exclusive branches', () => {
+        const calls = CODE.match(/\bpaint\(/g) || [];
+        // One definition, two call sites: renderStored and renderDemo.
+        assert.equal(calls.length, 3, 'paint() gained a call site — see the theme lifecycle note');
+        assert.match(CODE, /async function renderStored/);
+        assert.match(CODE, /async function renderDemo/);
+    });
+
+    test('nothing re-routes the page in place', () => {
+        // Any of these would allow a second paint onto an already-themed
+        // document, which is where a stale theme class or a second stylesheet
+        // would come from.
+        for (const api of ['popstate', 'hashchange', 'pushState', 'replaceState']) {
+            assert.ok(!CODE.includes(api), 'main.js now navigates in place: ' + api);
+        }
+    });
+
+    test('the theme class is the template\'s own, and only one exists per design', () => {
+        const classes = listTemplates().map((t) => t.themeClass);
+        assert.deepEqual([...new Set(classes)].sort(), classes.slice().sort());
+        for (const t of listTemplates()) {
+            assert.equal(t.themeClass, 'tpl-' + t.stylesheet.split('/')[0]);
+        }
+    });
+
+    test('every design resolves its stylesheet and artwork from its OWN directory', () => {
+        for (const t of listTemplates()) {
+            const dir = t.stylesheet.split('/')[0];
+            assert.equal(t.assets['hero-default'], dir + '/hero-default.jpg');
+            // And no template's stylesheet mentions another's theme class, so
+            // there is nothing to leak even if two were ever present at once.
+            const css = readFileSync(join(INVITATION, 'templates', dir, 'template.css'), 'utf8');
+            for (const other of listTemplates()) {
+                if (other.id === t.id) continue;
+                assert.ok(!css.includes(other.themeClass),
+                    dir + ' styles ' + other.themeClass);
+            }
+        }
+    });
+
+    test('all three routes resolve through the SAME closed registry', () => {
+        // demo / draft / published differ in WHAT THEY FETCH, never in how a
+        // template is chosen. The demo branch resolves inline; the two stored
+        // branches hand the very same function to `resolve.js`, which is what
+        // makes "an unknown id fails closed" one rule rather than three.
+        assert.match(CODE, /import \{ resolveTemplate \} from '\.\/registry\.js'/);
+        assert.match(CODE, /const template = resolveTemplate\(route\.demoId\)/);
+        assert.match(CODE, /^\s*resolveTemplate,$/m);       // injected, not re-implemented
+        const resolveJs = codeOnly(readFileSync(join(INVITATION, 'js', 'resolve.js'), 'utf8'));
+        assert.match(resolveJs, /deps\.resolveTemplate\(/);
+        // …and resolve.js must not reach for the registry itself, or the
+        // injection would be decorative and the two could drift.
+        assert.ok(!resolveJs.includes("from './registry.js'"));
+        assert.ok(!/import\(\s*[^'"]/.test(CODE), 'main.js builds a dynamic import specifier');
+        assert.ok(!CODE.includes('templates/' + '${'), 'main.js concatenates a template path');
+    });
+});

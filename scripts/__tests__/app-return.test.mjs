@@ -301,3 +301,132 @@ describe('404.html routes every app handoff through the resolver', () => {
     assert.ok(page.includes('id="devHandoff"'));
   });
 });
+
+/** Comments explain intent; only code can be wrong. */
+function stripComments(source) {
+    return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Two presentations, one redemption
+// ─────────────────────────────────────────────────────────────────────────────
+describe('both link families resolve to one app destination', () => {
+    /* A guest can be handed a pass two ways:
+     *
+     *   traditional        /e/{eventId}?code={code}          (404.html)
+     *   digital invitation /invitation/?i={slug}&code={code} (invitation/)
+     *
+     * They look nothing alike, and are meant to. But the moment either says
+     * "Abrir Orbiventt" they must become the SAME thing: the same deep link,
+     * the same screen, the same prefilled code step, the same claim.
+     *
+     * That equivalence decays quietly — each family has its own page, its own
+     * tests and its own reasons to change, so a parameter added for one would
+     * leave the other behind and nothing else would notice. These assertions
+     * are the tripwire. The per-boundary behaviour is covered in
+     * app-return.test.mjs; this is only about the two agreeing. */
+    const EVENT = '8a900000-0000-4000-8000-000000000002';
+    const CODE = 'ABCDEFGHIJKL';
+
+    /** The arguments each page passes. Read off the two sources, not invented. */
+    const INVITATION_CALL = { kind: 'e', id: EVENT, isChat: false, code: CODE };
+    const PREVIEW_CALL = { kind: 'e', id: EVENT, isChat: false, code: CODE };
+
+    test('the two pages call the resolver with the same shape', () => {
+        // invitation/js/main.js — passHandoff()
+        const main = stripComments(readFileSync(join(ROOT, 'invitation', 'js', 'main.js'), 'utf8'));
+        assert.match(main, /kind:\s*'e'/);
+        assert.match(main, /isChat:\s*false/);
+        assert.match(main, /code:\s*route\.code/);
+        // 404.html — handoffFor('e', eventId, false, code)
+        const preview = readFileSync(join(ROOT, '404.html'), 'utf8');
+        assert.match(preview, /handoffFor\('e',\s*eventId,\s*false,\s*code\)/);
+        // Neither page builds a scheme itself; both fail closed on a missing
+        // resolver, which is what keeps DEV from emitting `vyvent://`.
+        assert.ok(!main.includes("'vyvent://'"));
+        assert.ok(!/var\s+href\s*=\s*'vyvent:/.test(preview));
+    });
+
+    test('produce byte-identical handoffs in production', () => {
+        assert.deepEqual(
+            resolveAppHandoff({ env: 'prod', appReturn: null, ...INVITATION_CALL }),
+            resolveAppHandoff({ env: 'prod', appReturn: null, ...PREVIEW_CALL }),
+        );
+        const out = resolveAppHandoff({ env: 'prod', appReturn: null, ...INVITATION_CALL });
+        assert.equal(out.href, 'vyvent://e/' + EVENT + '?code=' + CODE);
+        assert.equal(out.open, true);
+    });
+
+    test('produce byte-identical handoffs on the DEV mirror', () => {
+        const appReturn = 'exp://192.168.1.10:8081/--/e/' + EVENT;
+        assert.deepEqual(
+            resolveAppHandoff({ env: 'dev', appReturn, ...INVITATION_CALL }),
+            resolveAppHandoff({ env: 'dev', appReturn, ...PREVIEW_CALL }),
+        );
+        const out = resolveAppHandoff({ env: 'dev', appReturn, ...INVITATION_CALL });
+        assert.equal(out.href, appReturn + '?code=' + CODE);
+        assert.equal(out.source, 'expo-go');
+    });
+
+    test('refuse identically on DEV without a validated return address', () => {
+        // The 2026-07-18 guard: a DEV page must never emit `vyvent://`, which
+        // would open the PRODUCTION app against the production database. It
+        // applies to both families or to neither.
+        for (const bad of [null, 'exp://192.168.1.10:8081',
+            'exp://192.168.1.10:8081/--/e/' + EVENT + '?x=1']) {
+            const a = resolveAppHandoff({ env: 'dev', appReturn: bad, ...INVITATION_CALL });
+            const b = resolveAppHandoff({ env: 'dev', appReturn: bad, ...PREVIEW_CALL });
+            assert.deepEqual(a, b);
+            assert.equal(a.open, false);
+            assert.equal(a.href, null);
+            assert.equal(a.reason, 'expo-go-required');
+        }
+    });
+
+    test('the code rides as a query parameter, never inside the route', () => {
+        // The route names the EVENT; the code rides on top. A code baked into
+        // the path would make the two families' routes diverge and would break
+        // the same-event validation that reads them apart.
+        const out = resolveAppHandoff({ env: 'prod', appReturn: null, ...INVITATION_CALL });
+        const [route, query] = out.href.split('?');
+        assert.equal(route, 'vyvent://e/' + EVENT);
+        assert.equal(query, 'code=' + CODE);
+        assert.ok(!route.includes(CODE));
+    });
+
+    test('a link with no code stays a plain event link in both families', () => {
+        for (const call of [INVITATION_CALL, PREVIEW_CALL]) {
+            const out = resolveAppHandoff({
+                env: 'prod', appReturn: null, ...call, code: null,
+            });
+            assert.equal(out.href, 'vyvent://e/' + EVENT);
+            assert.ok(!out.href.includes('code'));
+        }
+    });
+
+    test('both name the event from the SERVER payload, not from the URL', () => {
+        // invitation/: the id comes from the published payload, so a
+        // hand-edited slug/code pair cannot ride the handoff into another
+        // event. 404.html: likewise from the resolved event.
+        const main = stripComments(readFileSync(join(ROOT, 'invitation', 'js', 'main.js'), 'utf8'));
+        assert.match(main, /function passHandoff\(route, eventId\)/);
+        assert.match(main, /id:\s*eventId/);
+        const other = '8a900000-0000-4000-8000-000000000009';
+        assert.notEqual(
+            resolveAppHandoff({ env: 'prod', appReturn: null, ...INVITATION_CALL }).href,
+            resolveAppHandoff({ env: 'prod', appReturn: null, ...INVITATION_CALL, id: other }).href,
+        );
+    });
+
+    test('neither page redeems, copies or previews the code by itself', () => {
+        // The web stays read-only: it forwards a credential and never spends
+        // it. Redemption is the app's, behind a deliberate press.
+        const preview = readFileSync(join(ROOT, '404.html'), 'utf8');
+        const main = stripComments(readFileSync(join(ROOT, 'invitation', 'js', 'main.js'), 'utf8'));
+        for (const src of [preview, main]) {
+            for (const rpc of ['peek_smart_invitation', 'claim_smart_invitation']) {
+                assert.ok(!src.includes(rpc), 'a web page references ' + rpc);
+            }
+        }
+    });
+});
