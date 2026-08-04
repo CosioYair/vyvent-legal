@@ -172,6 +172,145 @@ DEMOS.wedding_romantic_v1 = {
     actions: { calendar: true, share: true, map: true },
 };
 
+/* CLÁSICA ELEGANTE — a second fictional wedding.
+ *
+ * Deliberately a DIFFERENT couple, city and voice from the romantic demo, so
+ * the two routes cannot be mistaken for the same invitation in another skin.
+ * The names, venues and guideline copy are also longer on purpose: this is the
+ * fixture that proves long content wraps rather than overflowing.
+ *
+ * Fictional throughout. No real person, no invitation id, no preview token, no
+ * smart-invitation code, and every image is a repository-owned demo SVG. */
+DEMOS.wedding_classic_gold_v1 = {
+    contractVersion: 1,
+    categoryKey: 'wedding',
+    templateKey: 'wedding_classic_gold',
+    templateVersion: 1,
+    locale: 'es-MX',
+    timeZone: 'America/Mexico_City',
+
+    sections: {
+        hero: {
+            eyebrow: 'Nuestra boda',
+            partnerA: 'María Fernanda',
+            partnerB: 'Alejandro',
+            date: '2027-11-20T18:00:00-06:00',
+            location: 'Santiago de Querétaro, Querétaro',
+            image: { source: 'demo', path: 'wedding-classic-gold/hero.svg' },
+            imageAlt: 'Ilustración de un marco dorado con dos argollas entrelazadas sobre papel marfil',
+        },
+
+        message: {
+            heading: 'Nuestra invitación',
+            body: 'Con la alegría de quien ha esperado este día, queremos compartirlo contigo.\n\n'
+                + 'Después de nueve años, hemos decidido unir nuestras vidas en matrimonio. '
+                + 'Nos honraría profundamente contar con tu presencia en una celebración '
+                + 'pensada para las personas que más queremos.',
+            hosts: 'Con la bendición de nuestros padres: '
+                + 'María del Carmen Villalobos y Jorge Alberto San Román · '
+                + 'Ana Sofía Echeverría y Luis Fernando Mondragón',
+        },
+
+        countdown: {
+            enabled: true,
+            completedLabel: '¡Hoy es nuestra boda!',
+        },
+
+        ceremony: {
+            startsAt: '2027-11-20T18:00:00-06:00',
+            venueName: 'Templo de Nuestra Señora del Carmen',
+            address: 'Av. Ignacio Zaragoza Poniente 145, Centro Histórico, Santiago de Querétaro, Qro.',
+            note: 'Te esperamos 30 minutos antes para acompañarnos desde el inicio.',
+        },
+
+        reception: {
+            enabled: true,
+            startsAt: '2027-11-20T20:30:00-06:00',
+            venueName: 'Hacienda de los Arcos y Jardines de San Sebastián',
+            address: 'Carretera Estatal 411 kilómetro 7.5, El Marqués, Querétaro, Qro.',
+            note: 'Cena servida, brindis y baile. La celebración concluye a las 3:00 h.',
+        },
+
+        dressCode: {
+            enabled: true,
+            title: 'Etiqueta rigurosa · Formal de noche',
+            description: 'Vestido largo y esmoquin o traje oscuro. La ceremonia es en recinto '
+                + 'cerrado y la recepción combina salón y jardín.',
+            guidelines: [
+                'Reservamos el color blanco y sus tonos para la novia.',
+                'La noche en Querétaro es fresca; te sugerimos un chal o un abrigo ligero.',
+                'Parte del jardín es de empedrado: considera un tacón estable.',
+                'Agradecemos puntualidad para poder recibirte como mereces.',
+            ],
+        },
+
+        gallery: {
+            enabled: true,
+            items: [
+                { image: { source: 'demo', path: 'wedding-classic-gold/story-01.svg' },
+                  alt: 'Ilustración de dos argollas grabadas sobre papel marfil' },
+                { image: { source: 'demo', path: 'wedding-classic-gold/story-02.svg' },
+                  alt: 'Ilustración de un ramo de laurel dorado' },
+                { image: { source: 'demo', path: 'wedding-classic-gold/story-03.svg' },
+                  alt: 'Ilustración de una copa de brindis con filo dorado' },
+                { image: { source: 'demo', path: 'wedding-classic-gold/story-04.svg' },
+                  alt: 'Ilustración de un candelabro clásico de tres velas' },
+                { image: { source: 'demo', path: 'wedding-classic-gold/story-05.svg' },
+                  alt: 'Ilustración de un monograma enmarcado en un rombo dorado' },
+                { image: { source: 'demo', path: 'wedding-classic-gold/story-06.svg' },
+                  alt: 'Ilustración de una guirnalda de hojas doradas' },
+            ],
+        },
+
+        gifts: {
+            enabled: true,
+            intro: 'Tu compañía es, con mucho, el mejor regalo que podríamos recibir. '
+                + 'Si además deseas obsequiarnos algo, aquí encontrarás algunas ideas.',
+            links: [
+                { label: 'Mesa de regalos · Liverpool', url: 'https://mesaderegalos.liverpool.com.mx/' },
+                { label: 'Mesa de regalos · Palacio de Hierro', url: 'https://www.elpalaciodehierro.com/' },
+            ],
+        },
+
+        closing: {
+            enabled: true,
+            heading: 'Con cariño',
+            body: 'Gracias por acompañarnos en este momento. Celebrar rodeados de nuestras '
+                + 'familias y amistades es exactamente como imaginamos empezar esta etapa.',
+            signature: 'María Fernanda & Alejandro',
+        },
+    },
+
+    interludeImages: {
+        afterMessage: {
+            image: { source: 'demo', path: 'wedding-classic-gold/band-01.svg' },
+            alt: 'Ilustración de dos argollas entrelazadas',
+        },
+        afterCountdown: {
+            image: { source: 'demo', path: 'wedding-classic-gold/band-02.svg' },
+            alt: 'Ilustración de una rama de laurel dorada',
+        },
+        afterCeremony: {
+            image: { source: 'demo', path: 'wedding-classic-gold/band-03.svg' },
+            alt: 'Ilustración de una doble regla dorada con un rombo al centro',
+        },
+        afterReception: {
+            image: { source: 'demo', path: 'wedding-classic-gold/band-04.svg' },
+            alt: 'Ilustración de una hilera de velas encendidas',
+        },
+        afterDressCode: {
+            image: { source: 'demo', path: 'wedding-classic-gold/band-05.svg' },
+            alt: 'Ilustración de una guirnalda de hojas doradas',
+        },
+        beforeClosing: {
+            image: { source: 'demo', path: 'wedding-classic-gold/band-06.svg' },
+            alt: 'Ilustración de un rombo dorado con dos argollas al centro',
+        },
+    },
+
+    actions: { calendar: true, share: true, map: true },
+};
+
 /**
  * Look up a demonstration configuration.
  * @returns {?object} a DEEP COPY, so a renderer can never mutate the bundled

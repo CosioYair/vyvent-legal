@@ -2784,3 +2784,305 @@ describe('the invitation fits its viewport exactly', () => {
         assert.ok(!/width:\s*\d/.test(chip), 'the code chip declares a fixed width');
     });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Clásica elegante · a second design, drawing the same invitation
+// ─────────────────────────────────────────────────────────────────────────────
+describe('the second wedding template', () => {
+    const GOLD_ID = 'wedding_classic_gold_v1';
+    const TEMPLATE_DIR = join(INVITATION, 'templates', 'wedding-classic-gold');
+
+    /** A rendered demo for any registered template. */
+    function renderTemplate(id, over = {}) {
+        const template = resolveTemplate(id);
+        assert.ok(template, 'unregistered template ' + id);
+        const raw = over.raw || demoConfig(id);
+        const { ok, config, errors } = normalizeConfig(raw);
+        assert.equal(ok, true, id + ' did not normalize: ' + (errors || []).join(', '));
+        const document = createDocument();
+        const result = renderInvitation({
+            template,
+            config,
+            route: over.route || parseRoute('?demo=' + id),
+            document,
+            assetBase: 'https://cosioyair.github.io/vyvent-legal/invitation/assets/',
+            templateBase: 'https://cosioyair.github.io/vyvent-legal/invitation/templates/',
+            now: Date.parse('2026-08-01T12:00:00Z'),
+            navigator: over.navigator,
+            pageUrl: 'https://cosioyair.github.io/vyvent-legal/invitation/?demo=' + id,
+            handoff: over.handoff,
+            passSummary: over.passSummary,
+        });
+        return { ...result, config, document, template };
+    }
+
+    test('the registry holds exactly the two designs that can be drawn', () => {
+        assert.deepEqual(listTemplates().map((t) => t.id).sort(),
+            ['wedding_classic_gold_v1', 'wedding_romantic_v1']);
+        assert.deepEqual(listDemoIds().sort(),
+            ['wedding_classic_gold_v1', 'wedding_romantic_v1']);
+        // The invariant the whole registry rests on.
+        assert.deepEqual(listTemplates().map((t) => t.id).sort(), listDemoIds().sort());
+    });
+
+    test('Classic Gold resolves, and an unknown design still fails closed', () => {
+        const t = resolveTemplate(GOLD_ID);
+        assert.equal(t.categoryKey, 'wedding');
+        assert.equal(t.templateKey, 'wedding_classic_gold');
+        assert.equal(t.templateVersion, 1);
+        assert.equal(t.label, 'Clásica elegante');
+        assert.equal(t.contractVersion, 1);
+        assert.match(t.description, /Marfil, dorado/);
+        assert.equal(t.themeClass, 'tpl-wedding-classic-gold');
+        for (const bad of ['wedding_classic_gold_v2', 'wedding_classic_gold',
+            'wedding_botanical_v1', '__proto__', '', null, 42]) {
+            assert.equal(resolveTemplate(bad), null, 'accepted ' + JSON.stringify(bad));
+        }
+    });
+
+    test('it consumes the CATEGORY geometry, not its own', () => {
+        const gold = resolveTemplate(GOLD_ID);
+        const romantic = resolveTemplate(DEMO_ID);
+        // The very same frozen object — so a crop can never be reinterpreted
+        // against a different ratio by switching design.
+        assert.equal(gold.imagePlacements, romantic.imagePlacements);
+        assert.equal(gold.sections, romantic.sections);
+        assert.deepEqual(gold.imagePlacements.hero, { ...romantic.imagePlacements.hero });
+        assert.equal(gold.imagePlacements.interlude.aspectRatio, 16 / 9);
+        assert.equal(gold.imagePlacements.gallery.aspectRatio, 4 / 5);
+    });
+
+    test('it renders every section the wedding contract has', () => {
+        const out = renderTemplate(GOLD_ID);
+        assert.equal(out.ok, true);
+        const rendered = sectionsOf(out.node);
+        for (const id of ['hero', 'message', 'countdown', 'ceremony', 'reception',
+            'dressCode', 'gallery', 'gifts', 'closing', 'actions']) {
+            assert.ok(rendered.includes(id), 'missing section: ' + id);
+        }
+        // All six photograph anchors, in the category's fixed order.
+        const interludes = out.node.querySelectorAll('[data-section="interlude"]');
+        assert.equal(interludes.length, 6);
+        assert.deepEqual(interludes.map((n) => n.getAttribute('data-slot')),
+            ['afterMessage', 'afterCountdown', 'afterCeremony', 'afterReception',
+                'afterDressCode', 'beforeClosing']);
+    });
+
+    test('its media is cover-fitted, block-level and category-shaped', () => {
+        const out = renderTemplate(GOLD_ID);
+        const imgs = out.node.querySelectorAll('img');
+        assert.ok(imgs.length >= 13, 'expected hero + 6 tiles + 6 bands');
+        for (const img of imgs) {
+            // Intrinsic geometry declared, so nothing shifts as images land.
+            assert.ok(img.getAttribute('width'), 'an image declares no width');
+            assert.ok(img.getAttribute('height'), 'an image declares no height');
+        }
+        const band = out.node.querySelectorAll('.inv-interlude__img')[0];
+        assert.equal(band.getAttribute('width'), '1600');
+        assert.equal(band.getAttribute('height'), '900');
+        const tile = out.node.querySelectorAll('.inv-gallery__img')[0];
+        assert.equal(tile.getAttribute('width'), '800');
+        assert.equal(tile.getAttribute('height'), '1000');
+    });
+
+    test('it resolves ITS OWN hero-default for the shared category key', () => {
+        const gold = resolveTemplate(GOLD_ID);
+        const romantic = resolveTemplate(DEMO_ID);
+        // Same KEY, different FILE — which is what lets a stored
+        // {source:'template', assetKey:'hero-default'} survive a design change.
+        assert.deepEqual(Object.keys(gold.assets), ['hero-default']);
+        assert.deepEqual(Object.keys(romantic.assets), ['hero-default']);
+        assert.notEqual(gold.assets['hero-default'], romantic.assets['hero-default']);
+
+        const url = resolveImage(
+            { source: 'template', assetKey: 'hero-default' },
+            {
+                templateAssets: gold.assets,
+                templateBase: 'https://cosioyair.github.io/vyvent-legal/invitation/templates/',
+            },
+        );
+        assert.equal(url,
+            'https://cosioyair.github.io/vyvent-legal/invitation/templates/'
+            + 'wedding-classic-gold/hero-default.jpg');
+        // And the file is really there.
+        assert.ok(statSync(join(TEMPLATE_DIR, 'hero-default.jpg')).isFile());
+    });
+
+    test('every asset it names exists and is a safe relative path', () => {
+        for (const [key, rel] of Object.entries(resolveTemplate(GOLD_ID).assets)) {
+            assert.match(key, /^[a-z0-9][a-z0-9-]*$/);
+            assert.ok(safeAssetPath(rel), 'unsafe asset path: ' + rel);
+            assert.ok(statSync(join(INVITATION, 'templates', rel)).isFile(), 'missing ' + rel);
+        }
+        // Every demo image it references is in the repository too.
+        const cfg = demoConfig(GOLD_ID);
+        const paths = JSON.stringify(cfg).match(/wedding-classic-gold\/[a-z0-9-]+\.svg/g) || [];
+        assert.ok(paths.length >= 13, 'demo references too few images');
+        for (const rel of new Set(paths)) {
+            assert.ok(statSync(join(INVITATION, 'assets', 'demo', rel)).isFile(), 'missing ' + rel);
+        }
+    });
+
+    test('its demo is fictional, complete, and reaches no backend', () => {
+        const cfg = demoConfig(GOLD_ID);
+        // A different couple from the romantic demo — not the same data reskinned.
+        assert.notEqual(cfg.sections.hero.partnerA, demoConfig(DEMO_ID).sections.hero.partnerA);
+        assert.equal(cfg.sections.dressCode.guidelines.length, 4);
+        assert.equal(cfg.sections.gallery.items.length, 6);
+        assert.equal(Object.keys(cfg.interludeImages).length, 6);
+        // Long content, on purpose: this is the wrapping fixture.
+        assert.ok(cfg.sections.hero.partnerA.length >= 12);
+        assert.ok(cfg.sections.reception.venueName.length >= 30);
+        assert.ok(cfg.sections.reception.address.length >= 40);
+        // Nothing that belongs to a real invitation.
+        const json = JSON.stringify(cfg);
+        for (const key of ['slug', 'previewToken', 'code', 'invitationId', 'eventId']) {
+            assert.ok(!Object.prototype.hasOwnProperty.call(cfg, key));
+        }
+        assert.ok(!/https?:\/\/(?!mesaderegalos|www\.elpalacio)/.test(json.replace(/"url":"[^"]*"/g, '')));
+        // Demo images only — never a storage bucket.
+        assert.ok(!json.includes('"storage"'));
+        assert.ok(!json.includes('supabase'));
+    });
+
+    test('the demo route reaches no backend at all', () => {
+        // storedRequest is the ONLY thing that can produce a request, and demo
+        // mode is not in its table.
+        assert.equal(storedRequest(parseRoute('?demo=' + GOLD_ID)), null);
+        assert.equal(passSummaryRequest(parseRoute('?demo=' + GOLD_ID)), null);
+        assert.equal(passSummaryRequest(parseRoute('?demo=' + GOLD_ID + '&code=ABCDEFGHIJKL')), null);
+    });
+
+    test('long names and venues wrap rather than overflow', () => {
+        const raw = demoConfig(GOLD_ID);
+        raw.sections.hero.partnerA = 'Guadalupe Inmaculada de la Concepción';
+        raw.sections.hero.partnerB = 'Juan Nepomuceno Maximiliano';
+        raw.sections.ceremony.venueName =
+            'Templo Expiatorio del Santísimo Sacramento y Nuestra Señora de la Luz';
+        const out = renderTemplate(GOLD_ID, { raw });
+        assert.equal(out.ok, true);
+        const html = serialize(out.node);
+        assert.ok(html.includes('Guadalupe Inmaculada'));
+        assert.ok(html.includes('Templo Expiatorio'));
+        // The stylesheet must let those break rather than push the frame open.
+        const css = readFileSync(join(TEMPLATE_DIR, 'template.css'), 'utf8');
+        assert.match(css, /overflow-wrap:\s*anywhere/);
+    });
+
+    test('the claim card works inside it, unchanged', () => {
+        const out = renderTemplate(GOLD_ID, {
+            route: parseRoute('?i=q7m2k9x4pt3wz8ab&code=ABCDEFGHIJKL'),
+            handoff: { open: true, href: 'vyvent://e/evt?code=ABCDEFGHIJKL', source: 'app-scheme' },
+            passSummary: { seatCapacity: 5, seatsRemaining: 3 },
+        });
+        const card = out.node.querySelector('[data-section="passes"]');
+        assert.ok(card, 'no claim card');
+        assert.match(card.textContent, /Reclama tus pases/);
+        assert.match(card.textContent, /ABCD-EFGH-IJKL/);
+        assert.match(card.textContent, /Invitación para 5 personas\./);
+        assert.match(card.textContent, /Quedan 3 de 5 pases disponibles\./);
+        assert.match(card.textContent, /Copiar código/);
+        const open = card.querySelectorAll('a').find((a) => /Abrir Orbiventt/.test(a.textContent));
+        assert.equal(open.getAttribute('href'), 'vyvent://e/evt?code=ABCDEFGHIJKL');
+    });
+
+    test('the card uses the SHARED handlers, not a forked copy', () => {
+        // One passes renderer for every template: the section table is closed.
+        assert.equal(resolveSection('passes').render, resolveSection('passes').render);
+        const source = readFileSync(join(INVITATION, 'js', 'sections', 'passes.js'), 'utf8');
+        assert.ok(!source.includes('classic-gold'), 'the shared card knows a template');
+        assert.ok(!source.includes('tpl-'), 'the shared card names a theme class');
+    });
+
+    test('the stylesheet is registry-named, and nothing is dynamic', () => {
+        const t = resolveTemplate(GOLD_ID);
+        assert.equal(t.stylesheet, 'wedding-classic-gold/template.css');
+        assert.equal(
+            templateResourceUrl('https://orbiventt.com/invitation/templates/', t.stylesheet),
+            'https://orbiventt.com/invitation/templates/wedding-classic-gold/template.css',
+        );
+        // A config value can never become a stylesheet.
+        for (const evil of ['../../env.js', 'https://evil.example/x.css', '/etc/x.css', 'x.js']) {
+            assert.equal(
+                templateResourceUrl('https://orbiventt.com/invitation/templates/', evil), null);
+        }
+    });
+
+    test('it introduces no external dependency, and no script in its artwork', () => {
+        const css = readFileSync(join(TEMPLATE_DIR, 'template.css'), 'utf8');
+        for (const needle of ['http://', 'https://', '@import', 'url(//']) {
+            assert.ok(!css.includes(needle), 'template.css reaches for ' + needle);
+        }
+        assert.ok(!/\b100vw\b/.test(css.replace(/\/\*[\s\S]*?\*\//g, '')));
+
+        const svgs = [join(TEMPLATE_DIR, 'hero-default.svg')].concat(
+            readdirSync(join(INVITATION, 'assets', 'demo', 'wedding-classic-gold'))
+                .map((f) => join(INVITATION, 'assets', 'demo', 'wedding-classic-gold', f)),
+        );
+        assert.ok(svgs.length >= 14);
+        for (const file of svgs) {
+            // The SVG XML namespace is a required identifier, not a request —
+            // strip it before looking for anything that would reach the network.
+            const svg = readFileSync(file, 'utf8')
+                .replace(/xmlns="http:\/\/www\.w3\.org\/2000\/svg"/g, '');
+            for (const needle of ['<script', 'xlink:href', 'http://', 'https://',
+                '<image', '<foreignObject', 'onload=', 'data:']) {
+                assert.ok(!svg.includes(needle), file + ' contains ' + needle);
+            }
+        }
+    });
+
+    test('its layout obeys the corrected full-bleed contract', () => {
+        const css = readFileSync(join(TEMPLATE_DIR, 'template.css'), 'utf8')
+            .replace(/\/\*[\s\S]*?\*\//g, '');
+        const band = css.slice(css.indexOf('.tpl-wedding-classic-gold .inv-interlude {'),
+            css.indexOf('.tpl-wedding-classic-gold .inv-interlude__img'));
+        assert.match(band, /width:\s*100%/);
+        assert.match(band, /max-width:\s*100%/);
+        assert.match(band, /min-width:\s*0/);
+        assert.match(band, /margin-inline:\s*0/);
+        assert.match(band, /overflow:\s*hidden/);
+        // No negative-gutter escape: its parent has no gutter to escape.
+        assert.ok(!/margin[^;]*calc\(var\(--inv-gutter\)\s*\*\s*-1\)/.test(band));
+        // Images are block-level, so no baseline gap can open under one.
+        const img = css.slice(css.indexOf('.tpl-wedding-classic-gold .inv-interlude__img'));
+        assert.match(img.slice(0, 400), /display:\s*block/);
+        assert.match(img.slice(0, 400), /object-fit:\s*cover/);
+    });
+
+    test('the hero measures one screen in svh, with a vh fallback first', () => {
+        const css = readFileSync(join(TEMPLATE_DIR, 'template.css'), 'utf8');
+        const hero = css.slice(css.indexOf('.tpl-wedding-classic-gold .inv-hero {'),
+            css.indexOf('.tpl-wedding-classic-gold .inv-hero__media'));
+        assert.ok(hero.indexOf('min-height: 88vh') < hero.indexOf('min-height: 88svh'));
+        assert.ok(!/[^-]height:\s*\d+s?vh/.test(hero), 'the hero pins an exact viewport height');
+    });
+
+    test('every rule is scoped, so two designs cannot leak into each other', () => {
+        const css = readFileSync(join(TEMPLATE_DIR, 'template.css'), 'utf8')
+            .replace(/\/\*[\s\S]*?\*\//g, '');
+        for (const line of css.split('\n')) {
+            const sel = line.trim();
+            if (!sel.endsWith('{') || sel.startsWith('@') || sel.startsWith('}')) continue;
+            const ok = sel.includes('.tpl-wedding-classic-gold')
+                || sel.startsWith(':root.tpl-wedding-classic-gold');
+            assert.ok(ok, 'unscoped selector: ' + sel);
+        }
+        assert.ok(!css.includes('tpl-wedding-romantic'), 'it references the other design');
+    });
+
+    test('Romántica is untouched by any of this', () => {
+        const out = renderTemplate(DEMO_ID);
+        assert.equal(out.ok, true);
+        assert.deepEqual(sectionsOf(out.node).filter((s) => s === 'hero').length, 1);
+        const t = resolveTemplate(DEMO_ID);
+        assert.equal(t.label, 'Romántica');
+        assert.equal(t.themeClass, 'tpl-wedding-romantic');
+        assert.equal(t.stylesheet, 'wedding-romantic/template.css');
+        assert.equal(t.assets['hero-default'], 'wedding-romantic/hero-default.jpg');
+        // Its own stylesheet never mentions the new design.
+        const css = readFileSync(
+            join(INVITATION, 'templates', 'wedding-romantic', 'template.css'), 'utf8');
+        assert.ok(!css.includes('classic-gold'));
+    });
+});

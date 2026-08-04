@@ -10,12 +10,18 @@
  *      `__proto__`, `constructor` or `toString` resolve to nothing instead of
  *      reaching an inherited member.
  *
+ * Every entry consumes the WEDDING CATEGORY contract in ../placements.js —
+ * the same image geometry, section order and UI copy — so two designs can
+ * differ in palette, type and ornament but never in what an invitation is made
+ * of. That is what makes switching design a presentation change.
+ *
  * `wedding_romantic_v1` is the first entry. Its identifier is the composed form
  * `{templateKey}_v{templateVersion}`, and `assertIdentity()` below proves the
  * three fields and the id agree, so a copy-paste mistake in a future entry
  * fails at load rather than mislabeling a stored invitation.
  */
 import weddingRomanticV1 from '../templates/wedding-romantic/template.js';
+import weddingClassicGoldV1 from '../templates/wedding-classic-gold/template.js';
 
 /** Categories the registry knows. Used by the editor in Milestone B. */
 export const CATEGORIES = Object.freeze({
@@ -34,7 +40,7 @@ function assertIdentity(t) {
 }
 
 const TEMPLATES = Object.create(null);
-for (const template of [weddingRomanticV1]) {
+for (const template of [weddingRomanticV1, weddingClassicGoldV1]) {
     TEMPLATES[assertIdentity(template).id] = Object.freeze(template);
 }
 
