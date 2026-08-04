@@ -449,6 +449,147 @@ DEMOS.wedding_botanical_v1 = {
     actions: { calendar: true, share: true, map: true },
 };
 
+/* EDITORIAL MODERNA — a fourth fictional wedding.
+ *
+ * A contemporary city wedding in Monterrey: a fourth couple, city and voice, so
+ * no route can be mistaken for another in a new skin. The copy is deliberately
+ * the most formal-but-modern of the four, and the names, venues and address are
+ * the longest yet — this is the fixture that proves very large editorial type
+ * still wraps inside a 320 px column.
+ *
+ * Fictional throughout. No real person, no invitation id, no preview token, no
+ * smart-invitation code, and every image is a repository-owned demo SVG. */
+DEMOS.wedding_editorial_v1 = {
+    contractVersion: 1,
+    categoryKey: 'wedding',
+    templateKey: 'wedding_editorial',
+    templateVersion: 1,
+    locale: 'es-MX',
+    timeZone: 'America/Monterrey',
+
+    sections: {
+        hero: {
+            eyebrow: 'Boda · 2028',
+            partnerA: 'Regina Montserrat',
+            partnerB: 'Maximiliano Andrés',
+            date: '2028-06-17T19:00:00-06:00',
+            location: 'San Pedro Garza García, Nuevo León',
+            image: { source: 'demo', path: 'wedding-editorial/hero.svg' },
+            imageAlt: 'Composición editorial abstracta en papel cálido con bloques y marcas de registro',
+        },
+
+        message: {
+            heading: 'La invitación',
+            body: 'Elegimos un sábado de junio, una ciudad que conocemos de memoria y a las '
+                + 'personas que han estado en cada versión de nosotros.\n\n'
+                + 'Después de una década construyendo una vida en común, queremos celebrarla '
+                + 'exactamente como somos: sin protocolo de más, con mesa larga, música alta y '
+                + 'la gente correcta. Nos encantaría que fueras parte de esa noche.',
+            hosts: 'Con el cariño y la complicidad de nuestras familias: '
+                + 'Alejandra Fernanda Berlanga de Treviño y Ricardo Emilio Treviño Cantú · '
+                + 'Mariana Isabel Cavazos Zambrano y Gerardo Antonio Elizondo Villarreal',
+        },
+
+        countdown: {
+            enabled: true,
+            completedLabel: 'Hoy es el día',
+        },
+
+        ceremony: {
+            startsAt: '2028-06-17T19:00:00-06:00',
+            venueName: 'Capilla del Antiguo Colegio de San Pedro',
+            address: 'Avenida Vasconcelos Poniente 1250, Colonia del Valle, San Pedro Garza García, Nuevo León.',
+            note: 'La ceremonia comienza puntual a las 19:00. Te pedimos llegar 20 minutos antes.',
+        },
+
+        reception: {
+            enabled: true,
+            startsAt: '2028-06-17T21:00:00-06:00',
+            venueName: 'Terraza y Salón Industrial del Antiguo Molino de Santa Catarina',
+            address: 'Calzada del Molino 405, Parque Industrial Poniente, Santa Catarina, Nuevo León.',
+            note: 'Cena servida, barra abierta y música hasta las 3:00 h.',
+        },
+
+        dressCode: {
+            enabled: true,
+            title: 'Formal de noche',
+            description: 'Vestido largo o cocktail y traje oscuro. La ceremonia es en interior y '
+                + 'la recepción combina terraza y salón, así que la noche se pasa entre ambos.',
+            guidelines: [
+                'Reservamos el blanco y el marfil para la novia.',
+                'La terraza es de concreto pulido: te recomendamos un tacón estable.',
+                'Habrá servicio de valet en ambas sedes desde las 18:15.',
+                'El traslado entre la capilla y el salón toma alrededor de 25 minutos.',
+            ],
+        },
+
+        gallery: {
+            enabled: true,
+            items: [
+                { image: { source: 'demo', path: 'wedding-editorial/story-01.svg' },
+                  alt: 'Composición de bloques desplazados en papel y terracota' },
+                { image: { source: 'demo', path: 'wedding-editorial/story-02.svg' },
+                  alt: 'Marco fino con una marca de registro al centro' },
+                { image: { source: 'demo', path: 'wedding-editorial/story-03.svg' },
+                  alt: 'Serie de líneas horizontales sobre papel' },
+                { image: { source: 'demo', path: 'wedding-editorial/story-04.svg' },
+                  alt: 'Bloque sólido con una ventana recortada al centro' },
+                { image: { source: 'demo', path: 'wedding-editorial/story-05.svg' },
+                  alt: 'Marcas de corte en las esquinas con una línea de acento' },
+                { image: { source: 'demo', path: 'wedding-editorial/story-06.svg' },
+                  alt: 'Arco geométrico con un bloque de acento' },
+            ],
+        },
+
+        gifts: {
+            enabled: true,
+            intro: 'Que vengas y te quedes hasta el final es, honestamente, todo lo que queremos. '
+                + 'Si aun así te nace tener un detalle con nosotros, aquí te dejamos dónde.',
+            links: [
+                { label: 'Mesa de regalos · Liverpool', url: 'https://mesaderegalos.liverpool.com.mx/' },
+                { label: 'Mesa de regalos · Amazon', url: 'https://www.amazon.com.mx/wedding/' },
+            ],
+        },
+
+        closing: {
+            enabled: true,
+            heading: 'Nos vemos ahí',
+            body: 'Gracias por haber estado antes de que esto fuera una fecha. Nos vemos el 17 '
+                + 'de junio, con los zapatos cómodos guardados en el coche.',
+            signature: 'Regina & Maximiliano',
+        },
+    },
+
+    interludeImages: {
+        afterMessage: {
+            image: { source: 'demo', path: 'wedding-editorial/band-01.svg' },
+            alt: 'Bloque sólido junto a una serie de líneas finas',
+        },
+        afterCountdown: {
+            image: { source: 'demo', path: 'wedding-editorial/band-02.svg' },
+            alt: 'Marcas de corte con una marca de registro al centro',
+        },
+        afterCeremony: {
+            image: { source: 'demo', path: 'wedding-editorial/band-03.svg' },
+            alt: 'Serie de líneas horizontales de ancho completo',
+        },
+        afterReception: {
+            image: { source: 'demo', path: 'wedding-editorial/band-04.svg' },
+            alt: 'Dos bloques enfrentados, uno sólido y uno delineado',
+        },
+        afterDressCode: {
+            image: { source: 'demo', path: 'wedding-editorial/band-05.svg' },
+            alt: 'Arco geométrico junto a un grupo de líneas',
+        },
+        beforeClosing: {
+            image: { source: 'demo', path: 'wedding-editorial/band-06.svg' },
+            alt: 'Marco cuadrado con un bloque de acento al centro',
+        },
+    },
+
+    actions: { calendar: true, share: true, map: true },
+};
+
 /**
  * Look up a demonstration configuration.
  * @returns {?object} a DEEP COPY, so a renderer can never mutate the bundled
