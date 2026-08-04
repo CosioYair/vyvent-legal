@@ -475,7 +475,21 @@
 /* ── Gifts ──────────────────────────────────────────────────────────────── */
 .tpl-wedding-classic-gold .inv-gifts__intro { color: var(--inv-ink); }
 
-.tpl-wedding-classic-gold .inv-gifts__item { margin-bottom: 0.7rem; }
+/* The registry links are a real <ul>, and the shell ships NO list reset — so a
+ * template that styles only the ITEMS inherits a browser bullet and a 40 px
+ * indent beside every button. The markup stays a semantic list; only the
+ * default presentation is removed. */
+.tpl-wedding-classic-gold .inv-gifts {
+    display: grid;
+    justify-items: center;
+    gap: 0.7rem;
+    margin: 1.5rem 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.tpl-wedding-classic-gold .inv-gifts__item { width: 100%; max-width: 22rem; }
+.tpl-wedding-classic-gold .inv-gifts .inv-btn { width: 100%; }
 
 .tpl-wedding-classic-gold .inv-gifts__note {
     margin: 0.5rem 0 0;

@@ -23,6 +23,7 @@ export default {
     categoryKey: 'wedding',
     templateKey: 'wedding_romantic',
     templateVersion: 1,
+    contractVersion: 1,
 
     label: 'Romántica',
     description: 'Marfil, rosa empolvado y tipografía serif. Para bodas clásicas y cálidas.',

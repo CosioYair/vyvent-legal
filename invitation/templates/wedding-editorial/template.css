@@ -495,7 +495,26 @@
     line-height: 1.72;
 }
 
-.tpl-wedding-editorial .inv-gifts__item { margin-bottom: 0.6rem; }
+/* The registry links are a real <ul>, and the shell ships NO list reset — so a
+ * template that styles only the ITEMS inherits a browser bullet and a 40 px
+ * indent beside every button. The markup stays a semantic list; only the
+ * default presentation is removed.
+ *
+ * START-aligned rather than centred: this design sets its whole page flush
+ * left, and a centred button column is the one thing that would break that
+ * spine. The other four templates centre theirs for the same reason — each
+ * follows its own composition. */
+.tpl-wedding-editorial .inv-gifts {
+    display: grid;
+    justify-items: start;
+    gap: 0.6rem;
+    margin: 1.5rem 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.tpl-wedding-editorial .inv-gifts__item { width: 100%; max-width: 22rem; }
+.tpl-wedding-editorial .inv-gifts .inv-btn { width: 100%; }
 
 .tpl-wedding-editorial .inv-gifts__note {
     margin: 0.6rem 0 0;

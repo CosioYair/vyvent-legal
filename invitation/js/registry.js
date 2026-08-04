@@ -25,6 +25,7 @@ import weddingClassicGoldV1 from '../templates/wedding-classic-gold/template.js'
 import weddingBotanicalV1 from '../templates/wedding-botanical/template.js';
 import weddingEditorialV1 from '../templates/wedding-editorial/template.js';
 import weddingCelestialV1 from '../templates/wedding-celestial/template.js';
+import { CONTRACT_VERSION } from './config.js';
 
 /** Categories the registry knows. Used by the editor in Milestone B. */
 export const CATEGORIES = Object.freeze({
@@ -38,6 +39,16 @@ function assertIdentity(t) {
     }
     if (!Object.prototype.hasOwnProperty.call(CATEGORIES, t.categoryKey)) {
         throw new Error('registry: unknown category "' + t.categoryKey + '"');
+    }
+    /* Every descriptor states WHICH CONFIGURATION CONTRACT it reads. The first
+     * template shipped without the field and the four that followed declared
+     * it, which left this registry quietly disagreeing, entry by entry, with
+     * the mobile one — where the field has always been mandatory. Requiring it
+     * here is what lets the two lists be compared field for field rather than
+     * only by id. */
+    if (t.contractVersion !== CONTRACT_VERSION) {
+        throw new Error('registry: template "' + t.id + '" declares contract '
+            + t.contractVersion + ', expected ' + CONTRACT_VERSION);
     }
     return t;
 }

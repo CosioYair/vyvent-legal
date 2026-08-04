@@ -27,6 +27,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, relative, sep } from 'node:path';
 
@@ -4118,6 +4119,189 @@ describe('the fifth wedding template', () => {
             'wedding-botanical', 'wedding-editorial']) {
             const css = readFileSync(join(INVITATION, 'templates', dir, 'template.css'), 'utf8');
             assert.ok(!css.includes('celestial'), dir + ' mentions celestial');
+        }
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The three-axis contract, and the list reset every design owes its markup
+// ─────────────────────────────────────────────────────────────────────────────
+describe('the shared template contract', () => {
+    const CONTRACT_PATH = join(INVITATION, 'templates', 'CONTRACT.json');
+    const CONTRACT_RAW = readFileSync(CONTRACT_PATH, 'utf8');
+    const contract = JSON.parse(CONTRACT_RAW);
+
+    /* THE SAME CONSTANT APPEARS in the mobile suite
+     * (`__tests__/templateContract.test.ts`). The two repositories cannot check
+     * each other in CI, so each pins the digest of its own copy: if the two
+     * ever disagree, one of them is stale and this is where it shows. */
+    const CONTRACT_SHA256 =
+        '73a05fcf6977404a8ff5fc9354458c18c536ad6a876f09f1e06de869a1ffe0bd';
+
+    test('is the copy both repositories agreed on', () => {
+        const normalized = CONTRACT_RAW.replace(/\r\n/g, '\n');
+        assert.equal(createHash('sha256').update(normalized, 'utf8').digest('hex'),
+            CONTRACT_SHA256);
+    });
+
+    test('lists exactly the five designs, in order', () => {
+        assert.deepEqual(contract.templates.map((t) => t.id), [
+            'wedding_romantic_v1', 'wedding_classic_gold_v1', 'wedding_botanical_v1',
+            'wedding_editorial_v1', 'wedding_celestial_v1',
+        ]);
+        assert.deepEqual(contract.categories, Object.keys(CATEGORIES));
+        assert.equal(contract.contractVersion, CONTRACT_VERSION);
+    });
+
+    test('the RENDERER holds exactly the contracted designs', () => {
+        // Order matters: the contract's order is the mobile picker's order, and
+        // a set comparison would let a reshuffle through unnoticed.
+        assert.deepEqual(listTemplates().map((t) => t.id),
+            contract.templates.map((t) => t.id));
+        assert.deepEqual(listDemoIds().sort(),
+            contract.templates.map((t) => t.id).sort());
+    });
+
+    test('the renderer agrees field for field on every identity', () => {
+        for (const expected of contract.templates) {
+            const t = resolveTemplate(expected.id);
+            assert.ok(t, 'renderer cannot draw ' + expected.id);
+            assert.equal(t.categoryKey, expected.categoryKey);
+            assert.equal(t.templateKey, expected.templateKey);
+            assert.equal(t.templateVersion, expected.templateVersion);
+            assert.equal(t.contractVersion, expected.contractVersion);
+            assert.equal(t.label, expected.label);
+            // The contract's assetDir is where BOTH sides look for this
+            // design's own artwork; the renderer states it as a file path.
+            assert.equal(t.stylesheet, expected.assetDir + '/template.css');
+            assert.equal(t.assets['hero-default'], expected.assetDir + '/hero-default.jpg');
+            assert.ok(statSync(join(INVITATION, 'templates', expected.assetDir)).isDirectory());
+        }
+    });
+
+    test('every contracted design is actually drawable and deployable', () => {
+        for (const expected of contract.templates) {
+            // A design in the contract that the renderer cannot draw is the one
+            // failure mode this whole mechanism exists to prevent.
+            const template = resolveTemplate(expected.id);
+            const { ok, config } = normalizeConfig(demoConfig(expected.id));
+            assert.equal(ok, true, expected.id + ' has no usable demo');
+            const out = renderInvitation({
+                template,
+                config,
+                route: parseRoute('?demo=' + expected.id),
+                document: createDocument(),
+                assetBase: 'https://cosioyair.github.io/vyvent-legal/invitation/assets/',
+                templateBase: 'https://cosioyair.github.io/vyvent-legal/invitation/templates/',
+                now: Date.parse('2026-08-01T12:00:00Z'),
+                pageUrl: 'x',
+            });
+            assert.equal(out.ok, true, expected.id + ' does not render');
+            assert.ok(statSync(join(INVITATION, 'templates', expected.assetDir,
+                'hero-default.jpg')).isFile());
+        }
+    });
+
+    test('nothing outside the contract resolves', () => {
+        const allowed = new Set(contract.templates.map((t) => t.id));
+        for (const t of listTemplates()) assert.ok(allowed.has(t.id));
+        for (const bad of ['wedding_classic_v1', 'wedding_classic_gold_v2',
+            'wedding_celestial_v2', 'wedding_romantic_v2', 'wedding_modern_v1']) {
+            assert.equal(resolveTemplate(bad), null, 'accepted ' + bad);
+        }
+    });
+
+    /* The database is the third axis. Its CHECK constraint is SQL, so what this
+     * suite can prove is that the tuples the SQL suite pins are exactly the
+     * tuples the contract lists — the SQL suite proves the constraint itself
+     * against the same document. */
+    test('the contract yields the tuple set the constraint must allow', () => {
+        assert.deepEqual(
+            contract.templates.map((t) => [t.categoryKey, t.templateKey, t.templateVersion]),
+            [
+                ['wedding', 'wedding_romantic', 1],
+                ['wedding', 'wedding_classic_gold', 1],
+                ['wedding', 'wedding_botanical', 1],
+                ['wedding', 'wedding_editorial', 1],
+                ['wedding', 'wedding_celestial', 1],
+            ],
+        );
+    });
+});
+
+describe('every design resets the lists its markup emits', () => {
+    /* The shell ships no `ul { list-style: none }`, so each template owes its
+     * own reset for each list the renderer emits. Three designs shipped without
+     * the gifts one and rendered a browser bullet with a ~40 px indent beside
+     * every registry button. This pins all four lists for all five designs so
+     * the next template cannot repeat it. */
+    const LISTS = ['inv-countdown', 'inv-dress__guidelines', 'inv-gallery', 'inv-gifts'];
+    const DESIGNS = ['wedding-romantic', 'wedding-classic-gold', 'wedding-botanical',
+        'wedding-editorial', 'wedding-celestial'];
+
+    const cssOf = (dir) => readFileSync(join(INVITATION, 'templates', dir, 'template.css'), 'utf8')
+        .replace(/\/\*[\s\S]*?\*\//g, '');
+
+    const ruleFor = (code, sel) => {
+        const at = code.indexOf(sel + ' {');
+        return at < 0 ? '' : code.slice(at, code.indexOf('}', at));
+    };
+
+    test('the shell still ships no global list reset — the templates own it', () => {
+        const base = readFileSync(join(INVITATION, 'css', 'base.css'), 'utf8')
+            .replace(/\/\*[\s\S]*?\*\//g, '');
+        assert.ok(!/(^|[},])\s*(ul|ol)\s*[,{]/.test(base),
+            'base.css now resets lists globally — the per-template rules are redundant');
+    });
+
+    for (const dir of DESIGNS) {
+        const theme = 'tpl-' + dir;
+        test(dir + ' resets all four lists', () => {
+            const code = cssOf(dir);
+            for (const list of LISTS) {
+                const rule = ruleFor(code, `.${theme} .${list}`);
+                assert.ok(rule, dir + ' has no rule for .' + list);
+                assert.match(rule, /list-style:\s*none/,
+                    dir + ' .' + list + ' keeps its browser marker');
+                assert.match(rule, /padding:\s*(0|[\d.]+rem)/,
+                    dir + ' .' + list + ' keeps the default 40px indent');
+            }
+        });
+    }
+
+    test('the gifts markup stays a semantic list in every design', () => {
+        // The fix is presentational ONLY: a screen reader must still hear "list,
+        // 2 items" — which is why the reset removes the marker rather than the
+        // element, and why no template sets `display: contents` here.
+        for (const id of listTemplates().map((t) => t.id)) {
+            const { ok, config } = normalizeConfig(demoConfig(id));
+            assert.equal(ok, true);
+            const out = renderInvitation({
+                template: resolveTemplate(id),
+                config,
+                route: parseRoute('?demo=' + id),
+                document: createDocument(),
+                assetBase: 'https://x/assets/',
+                templateBase: 'https://x/templates/',
+                now: Date.parse('2026-08-01T12:00:00Z'),
+                pageUrl: 'x',
+            });
+            const list = out.node.querySelector('.inv-gifts');
+            assert.ok(list, id + ' renders no gifts list');
+            assert.equal(list.tagName.toLowerCase(), 'ul', id + ' gifts list is not a <ul>');
+            const items = out.node.querySelectorAll('.inv-gifts__item');
+            assert.ok(items.length >= 2, id + ' gifts list lost its items');
+            for (const li of items) assert.equal(li.tagName.toLowerCase(), 'li');
+        }
+    });
+
+    test('no design reaches outside the gifts list to do it', () => {
+        // A global `ul { list-style: none }` inside a template would silently
+        // strip markers from any future list the renderer adds.
+        for (const dir of DESIGNS) {
+            const code = cssOf(dir);
+            assert.ok(!/(^|[},])\s*\.tpl-[a-z-]+\s+(ul|ol)\s*[,{]/.test(code),
+                dir + ' resets every list by element rather than by class');
         }
     });
 });
