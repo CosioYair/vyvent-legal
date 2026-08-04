@@ -24,6 +24,7 @@ import weddingRomanticV1 from '../templates/wedding-romantic/template.js';
 import weddingClassicGoldV1 from '../templates/wedding-classic-gold/template.js';
 import weddingBotanicalV1 from '../templates/wedding-botanical/template.js';
 import weddingEditorialV1 from '../templates/wedding-editorial/template.js';
+import weddingCelestialV1 from '../templates/wedding-celestial/template.js';
 
 /** Categories the registry knows. Used by the editor in Milestone B. */
 export const CATEGORIES = Object.freeze({
@@ -44,6 +45,7 @@ function assertIdentity(t) {
 const TEMPLATES = Object.create(null);
 for (const template of [
     weddingRomanticV1, weddingClassicGoldV1, weddingBotanicalV1, weddingEditorialV1,
+    weddingCelestialV1,
 ]) {
     TEMPLATES[assertIdentity(template).id] = Object.freeze(template);
 }

@@ -590,6 +590,146 @@ DEMOS.wedding_editorial_v1 = {
     actions: { calendar: true, share: true, map: true },
 };
 
+/* NOCHE ESTELAR — a fifth fictional wedding.
+ *
+ * A formal evening wedding in Mérida: a fifth couple, city and voice, so no
+ * route can be mistaken for another in a new skin. Romantic and nocturnal in
+ * tone, never mystical — there is no astrology here, and no real coordinates.
+ * The names, blessing, venues and address are the longest of the five.
+ *
+ * Fictional throughout. No real person, no invitation id, no preview token, no
+ * smart-invitation code, and every image is a repository-owned demo SVG. */
+DEMOS.wedding_celestial_v1 = {
+    contractVersion: 1,
+    categoryKey: 'wedding',
+    templateKey: 'wedding_celestial',
+    templateVersion: 1,
+    locale: 'es-MX',
+    timeZone: 'America/Merida',
+
+    sections: {
+        hero: {
+            eyebrow: 'Nos casamos de noche',
+            partnerA: 'Valeria Alejandra',
+            partnerB: 'Rodrigo Emiliano',
+            date: '2028-10-14T20:00:00-06:00',
+            location: 'Mérida, Yucatán',
+            image: { source: 'demo', path: 'wedding-celestial/hero.svg' },
+            imageAlt: 'Ilustración de un arco nocturno con una luna creciente y estrellas doradas',
+        },
+
+        message: {
+            heading: 'Nuestra invitación',
+            body: 'Nos conocimos una noche de octubre, en una terraza donde no se veía casi '
+                + 'nada y se escuchaba todo.\n\n'
+                + 'Ocho años después queremos casarnos exactamente así: de noche, con velas, '
+                + 'con el cielo abierto sobre nosotros y con las personas que han sostenido '
+                + 'esta historia desde el principio. Nos haría muy felices que estuvieras ahí.',
+            hosts: 'Con la bendición y el cariño de nuestras familias: '
+                + 'Silvia Margarita Peniche de Sandoval y Joaquín Alberto Sandoval Cámara · '
+                + 'Rocío Guadalupe Interián Loría y Martín Eduardo Baeza Villanueva',
+        },
+
+        countdown: {
+            enabled: true,
+            completedLabel: 'Esta noche nos casamos',
+        },
+
+        ceremony: {
+            startsAt: '2028-10-14T20:00:00-06:00',
+            venueName: 'Capilla de la Antigua Hacienda Santa Rosa de Lima',
+            address: 'Carretera Mérida–Maxcanú kilómetro 32.5, Comisaría de Santa Rosa, Maxcanú, Yucatán.',
+            note: 'La ceremonia comienza a las 20:00 en punto, a la luz de las velas.',
+        },
+
+        reception: {
+            enabled: true,
+            startsAt: '2028-10-14T22:00:00-06:00',
+            venueName: 'Jardín de Noche y Terraza de la Casa Principal de la Hacienda',
+            address: 'Acceso por el camino interior de la hacienda, 400 metros después de la capilla.',
+            note: 'Cena bajo las estrellas, brindis y baile hasta las 4:00 h.',
+        },
+
+        dressCode: {
+            enabled: true,
+            title: 'Etiqueta de noche',
+            description: 'Vestido largo y esmoquin o traje oscuro. La celebración es al aire '
+                + 'libre, sobre pasto y piso de pasta antiguo, bajo un cielo despejado de octubre.',
+            guidelines: [
+                'Reservamos el blanco y el marfil para la novia.',
+                'La noche en la hacienda es cálida pero húmeda; un chal ligero es suficiente.',
+                'Te sugerimos un tacón ancho: parte del jardín es de piedra irregular.',
+                'Habrá transporte desde Mérida a las 18:45, con regreso a las 2:00 y a las 4:00 h.',
+            ],
+        },
+
+        gallery: {
+            enabled: true,
+            items: [
+                { image: { source: 'demo', path: 'wedding-celestial/story-01.svg' },
+                  alt: 'Ilustración de una luna creciente dorada con un destello' },
+                { image: { source: 'demo', path: 'wedding-celestial/story-02.svg' },
+                  alt: 'Ilustración de una constelación trazada con líneas finas' },
+                { image: { source: 'demo', path: 'wedding-celestial/story-03.svg' },
+                  alt: 'Ilustración de un arco nocturno dorado' },
+                { image: { source: 'demo', path: 'wedding-celestial/story-04.svg' },
+                  alt: 'Ilustración de tres velas encendidas bajo destellos' },
+                { image: { source: 'demo', path: 'wedding-celestial/story-05.svg' },
+                  alt: 'Ilustración de un círculo dorado con dos estrellas' },
+                { image: { source: 'demo', path: 'wedding-celestial/story-06.svg' },
+                  alt: 'Ilustración de una silueta de horizonte con luna creciente' },
+            ],
+        },
+
+        gifts: {
+            enabled: true,
+            intro: 'Que vengas y te quedes hasta que se apaguen las velas es todo lo que '
+                + 'queremos. Si además te nace tener un detalle con nosotros, aquí te dejamos dónde.',
+            links: [
+                { label: 'Mesa de regalos · Liverpool', url: 'https://mesaderegalos.liverpool.com.mx/' },
+                { label: 'Mesa de regalos · Amazon', url: 'https://www.amazon.com.mx/wedding/' },
+            ],
+        },
+
+        closing: {
+            enabled: true,
+            heading: 'Nos vemos esa noche',
+            body: 'Gracias por haber estado en las noches anteriores a esta. Nos vemos el 14 '
+                + 'de octubre, cuando ya haya oscurecido y todo empiece.',
+            signature: 'Valeria & Rodrigo',
+        },
+    },
+
+    interludeImages: {
+        afterMessage: {
+            image: { source: 'demo', path: 'wedding-celestial/band-01.svg' },
+            alt: 'Ilustración de una constelación trazada de extremo a extremo',
+        },
+        afterCountdown: {
+            image: { source: 'demo', path: 'wedding-celestial/band-02.svg' },
+            alt: 'Ilustración de una luna creciente sobre un cielo estrellado',
+        },
+        afterCeremony: {
+            image: { source: 'demo', path: 'wedding-celestial/band-03.svg' },
+            alt: 'Ilustración de un arco nocturno entre dos destellos',
+        },
+        afterReception: {
+            image: { source: 'demo', path: 'wedding-celestial/band-04.svg' },
+            alt: 'Ilustración de una silueta de horizonte nocturno',
+        },
+        afterDressCode: {
+            image: { source: 'demo', path: 'wedding-celestial/band-05.svg' },
+            alt: 'Ilustración de una hilera de velas con destellos dorados',
+        },
+        beforeClosing: {
+            image: { source: 'demo', path: 'wedding-celestial/band-06.svg' },
+            alt: 'Ilustración de una línea dorada con una estrella al centro',
+        },
+    },
+
+    actions: { calendar: true, share: true, map: true },
+};
+
 /**
  * Look up a demonstration configuration.
  * @returns {?object} a DEEP COPY, so a renderer can never mutate the bundled

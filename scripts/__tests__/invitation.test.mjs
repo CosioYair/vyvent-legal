@@ -2817,8 +2817,8 @@ describe('the second wedding template', () => {
     }
 
     test('the registry holds exactly the designs that can be drawn', () => {
-        const drawable = ['wedding_botanical_v1', 'wedding_classic_gold_v1',
-            'wedding_editorial_v1', 'wedding_romantic_v1'];
+        const drawable = ['wedding_botanical_v1', 'wedding_celestial_v1',
+            'wedding_classic_gold_v1', 'wedding_editorial_v1', 'wedding_romantic_v1'];
         assert.deepEqual(listTemplates().map((t) => t.id).sort(), drawable);
         assert.deepEqual(listDemoIds().sort(), drawable);
         // The invariant the whole registry rests on.
@@ -2835,7 +2835,7 @@ describe('the second wedding template', () => {
         assert.match(t.description, /Marfil, dorado/);
         assert.equal(t.themeClass, 'tpl-wedding-classic-gold');
         for (const bad of ['wedding_classic_gold_v2', 'wedding_classic_gold',
-            'wedding_celestial_v1', '__proto__', '', null, 42]) {
+            'wedding_celestial_v2', '__proto__', '', null, 42]) {
             assert.equal(resolveTemplate(bad), null, 'accepted ' + JSON.stringify(bad));
         }
     });
@@ -3120,8 +3120,8 @@ describe('the third wedding template', () => {
     }
 
     test('the registry now holds exactly the drawable designs', () => {
-        const expected = ['wedding_botanical_v1', 'wedding_classic_gold_v1',
-            'wedding_editorial_v1', 'wedding_romantic_v1'];
+        const expected = ['wedding_botanical_v1', 'wedding_celestial_v1',
+            'wedding_classic_gold_v1', 'wedding_editorial_v1', 'wedding_romantic_v1'];
         assert.deepEqual(listTemplates().map((t) => t.id).sort(), expected);
         assert.deepEqual(listDemoIds().sort(), expected);
         assert.deepEqual(listTemplates().map((t) => t.id).sort(), listDemoIds().sort());
@@ -3413,9 +3413,9 @@ describe('the fourth wedding template', () => {
         };
     }
 
-    test('the registry now holds exactly the four drawable designs', () => {
-        const expected = ['wedding_botanical_v1', 'wedding_classic_gold_v1',
-            'wedding_editorial_v1', 'wedding_romantic_v1'];
+    test('the registry now holds exactly the drawable designs', () => {
+        const expected = ['wedding_botanical_v1', 'wedding_celestial_v1',
+            'wedding_classic_gold_v1', 'wedding_editorial_v1', 'wedding_romantic_v1'];
         assert.deepEqual(listTemplates().map((t) => t.id).sort(), expected);
         assert.deepEqual(listDemoIds().sort(), expected);
         assert.deepEqual(listTemplates().map((t) => t.id).sort(), listDemoIds().sort());
@@ -3719,6 +3719,405 @@ describe('the fourth wedding template', () => {
         for (const dir of ['wedding-romantic', 'wedding-classic-gold', 'wedding-botanical']) {
             const css = readFileSync(join(INVITATION, 'templates', dir, 'template.css'), 'utf8');
             assert.ok(!css.includes('editorial'), dir + ' mentions editorial');
+        }
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Noche estelar · the fifth collection, and the only dark one
+// ─────────────────────────────────────────────────────────────────────────────
+describe('the fifth wedding template', () => {
+    const CEL_ID = 'wedding_celestial_v1';
+    const CEL_DIR = join(INVITATION, 'templates', 'wedding-celestial');
+    const CEL_DEMO_DIR = join(INVITATION, 'assets', 'demo', 'wedding-celestial');
+    const CEL_CSS = readFileSync(join(CEL_DIR, 'template.css'), 'utf8');
+    const CEL_CODE = CEL_CSS.replace(/\/\*[\s\S]*?\*\//g, '');
+    const ruleFor = (sel) => {
+        const at = CEL_CODE.indexOf(sel + ' {');
+        return at < 0 ? '' : CEL_CODE.slice(at, CEL_CODE.indexOf('}', at));
+    };
+
+    function renderCel(over = {}) {
+        const template = resolveTemplate(CEL_ID);
+        const raw = over.raw || demoConfig(CEL_ID);
+        const { ok, config, errors } = normalizeConfig(raw);
+        assert.equal(ok, true, 'celestial demo did not normalize: ' + (errors || []).join(', '));
+        const document = createDocument();
+        return {
+            ...renderInvitation({
+                template,
+                config,
+                route: over.route || parseRoute('?demo=' + CEL_ID),
+                document,
+                assetBase: 'https://cosioyair.github.io/vyvent-legal/invitation/assets/',
+                templateBase: 'https://cosioyair.github.io/vyvent-legal/invitation/templates/',
+                now: Date.parse('2026-08-01T12:00:00Z'),
+                pageUrl: 'x',
+                handoff: over.handoff,
+                passSummary: over.passSummary,
+            }),
+            config,
+            document,
+        };
+    }
+
+    test('the registry holds exactly the five wedding designs', () => {
+        const expected = ['wedding_botanical_v1', 'wedding_celestial_v1',
+            'wedding_classic_gold_v1', 'wedding_editorial_v1', 'wedding_romantic_v1'];
+        assert.deepEqual(listTemplates().map((t) => t.id).sort(), expected);
+        assert.deepEqual(listDemoIds().sort(), expected);
+        assert.deepEqual(listTemplates().map((t) => t.id).sort(), listDemoIds().sort());
+        assert.equal(listTemplates().length, 5);
+    });
+
+    test('its identity is valid and unknown variants fail closed', () => {
+        const t = resolveTemplate(CEL_ID);
+        assert.equal(t.categoryKey, 'wedding');
+        assert.equal(t.templateKey, 'wedding_celestial');
+        assert.equal(t.templateVersion, 1);
+        assert.equal(t.contractVersion, 1);
+        assert.equal(t.label, 'Noche estelar');
+        assert.match(t.description, /Azul profundo/);
+        assert.equal(t.themeClass, 'tpl-wedding-celestial');
+        assert.equal(t.stylesheet, 'wedding-celestial/template.css');
+        assert.equal(t.id, t.templateKey + '_v' + t.templateVersion);
+        for (const bad of ['wedding_celestial_v2', 'wedding_celestial', 'celestial',
+            '../../env.js', '/template.css', 'https://example.com/template.css',
+            '__proto__', '', null, 42, {}, []]) {
+            assert.equal(resolveTemplate(bad), null, 'accepted ' + JSON.stringify(bad));
+        }
+    });
+
+    test('it shares the CATEGORY placement and section objects by identity', () => {
+        const cel = resolveTemplate(CEL_ID);
+        for (const other of listTemplates().map((t) => t.id).filter((i) => i !== CEL_ID)) {
+            assert.equal(cel.imagePlacements, resolveTemplate(other).imagePlacements);
+            assert.equal(cel.sections, resolveTemplate(other).sections);
+        }
+        assert.equal(cel.imagePlacements.hero.aspectRatio, 1080 / 1920);
+        assert.equal(cel.imagePlacements.gallery.aspectRatio, 4 / 5);
+        assert.equal(cel.imagePlacements.interlude.aspectRatio, 16 / 9);
+    });
+
+    test('it renders the complete wedding contract', () => {
+        const out = renderCel();
+        assert.equal(out.ok, true);
+        const rendered = sectionsOf(out.node);
+        for (const id of ['hero', 'message', 'countdown', 'ceremony', 'reception',
+            'dressCode', 'gallery', 'gifts', 'closing', 'actions']) {
+            assert.ok(rendered.includes(id), 'missing section: ' + id);
+        }
+        assert.deepEqual(
+            out.node.querySelectorAll('[data-section="interlude"]').map((n) => n.getAttribute('data-slot')),
+            ['afterMessage', 'afterCountdown', 'afterCeremony', 'afterReception',
+                'afterDressCode', 'beforeClosing']);
+        assert.equal(out.node.querySelectorAll('.inv-gallery__item').length, 6);
+        assert.equal(out.node.querySelectorAll('.inv-dress__guideline').length, 4);
+        assert.equal(out.node.querySelectorAll('.inv-message__body').length, 2);
+    });
+
+    test('its media keeps the category geometry', () => {
+        const out = renderCel();
+        const band = out.node.querySelectorAll('.inv-interlude__img')[0];
+        assert.equal(band.getAttribute('width'), '1600');
+        assert.equal(band.getAttribute('height'), '900');
+        const tile = out.node.querySelectorAll('.inv-gallery__img')[0];
+        assert.equal(tile.getAttribute('width'), '800');
+        assert.equal(tile.getAttribute('height'), '1000');
+        const hero = out.node.querySelectorAll('.inv-hero__art')[0];
+        assert.equal(hero.getAttribute('width'), '1080');
+        assert.equal(hero.getAttribute('height'), '1920');
+    });
+
+    test('the shared template asset key resolves to ITS artwork', () => {
+        const cel = resolveTemplate(CEL_ID);
+        assert.deepEqual(Object.keys(cel.assets), ['hero-default']);
+        for (const other of listTemplates().map((t) => t.id).filter((i) => i !== CEL_ID)) {
+            assert.notEqual(cel.assets['hero-default'],
+                resolveTemplate(other).assets['hero-default']);
+        }
+        const url = resolveImage({ source: 'template', assetKey: 'hero-default' }, {
+            templateAssets: cel.assets,
+            templateBase: 'https://orbiventt.com/invitation/templates/',
+        });
+        assert.equal(url,
+            'https://orbiventt.com/invitation/templates/wedding-celestial/hero-default.jpg');
+        assert.ok(statSync(join(CEL_DIR, 'hero-default.jpg')).isFile());
+        assert.ok(safeAssetPath(cel.assets['hero-default']));
+    });
+
+    test('an organizer photograph renders identically in all five designs', () => {
+        const shot = {
+            source: 'storage', bucket: 'invitation-media', path: 'evt-1/aa.jpg',
+            crop: { x: 0, y: 0.12, w: 1, h: 0.55 },
+        };
+        const ratios = [];
+        for (const id of listTemplates().map((t) => t.id)) {
+            const raw = demoConfig(id);
+            raw.interludeImages.afterMessage.image = { ...shot };
+            const { ok, config } = normalizeConfig(raw);
+            assert.equal(ok, true);
+            const stored = config.interludeImages.afterMessage.image;
+            assert.equal(stored.source, 'storage');
+            assert.equal(stored.bucket, 'invitation-media');
+            assert.equal(stored.path, 'evt-1/aa.jpg');
+            assert.ok(config.interludeImages.afterMessage.alt.length > 0);
+            ratios.push(resolveTemplate(id).imagePlacements.interlude.aspectRatio);
+        }
+        assert.equal(ratios.length, 5);
+        assert.deepEqual([...new Set(ratios)], [16 / 9]);
+    });
+
+    /* THE DARK-TEMPLATE CONTRACT. Readability may never depend on the
+     * organizer's photograph being dark, so the hero's text sits on an OPAQUE
+     * panel — a solid colour, not a translucent wash and not a gradient. */
+    test('text over media sits on an OPAQUE panel, not a wash', () => {
+        const panel = ruleFor('.tpl-wedding-celestial .inv-hero__content');
+        assert.match(panel, /background:\s*var\(--inv-bg\)/);
+        assert.ok(!/background:[^;]*rgba/.test(panel), 'the hero panel is translucent');
+        assert.ok(!/background:[^;]*gradient/.test(panel), 'the hero panel is a gradient');
+        // And no caption is ever laid over an interlude photograph.
+        const band = ruleFor('.tpl-wedding-celestial .inv-interlude');
+        assert.match(band, /background:\s*var\(--inv-bg\)/);
+        assert.ok(!CEL_CODE.includes('.inv-interlude__caption'));
+    });
+
+    test('decorative tokens never become text or a control border', () => {
+        assert.ok(!/color:\s*var\(--tpl-star\)/.test(CEL_CODE), 'the star token is used as text');
+        assert.ok(!/border[^;]*var\(--tpl-star\)/.test(CEL_CODE), 'the star token borders a control');
+        // The gold token may stroke and fill decoration; readable text and
+        // controls use the lighter accent-ink.
+        assert.match(CEL_CODE, /--inv-accent-ink:\s*#D5B875/);
+        assert.match(ruleFor('.tpl-wedding-celestial .inv-btn'), /color:\s*var\(--inv-accent-ink\)/);
+        assert.match(ruleFor('.tpl-wedding-celestial .inv-btn'), /border-color:\s*var\(--inv-accent-ink\)/);
+        // Body copy is ivory or moonlight, never gold.
+        for (const sel of ['.tpl-wedding-celestial .inv-message__body',
+            '.tpl-wedding-celestial .inv-place__address',
+            '.tpl-wedding-celestial .inv-dress__guideline']) {
+            assert.ok(!/color:\s*var\(--tpl-gold\)/.test(ruleFor(sel)), sel + ' is gold body copy');
+        }
+    });
+
+    test('the focus ring is never removed or dimmed on the dark ground', () => {
+        assert.ok(!/outline:\s*(none|0)/.test(CEL_CODE), 'the template removes a focus outline');
+        assert.ok(!CEL_CODE.includes(':focus'), 'the template overrides the shared focus contract');
+    });
+
+    test('both html and body are painted, so there is no white flash', () => {
+        // iOS Safari paints the root before the template stylesheet lands; the
+        // theme class carries the dark ground on BOTH elements.
+        assert.match(CEL_CODE, /:root\.tpl-wedding-celestial,\s*\n?\s*:root\.tpl-wedding-celestial body\s*\{[^}]*background:\s*var\(--inv-bg\)/);
+    });
+
+    test('it introduces no animation, particles or scroll effects', () => {
+        for (const needle of ['@keyframes', 'animation-name', 'canvas', 'parallax',
+            'will-change', 'position: fixed', 'position:fixed', 'scroll-snap']) {
+            assert.ok(!CEL_CODE.includes(needle), 'template.css uses ' + needle);
+        }
+        // The only `animation` mention is the reduced-motion guard.
+        const hits = CEL_CODE.match(/animation:/g) || [];
+        assert.ok(hits.length <= 1, 'template.css animates something');
+        assert.match(CEL_CSS, /prefers-reduced-motion/);
+    });
+
+    test('the hero is min-height, never a 100vh lock', () => {
+        const hero = ruleFor('.tpl-wedding-celestial .inv-hero');
+        assert.ok(hero.indexOf('min-height: 88vh') < hero.indexOf('min-height: 88svh'));
+        assert.ok(!/[^-]height:\s*\d+s?vh/.test(hero), 'the hero pins an exact viewport height');
+        assert.ok(!/\b100vh\b/.test(CEL_CODE), 'something is locked to 100vh');
+    });
+
+    /* BRANDING ISOLATION. This is a couple's invitation, not a product page. */
+    test('it borrows nothing from Orbiventt branding', () => {
+        const files = [join(CEL_DIR, 'template.css'), join(CEL_DIR, 'template.js'),
+            join(CEL_DIR, 'hero-default.svg')]
+            .concat(readdirSync(CEL_DEMO_DIR).map((f) => join(CEL_DEMO_DIR, f)));
+        for (const file of files) {
+            // Comments are stripped first: a header may NAME the brand it
+            // refuses to borrow from. What must be clean is the drawing and
+            // the styling.
+            const text = readFileSync(file, 'utf8')
+                .replace(/\/\*[\s\S]*?\*\//g, '').toLowerCase();
+            for (const needle of ['orbiventt', 'vyvent', 'logo', 'wordmark', 'brand',
+                'app-icon', 'favicon', 'og-invitation']) {
+                assert.ok(!text.includes(needle), file + ' references ' + needle);
+            }
+        }
+        // Nor does it reach outside its own directory for artwork.
+        const cfgJson = JSON.stringify(demoConfig(CEL_ID));
+        for (const other of ['wedding-romantic/', 'wedding-classic-gold/',
+            'wedding-botanical/', 'wedding-editorial/']) {
+            assert.ok(!cfgJson.includes(other), 'reuses assets from ' + other);
+        }
+    });
+
+    test('its demo is fictional, long, and reaches nothing', () => {
+        const cfg = demoConfig(CEL_ID);
+        for (const other of listDemoIds().filter((i) => i !== CEL_ID)) {
+            assert.notEqual(cfg.sections.hero.partnerA, demoConfig(other).sections.hero.partnerA);
+        }
+        assert.ok(cfg.sections.hero.partnerA.length >= 14);
+        assert.ok(cfg.sections.reception.venueName.length >= 50);
+        assert.ok(cfg.sections.ceremony.address.length >= 80);
+        assert.ok(cfg.sections.message.hosts.length >= 180);
+        assert.equal(cfg.sections.dressCode.guidelines.length, 4);
+        assert.equal(cfg.sections.gallery.items.length, 6);
+        assert.equal(Object.keys(cfg.interludeImages).length, 6);
+        const json = JSON.stringify(cfg);
+        assert.ok(!json.includes('"storage"'));
+        assert.ok(!json.includes('supabase'));
+        for (const key of ['slug', 'previewToken', 'code', 'invitationId', 'eventId']) {
+            assert.ok(!Object.prototype.hasOwnProperty.call(cfg, key));
+        }
+        // Night atmosphere, never astrology.
+        for (const word of ['horóscopo', 'zodiac', 'signo', 'astral', 'carta natal']) {
+            assert.ok(!json.toLowerCase().includes(word), 'demo mentions ' + word);
+        }
+        assert.equal(storedRequest(parseRoute('?demo=' + CEL_ID)), null);
+        assert.equal(passSummaryRequest(parseRoute('?demo=' + CEL_ID + '&code=ABCDEFGHIJKL')), null);
+    });
+
+    test('every demo asset it names exists, and every drawing is opaque', () => {
+        const paths = JSON.stringify(demoConfig(CEL_ID))
+            .match(/wedding-celestial\/[a-z0-9-]+\.svg/g) || [];
+        assert.ok(paths.length >= 13);
+        for (const rel of new Set(paths)) {
+            assert.ok(statSync(join(INVITATION, 'assets', 'demo', rel)).isFile(), 'missing ' + rel);
+        }
+        // A transparent corner would show the white page on iOS Safari, so
+        // every drawing opens with a full-bleed opaque ground.
+        const svgs = [join(CEL_DIR, 'hero-default.svg')]
+            .concat(readdirSync(CEL_DEMO_DIR).map((f) => join(CEL_DEMO_DIR, f)));
+        for (const file of svgs) {
+            const svg = readFileSync(file, 'utf8');
+            assert.match(svg, /<rect width="\d+" height="\d+" fill="#[0-9A-Fa-f]{6}"\/>/,
+                file + ' has no opaque ground');
+        }
+    });
+
+    /* The shell ships no `ul { list-style: none }` reset, so every list the
+     * renderer emits has to be reset by the template that skins it. Missing one
+     * leaves a browser bullet and a 40 px indent — which is exactly how the
+     * gifts list was found looking. */
+    test('every list the renderer emits is reset by this template', () => {
+        for (const sel of ['.tpl-wedding-celestial .inv-countdown',
+            '.tpl-wedding-celestial .inv-dress__guidelines',
+            '.tpl-wedding-celestial .inv-gallery',
+            '.tpl-wedding-celestial .inv-gifts']) {
+            const rule = ruleFor(sel);
+            assert.ok(rule, 'no rule for ' + sel);
+            assert.match(rule, /list-style:\s*none/, sel + ' keeps its browser marker');
+            assert.match(rule, /padding:\s*(0|[\d.]+rem [\d.]+rem)/, sel + ' keeps the default indent');
+        }
+    });
+
+    test('long names, blessings, venues and addresses render safely', () => {
+        const raw = demoConfig(CEL_ID);
+        raw.sections.hero.partnerA = 'María de los Ángeles Guadalupe';
+        raw.sections.hero.partnerB = 'Juan Nepomuceno Maximiliano';
+        raw.sections.reception.venueName =
+            'Jardín de Noche, Terraza y Salón Principal de la Antigua Hacienda Santa Rosa';
+        const out = renderCel({ raw });
+        assert.equal(out.ok, true);
+        assert.ok(serialize(out.node).includes('Antigua Hacienda'));
+        assert.ok(raw.sections.message.hosts.length > 180);
+        // Addresses break anywhere; large headings only at word level.
+        assert.match(ruleFor('.tpl-wedding-celestial .inv-place__address'),
+            /overflow-wrap:\s*anywhere/);
+        assert.match(ruleFor('.tpl-wedding-celestial .inv-hero__names'),
+            /overflow-wrap:\s*break-word/);
+    });
+
+    test('every display size is bounded so nothing clips at 320 px', () => {
+        for (const m of CEL_CODE.matchAll(/font-size:\s*([^;]+);/g)) {
+            const value = m[1].trim();
+            if (/\d+vw/.test(value)) {
+                assert.ok(value.startsWith('clamp('), 'unbounded vw font-size: ' + value);
+            }
+        }
+    });
+
+    test('the claim card works inside it, unchanged', () => {
+        const out = renderCel({
+            route: parseRoute('?i=q7m2k9x4pt3wz8ab&code=ABCDEFGHIJKL'),
+            handoff: { open: true, href: 'vyvent://e/evt?code=ABCDEFGHIJKL', source: 'app-scheme' },
+            passSummary: { seatCapacity: 14, seatsRemaining: 11 },
+        });
+        const card = out.node.querySelector('[data-section="passes"]');
+        assert.ok(card);
+        assert.match(card.textContent, /Reclama tus pases/);
+        assert.match(card.textContent, /ABCD-EFGH-IJKL/);
+        assert.match(card.textContent, /Invitación para 14 personas\./);
+        assert.match(card.textContent, /Quedan 11 de 14 pases disponibles\./);
+        assert.match(card.textContent, /Copiar código/);
+        assert.match(card.textContent, /copia el código e ingrésalo/);
+        const open = card.querySelectorAll('a').find((a) => /Abrir Orbiventt/.test(a.textContent));
+        assert.equal(open.getAttribute('href'), 'vyvent://e/evt?code=ABCDEFGHIJKL');
+    });
+
+    test('its artwork and stylesheet reach nothing external', () => {
+        for (const needle of ['http://', 'https://', '@import', 'url(//']) {
+            assert.ok(!CEL_CSS.includes(needle), 'template.css reaches for ' + needle);
+        }
+        assert.ok(!/\b100vw\b/.test(CEL_CODE));
+
+        const svgs = [join(CEL_DIR, 'hero-default.svg')]
+            .concat(readdirSync(CEL_DEMO_DIR).map((f) => join(CEL_DEMO_DIR, f)));
+        assert.ok(svgs.length >= 14);
+        for (const file of svgs) {
+            const svg = readFileSync(file, 'utf8')
+                .replace(/xmlns="http:\/\/www\.w3\.org\/2000\/svg"/g, '');
+            for (const needle of ['<script', 'xlink:href', 'http://', 'https://',
+                '<image', '<foreignObject', 'onload=', 'data:', '<animate']) {
+                assert.ok(!svg.includes(needle), file + ' contains ' + needle);
+            }
+        }
+    });
+
+    test('it obeys the corrected full-bleed contract', () => {
+        const band = ruleFor('.tpl-wedding-celestial .inv-interlude');
+        assert.match(band, /width:\s*100%/);
+        assert.match(band, /max-width:\s*100%/);
+        assert.match(band, /min-width:\s*0/);
+        assert.match(band, /margin-inline:\s*0/);
+        assert.match(band, /overflow:\s*hidden/);
+        assert.ok(!/margin[^;]*calc\(var\(--inv-gutter\)\s*\*\s*-1\)/.test(band));
+        const img = ruleFor('.tpl-wedding-celestial .inv-interlude__img');
+        assert.match(img, /display:\s*block/);
+        assert.match(img, /object-fit:\s*cover/);
+        assert.match(img, /max-width:\s*none/);
+    });
+
+    test('every rule is scoped, and it names no other design', () => {
+        for (const line of CEL_CODE.split('\n')) {
+            const sel = line.trim();
+            if (!sel.endsWith('{') || sel.startsWith('@') || sel.startsWith('}')) continue;
+            assert.ok(sel.includes('.tpl-wedding-celestial'), 'unscoped selector: ' + sel);
+        }
+        for (const other of ['tpl-wedding-romantic', 'tpl-wedding-classic-gold',
+            'tpl-wedding-botanical', 'tpl-wedding-editorial']) {
+            assert.ok(!CEL_CODE.includes(other));
+        }
+    });
+
+    test('the four existing collections are untouched', () => {
+        const expected = {
+            wedding_romantic_v1: ['Romántica', 'tpl-wedding-romantic', 'wedding-romantic/hero-default.jpg'],
+            wedding_classic_gold_v1: ['Clásica elegante', 'tpl-wedding-classic-gold', 'wedding-classic-gold/hero-default.jpg'],
+            wedding_botanical_v1: ['Botánica', 'tpl-wedding-botanical', 'wedding-botanical/hero-default.jpg'],
+            wedding_editorial_v1: ['Editorial moderna', 'tpl-wedding-editorial', 'wedding-editorial/hero-default.jpg'],
+        };
+        for (const [id, [label, theme, asset]] of Object.entries(expected)) {
+            const t = resolveTemplate(id);
+            assert.equal(t.label, label);
+            assert.equal(t.themeClass, theme);
+            assert.equal(t.assets['hero-default'], asset);
+            assert.equal(t.sections.length, 17);
+        }
+        for (const dir of ['wedding-romantic', 'wedding-classic-gold',
+            'wedding-botanical', 'wedding-editorial']) {
+            const css = readFileSync(join(INVITATION, 'templates', dir, 'template.css'), 'utf8');
+            assert.ok(!css.includes('celestial'), dir + ' mentions celestial');
         }
     });
 });
