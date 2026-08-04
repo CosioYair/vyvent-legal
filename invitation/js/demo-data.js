@@ -311,6 +311,144 @@ DEMOS.wedding_classic_gold_v1 = {
     actions: { calendar: true, share: true, map: true },
 };
 
+/* BOTÁNICA — a third fictional wedding.
+ *
+ * A garden ceremony in Coyoacán: again a different couple, city and voice from
+ * the other two demos, so no route can be mistaken for another in a new skin.
+ * Names, venues and addresses are the longest of the three on purpose — this is
+ * the fixture that proves an asymmetric composition still wraps.
+ *
+ * Fictional throughout. No real person, no invitation id, no preview token, no
+ * smart-invitation code, and every image is a repository-owned demo SVG. */
+DEMOS.wedding_botanical_v1 = {
+    contractVersion: 1,
+    categoryKey: 'wedding',
+    templateKey: 'wedding_botanical',
+    templateVersion: 1,
+    locale: 'es-MX',
+    timeZone: 'America/Mexico_City',
+
+    sections: {
+        hero: {
+            eyebrow: 'Nos casamos',
+            partnerA: 'Ximena Guadalupe',
+            partnerB: 'Sebastián Andrés',
+            date: '2028-03-25T17:30:00-06:00',
+            location: 'Coyoacán, Ciudad de México',
+            image: { source: 'demo', path: 'wedding-botanical/hero.svg' },
+            imageAlt: 'Ilustración de un arco de jardín con ramas de eucalipto en tonos crema y salvia',
+        },
+
+        message: {
+            heading: 'Nuestra invitación',
+            body: 'Hay jardines que se siembran despacio, y esta historia se parece mucho a uno.\n\n'
+                + 'Después de siete años cuidando lo que empezó como una amistad, hemos decidido '
+                + 'casarnos rodeados de árboles, de luz y de la gente que nos ha acompañado en el camino.',
+            hosts: 'Con la bendición y el cariño de nuestras familias: '
+                + 'Rosa María Betancourt de Villaseñor y Ernesto Villaseñor Aguirre · '
+                + 'Leticia Guadalupe Arreola y Francisco Javier Ontiveros del Valle',
+        },
+
+        countdown: {
+            enabled: true,
+            completedLabel: '¡Hoy nos casamos en el jardín!',
+        },
+
+        ceremony: {
+            startsAt: '2028-03-25T17:30:00-06:00',
+            venueName: 'Capilla del Jardín Botánico de San Ángel',
+            address: 'Callejón de la Amargura 78, Barrio de San Ángel Inn, Álvaro Obregón, Ciudad de México.',
+            note: 'La ceremonia es al aire libre; te pedimos llegar 25 minutos antes.',
+        },
+
+        reception: {
+            enabled: true,
+            startsAt: '2028-03-25T19:45:00-06:00',
+            venueName: 'Invernadero y Jardines de la Casa de los Fresnos',
+            address: 'Avenida Universidad 1420, Colonia Florida, Álvaro Obregón, Ciudad de México.',
+            note: 'Cena bajo los árboles, brindis y baile hasta las 2:30 h.',
+        },
+
+        dressCode: {
+            enabled: true,
+            title: 'Formal de jardín',
+            description: 'Vestido largo o midi y traje claro. La celebración ocurre sobre pasto, '
+                + 'terracería y andadores de piedra, entre jardineras y árboles antiguos.',
+            guidelines: [
+                'Te sugerimos un tacón ancho o calzado plano: el jardín es irregular.',
+                'La noche en Coyoacán refresca; considera un chal, un rebozo o un saco ligero.',
+                'Reservamos el blanco y los tonos marfil para la novia.',
+                'Habrá repelente disponible, pero puedes traer el tuyo si lo prefieres.',
+            ],
+        },
+
+        gallery: {
+            enabled: true,
+            items: [
+                { image: { source: 'demo', path: 'wedding-botanical/story-01.svg' },
+                  alt: 'Ilustración de una corona de hojas finas' },
+                { image: { source: 'demo', path: 'wedding-botanical/story-02.svg' },
+                  alt: 'Ilustración de una rama de eucalipto inclinada' },
+                { image: { source: 'demo', path: 'wedding-botanical/story-03.svg' },
+                  alt: 'Ilustración de dos ramas de olivo enfrentadas' },
+                { image: { source: 'demo', path: 'wedding-botanical/story-04.svg' },
+                  alt: 'Ilustración de un arco de jardín con follaje' },
+                { image: { source: 'demo', path: 'wedding-botanical/story-05.svg' },
+                  alt: 'Ilustración de tres ramas de eucalipto alineadas' },
+                { image: { source: 'demo', path: 'wedding-botanical/story-06.svg' },
+                  alt: 'Ilustración de un círculo botánico con una rama de olivo' },
+            ],
+        },
+
+        gifts: {
+            enabled: true,
+            intro: 'Que nos acompañes ese día ya es el mejor regalo. Si además quieres tener '
+                + 'un detalle con nosotros, aquí te dejamos algunas ideas.',
+            links: [
+                { label: 'Mesa de regalos · Liverpool', url: 'https://mesaderegalos.liverpool.com.mx/' },
+                { label: 'Mesa de regalos · Amazon', url: 'https://www.amazon.com.mx/wedding/' },
+            ],
+        },
+
+        closing: {
+            enabled: true,
+            heading: 'Te esperamos',
+            body: 'Gracias por caminar con nosotros hasta aquí. Nos hace mucha ilusión celebrar '
+                + 'contigo, entre árboles y buena compañía, el día en que empezamos esta vida juntos.',
+            signature: 'Ximena & Sebastián',
+        },
+    },
+
+    interludeImages: {
+        afterMessage: {
+            image: { source: 'demo', path: 'wedding-botanical/band-01.svg' },
+            alt: 'Ilustración de dos ramas de eucalipto abriéndose',
+        },
+        afterCountdown: {
+            image: { source: 'demo', path: 'wedding-botanical/band-02.svg' },
+            alt: 'Ilustración de una corona botánica abierta',
+        },
+        afterCeremony: {
+            image: { source: 'demo', path: 'wedding-botanical/band-03.svg' },
+            alt: 'Ilustración de una línea fina cruzada por ramas de olivo',
+        },
+        afterReception: {
+            image: { source: 'demo', path: 'wedding-botanical/band-04.svg' },
+            alt: 'Ilustración de una hilera de ramas de eucalipto',
+        },
+        afterDressCode: {
+            image: { source: 'demo', path: 'wedding-botanical/band-05.svg' },
+            alt: 'Ilustración de un arco de jardín junto a una rama',
+        },
+        beforeClosing: {
+            image: { source: 'demo', path: 'wedding-botanical/band-06.svg' },
+            alt: 'Ilustración de dos ramas encontrándose en el centro',
+        },
+    },
+
+    actions: { calendar: true, share: true, map: true },
+};
+
 /**
  * Look up a demonstration configuration.
  * @returns {?object} a DEEP COPY, so a renderer can never mutate the bundled
