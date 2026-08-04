@@ -14,23 +14,29 @@
  * fails, it is that a decorative token is quietly promoted into body copy. The
  * roles are therefore separate and never interchangeable.
  *
- * Measured against both grounds (#0D1323 midnight and #151D31 navy):
+ * Computed against all three grounds this template paints — #0D1323 midnight,
+ * #151D31 navy, #1C263C panel — not estimated:
  *
- *   --inv-ink         #F5F0E6   16.1 : 1  /  14.6 : 1   names, headings, body
- *   --inv-muted       #C9C4B8   10.6 : 1  /   9.6 : 1   supporting copy — AAA
- *   --inv-accent-ink  #D5B875   10.1 : 1  /   9.2 : 1   controls, links, FOCUS
- *   --tpl-gold        #C09A54    7.0 : 1                large display + strokes
- *   --tpl-star        ivory @ low alpha                 DECORATION ONLY
+ *                              midnight   navy   panel
+ *   --inv-ink         #F5F0E6    16.30   14.77   13.28   names, headings, body
+ *   --inv-muted       #C9C4B8    10.64    9.64    8.67   supporting copy
+ *   --inv-accent-ink  #D5B875     9.64    8.74    7.86   controls, links, FOCUS
+ *   --tpl-gold        #C09A54     7.04    6.38    5.74   strokes and markers
+ *   --tpl-star        ivory @ low alpha                  DECORATION ONLY
  *
  * `--tpl-star` is a decoration token: it draws points and hairlines and never
- * carries text or a control border. `--tpl-gold` is permitted on large display
- * and strokes. Everything a reader must read, or press, uses ink, muted or
- * accent-ink — all of which clear AAA here, because on a dark ground there is
- * no reason to settle for AA.
+ * carries text or a control border. `--tpl-gold` is a STROKE token — rules,
+ * arches and the four-point markers — and is never body copy; its worst case
+ * (5.74 on the panel) clears the large-text bar but not AAA body, which is
+ * precisely why it is kept off running text.
+ *
+ * Everything a reader must read, or press, uses ink, muted or accent-ink. The
+ * worst of those is 7.86 : 1, so all of them clear AAA on every ground — on a
+ * dark template there is no reason to settle for AA.
  *
  * FOCUS: the shell draws `:focus-visible` with `--inv-accent-ink`. At #D5B875
- * that is a bright gold ring at 10:1 against midnight, so keyboard focus stays
- * obvious on every surface. It is never removed or recoloured here.
+ * that is a bright gold ring at 9.6 : 1 against midnight, so keyboard focus
+ * stays obvious on every surface. It is never removed or recoloured here.
  *
  * ── TEXT OVER IMAGES ────────────────────────────────────────────────────────
  * No text in this template sits on an organizer photograph without an OPAQUE
