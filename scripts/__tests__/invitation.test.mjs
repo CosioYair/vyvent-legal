@@ -2470,7 +2470,6 @@ describe('the app handoff plumbing', () => {
 
     test('a hostile app_return never survives into the route', () => {
         for (const value of [
-            'vyvent://e/x',
             'https://evil.example/--/e/x',
             'javascript:alert(1)',
             'exp://host/--/e/x"onload="x',
@@ -2481,6 +2480,17 @@ describe('the app handoff plumbing', () => {
             const r = parseRoute('?i=q7m2k9x4pt3wz8ab&app_return=' + encodeURIComponent(value));
             assert.equal(r.appReturn, null, 'accepted ' + JSON.stringify(value));
         }
+    });
+
+    test('an app-scheme return is CARRIED by the route and BOUND by the resolver', () => {
+        // Since the installed-build return contract, `vyvent://…` is a
+        // legitimate transport shape: the route parser only screens transport
+        // (scheme + hostile characters); the resolver is what refuses any
+        // value that is not byte-equal to the page's own route, and what
+        // stamps the environment marker on the one value it accepts. See
+        // app-return.test.mjs § 7.
+        const r = parseRoute('?i=q7m2k9x4pt3wz8ab&app_return=' + encodeURIComponent('vyvent://e/x'));
+        assert.equal(r.appReturn, 'vyvent://e/x');
     });
 
     test('resolveStored surfaces a UUID-shaped event id, and only that shape', async () => {

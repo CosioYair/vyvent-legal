@@ -265,9 +265,16 @@ function passHandoff(route, eventId) {
     const resolver = (typeof window !== 'undefined' && window.__ORB_APP_RETURN__) || null;
     if (!resolver || typeof resolver.resolveAppHandoff !== 'function') return null;
     const env = (typeof window !== 'undefined' && window.__ORB_ENV__ && window.__ORB_ENV__.env) || null;
+    // THIS deployment's own base URL — the environment marker for the
+    // installed-app return. Derived from the page's own location and env.js,
+    // never from anything in the URL being validated.
+    const siteBase = (typeof window !== 'undefined' && window.location && window.location.origin)
+        ? window.location.origin + ((window.__ORB_ENV__ && window.__ORB_ENV__.basePath) || '')
+        : null;
     return resolver.resolveAppHandoff({
         env,
         appReturn: route.appReturn,
+        siteBase,
         kind: 'e',
         id: eventId,
         isChat: false,
