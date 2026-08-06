@@ -64,10 +64,12 @@ export const ENV_ONLY_FILES = [
   // It describes a deployment, not the code, so promoting it would publish the
   // DEV mirror's commit as production's.
   'deployment.json',
-  // Deploy policy differs by design: the DEV mirror also publishes
-  // `feature/**` so work can be validated on a device before it is merged,
-  // which production must never do. Promoting this file would hand production
-  // that trigger, so it stays environment-specific.
+  // Deploy policy differs by design: the DEV mirror may additionally publish
+  // ONE explicitly named feature branch so work can be validated on a physical
+  // device before it is merged, which production must never do. (Explicitly
+  // named — never a `feature/*` or `feature/**` wildcard; see the header of
+  // the workflow itself.) Promoting this file would hand production that
+  // trigger, so it stays environment-specific.
   '.github/workflows/deploy-pages.yml',
 ];
 
@@ -89,6 +91,21 @@ export const PROD_SUPABASE_REF = 'lehwxjbjlehsdkqxlzrb';
 export const DEV_BASE_HREF = '<base href="/vyvent-legal/">';
 export const PROD_BASE_HREF = '<base href="/">';
 
+/**
+ * The deployment's own ABSOLUTE origin.
+ *
+ * Almost every URL on this site is relative and resolves through `<base>`, so
+ * it needs no rewriting. Open Graph is the exception: `og:url` and `og:image`
+ * are read by crawlers that do not execute the page and do not reliably resolve
+ * a relative reference, so those two tags must carry a real origin — and the
+ * right origin differs per deployment. Normalizing it here keeps the DEV mirror
+ * previewing ITS OWN image (rather than a production file that may not exist
+ * yet) while production still advertises orbiventt.com, and keeps both sides
+ * byte-equivalent under the parity check.
+ */
+export const DEV_SITE_ORIGIN = 'https://cosioyair.github.io/vyvent-legal';
+export const PROD_SITE_ORIGIN = 'https://orbiventt.com';
+
 /** The DEV-only noindex block, marker comment included so removal is exact. */
 const DEV_NOINDEX_BLOCK =
   /[^\S\r\n]*<!-- ENV-SPECIFIC: DEV mirror only\. Removed on promotion to production\. -->\r?\n[^\S\r\n]*<meta name="robots" content="noindex">\r?\n/g;
@@ -102,6 +119,7 @@ const DEV_NOINDEX_BLOCK =
 export function devToProd(content) {
   return content
     .split(DEV_BASE_HREF).join(PROD_BASE_HREF)
+    .split(DEV_SITE_ORIGIN).join(PROD_SITE_ORIGIN)
     .split(DEV_SUPABASE_REF).join(PROD_SUPABASE_REF)
     .replace(DEV_NOINDEX_BLOCK, '');
 }
