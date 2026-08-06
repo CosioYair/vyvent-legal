@@ -2360,6 +2360,29 @@ describe('the pass-claim card (published)', () => {
         }
     });
 
+    /* THE NOTE DESCRIBES THE CARD THAT RENDERED. When the fail-closed state
+     * omits the button, the fallback copy must not promise an automatic open
+     * that no control provides — that contradiction is exactly what made the
+     * intentional DEV posture read as a rendering defect on a real phone. */
+    test('without the button, the note never claims Orbiventt opens automatically', () => {
+        for (const handoff of [null, { open: false, href: null, source: 'none', reason: 'expo-go-required' }]) {
+            const out = renderPublished({ handoff });
+            const node = passesNode(out);
+            assert.ok(!/se abre automáticamente/.test(node.textContent),
+                'the no-button card promises an automatic open it cannot perform');
+            // It still explains the one path that exists: manual entry.
+            assert.match(node.textContent, /Copia el código e ingrésalo manualmente en la aplicación Orbiventt/);
+        }
+    });
+
+    test('with the button, the note keeps the automatic-open fallback phrasing', () => {
+        const out = renderPublished();
+        const node = passesNode(out);
+        const open = node.querySelectorAll('a').find((a) => /Abrir Orbiventt/.test(a.textContent));
+        assert.ok(open, 'this variant expects the button');
+        assert.match(node.textContent, /Si Orbiventt no se abre automáticamente, copia el código e ingrésalo/);
+    });
+
     test('"Copiar código" copies ONLY the code, and confirms', async () => {
         const written = [];
         const out = renderPublished({

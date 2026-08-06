@@ -181,8 +181,17 @@ export default function renderPasses(_data, ctx) {
         status,
         el('p', {
             class: 'inv-passes__note',
-            text: 'Si Orbiventt no se abre automáticamente, copia el código e ingrésalo '
-                + 'manualmente en la aplicación.',
+            // The note must describe the card that actually rendered. With the
+            // button, the manual path is the fallback it names. WITHOUT the
+            // button — the fail-closed DEV state, or any context with no
+            // validated return address — nothing here opens Orbiventt, so
+            // promising "si no se abre automáticamente" would be a lie about a
+            // control that does not exist. The copy path IS the path then.
+            text: openControl
+                ? 'Si Orbiventt no se abre automáticamente, copia el código e ingrésalo '
+                    + 'manualmente en la aplicación.'
+                : 'Copia el código e ingrésalo manualmente en la aplicación Orbiventt '
+                    + 'para reclamar tus pases.',
             document: d,
         }),
     ], { class: 'inv-passes' });
