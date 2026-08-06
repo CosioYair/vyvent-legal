@@ -324,11 +324,7 @@ export function safeCode(raw) {
  * with no business in any URL. Production links never carry this parameter, so
  * a null costs nothing there.
  */
-/* Expo Go's schemes, plus the installed app's own — the two runtimes that can
- * legitimately generate a return address. This is only the TRANSPORT gate; the
- * resolver (`app-return.js`) still binds the value to the exact route of the
- * page before anything is emitted. */
-const APP_RETURN_SCHEME = /^(?:exps?|vyvent):\/\//i;
+const APP_RETURN_SCHEME = /^exps?:\/\//i;
 const APP_RETURN_HOSTILE = /[\x00-\x20\x7f"'`<>\\]/;
 
 export function safeAppReturn(raw) {
