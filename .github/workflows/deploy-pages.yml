@@ -15,8 +15,8 @@ name: Deploy static site to Pages
 # physical device before it is merged — and it MUST be removed when the feature
 # merges.
 #
-# Currently authorized (temporary): `feature/digital-event-invitations`, for the
-# Digital Event Invitations visual approval gates. Remove it at final merge.
+# No feature branch is currently authorized. (The Digital Event Invitations
+# entry was removed at its final merge, 2026-08-06.)
 #
 # Any such branch is listed EXPLICITLY, never as a `feature/*` or `feature/**`
 # wildcard: this is a shared environment, and a wildcard would let any pushed
@@ -28,7 +28,6 @@ on:
   push:
     branches:
       - main
-      - feature/digital-event-invitations
   workflow_dispatch:
 
 permissions:
