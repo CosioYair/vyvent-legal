@@ -15,9 +15,9 @@ name: Deploy static site to Pages
 # physical device before it is merged — and it MUST be removed when the feature
 # merges.
 #
-# AUTHORIZED FEATURE BRANCH (2026-08-10): feature/digital-invitation-photo-framing
-# — the Digital Invitation advanced photo framing DEV validation surface.
-# REMOVE this entry when the feature merges to main.
+# No feature branch is currently authorized. (The Digital Invitation advanced
+# photo framing entry was removed at its final merge, 2026-08-10; the Digital
+# Event Invitations entry before it, 2026-08-06.)
 #
 # Any such branch is listed EXPLICITLY, never as a `feature/*` or `feature/**`
 # wildcard: this is a shared environment, and a wildcard would let any pushed
@@ -29,7 +29,6 @@ on:
   push:
     branches:
       - main
-      - feature/digital-invitation-photo-framing
   workflow_dispatch:
 
 permissions:
