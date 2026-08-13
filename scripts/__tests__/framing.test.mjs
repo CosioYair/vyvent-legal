@@ -212,13 +212,20 @@ describe('F3 · framedArt', () => {
 /* ── through the real renderer, on every design ──────────────────────────── */
 
 describe('F4 · every design, one engine', () => {
-    const allTemplates = listTemplates().map((t) => t.id);
+    // FRAMING IS A WEDDING-CATEGORY PROPERTY. The custom (Personalizada)
+    // template renders its one uploaded design WHOLE — its normalizer strips
+    // any framing window — so the engine-parity assertions below quantify over
+    // the wedding designs, which are the ones that frame.
+    const allTemplates = listTemplates()
+        .filter((t) => t.categoryKey === 'wedding')
+        .map((t) => t.id);
 
     test('the registry still lists exactly five wedding designs', () => {
         assert.equal(allTemplates.length, 5);
+        assert.equal(listTemplates().length, 6);
     });
 
-    for (const id of listTemplates().map((t) => t.id)) {
+    for (const id of allTemplates) {
         test(`${id}: hero, gallery and interlude all render the framed composition`, () => {
             const { node } = renderStored(id, (raw) => {
                 raw.sections.hero.image = IMG(ZOOM_OUT);

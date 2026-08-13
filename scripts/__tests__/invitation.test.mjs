@@ -185,8 +185,19 @@ describe('1 + 2 · template registry', () => {
         assert.equal(mismatch.node, null);
     });
 
-    test('every registered template ships a demo configuration, and vice versa', () => {
-        assert.deepEqual(listTemplates().map((t) => t.id).sort(), listDemoIds().sort());
+    test('every WEDDING template ships a demo configuration, and vice versa', () => {
+        // The custom category has NO demo on purpose: a demonstration of "your
+        // own uploaded design" would have to invent a design, which is exactly
+        // the misleading predesigned invitation the category forbids. So the
+        // demo set equals the wedding set, and the one non-demo registration is
+        // exactly custom_design_v1 — anything else here is a template someone
+        // forgot to give (or deliberately deny) a demonstration.
+        const wedding = listTemplates().filter((t) => t.categoryKey === 'wedding');
+        assert.deepEqual(wedding.map((t) => t.id).sort(), listDemoIds().sort());
+        assert.deepEqual(
+            listTemplates().filter((t) => t.categoryKey !== 'wedding').map((t) => t.id),
+            ['custom_design_v1'],
+        );
     });
 });
 
@@ -2841,12 +2852,16 @@ describe('the second wedding template', () => {
     }
 
     test('the registry holds exactly the designs that can be drawn', () => {
-        const drawable = ['wedding_botanical_v1', 'wedding_celestial_v1',
+        const registered = ['custom_design_v1', 'wedding_botanical_v1', 'wedding_celestial_v1',
             'wedding_classic_gold_v1', 'wedding_editorial_v1', 'wedding_romantic_v1'];
-        assert.deepEqual(listTemplates().map((t) => t.id).sort(), drawable);
-        assert.deepEqual(listDemoIds().sort(), drawable);
-        // The invariant the whole registry rests on.
-        assert.deepEqual(listTemplates().map((t) => t.id).sort(), listDemoIds().sort());
+        assert.deepEqual(listTemplates().map((t) => t.id).sort(), registered);
+        // The invariant the registry rests on: every WEDDING design ships a
+        // demo; the custom category alone has none, by decision — see the
+        // "every WEDDING template ships a demo configuration" test.
+        assert.deepEqual(
+            listTemplates().filter((t) => t.categoryKey === 'wedding').map((t) => t.id).sort(),
+            listDemoIds().sort(),
+        );
     });
 
     test('Classic Gold resolves, and an unknown design still fails closed', () => {
@@ -3144,11 +3159,16 @@ describe('the third wedding template', () => {
     }
 
     test('the registry now holds exactly the drawable designs', () => {
-        const expected = ['wedding_botanical_v1', 'wedding_celestial_v1',
+        const registered = ['custom_design_v1', 'wedding_botanical_v1', 'wedding_celestial_v1',
             'wedding_classic_gold_v1', 'wedding_editorial_v1', 'wedding_romantic_v1'];
-        assert.deepEqual(listTemplates().map((t) => t.id).sort(), expected);
-        assert.deepEqual(listDemoIds().sort(), expected);
-        assert.deepEqual(listTemplates().map((t) => t.id).sort(), listDemoIds().sort());
+        const weddingDemos = ['wedding_botanical_v1', 'wedding_celestial_v1',
+            'wedding_classic_gold_v1', 'wedding_editorial_v1', 'wedding_romantic_v1'];
+        assert.deepEqual(listTemplates().map((t) => t.id).sort(), registered);
+        assert.deepEqual(listDemoIds().sort(), weddingDemos);
+        assert.deepEqual(
+            listTemplates().filter((t) => t.categoryKey === 'wedding').map((t) => t.id).sort(),
+            listDemoIds().sort(),
+        );
     });
 
     test('its identity is valid and unknown variants fail closed', () => {
@@ -3243,7 +3263,9 @@ describe('the third wedding template', () => {
             crop: { x: 0, y: 0.12, w: 1, h: 0.55 },
         };
         const seen = [];
-        for (const id of listTemplates().map((t) => t.id)) {
+        // Every WEDDING design: the custom category has no interlude slots and
+        // no demo — the shared-geometry property is the wedding category's.
+        for (const id of listDemoIds()) {
             const raw = demoConfig(id);
             raw.interludeImages.afterMessage.image = { ...shot };
             const { ok, config } = normalizeConfig(raw);
@@ -3438,11 +3460,16 @@ describe('the fourth wedding template', () => {
     }
 
     test('the registry now holds exactly the drawable designs', () => {
-        const expected = ['wedding_botanical_v1', 'wedding_celestial_v1',
+        const registered = ['custom_design_v1', 'wedding_botanical_v1', 'wedding_celestial_v1',
             'wedding_classic_gold_v1', 'wedding_editorial_v1', 'wedding_romantic_v1'];
-        assert.deepEqual(listTemplates().map((t) => t.id).sort(), expected);
-        assert.deepEqual(listDemoIds().sort(), expected);
-        assert.deepEqual(listTemplates().map((t) => t.id).sort(), listDemoIds().sort());
+        const weddingDemos = ['wedding_botanical_v1', 'wedding_celestial_v1',
+            'wedding_classic_gold_v1', 'wedding_editorial_v1', 'wedding_romantic_v1'];
+        assert.deepEqual(listTemplates().map((t) => t.id).sort(), registered);
+        assert.deepEqual(listDemoIds().sort(), weddingDemos);
+        assert.deepEqual(
+            listTemplates().filter((t) => t.categoryKey === 'wedding').map((t) => t.id).sort(),
+            listDemoIds().sort(),
+        );
     });
 
     test('its identity is valid and unknown variants fail closed', () => {
@@ -3551,7 +3578,9 @@ describe('the fourth wedding template', () => {
             crop: { x: 0, y: 0.12, w: 1, h: 0.55 },
         };
         const ratios = [];
-        for (const id of listTemplates().map((t) => t.id)) {
+        // Wedding designs only: the custom category has no interludes, no demo
+        // and no placement geometry to compare.
+        for (const id of listDemoIds()) {
             const raw = demoConfig(id);
             raw.interludeImages.afterMessage.image = { ...shot };
             const { ok, config } = normalizeConfig(raw);
@@ -3785,13 +3814,17 @@ describe('the fifth wedding template', () => {
         };
     }
 
-    test('the registry holds exactly the five wedding designs', () => {
-        const expected = ['wedding_botanical_v1', 'wedding_celestial_v1',
+    test('the registry holds the five wedding designs plus the custom one', () => {
+        const weddingDemos = ['wedding_botanical_v1', 'wedding_celestial_v1',
             'wedding_classic_gold_v1', 'wedding_editorial_v1', 'wedding_romantic_v1'];
-        assert.deepEqual(listTemplates().map((t) => t.id).sort(), expected);
-        assert.deepEqual(listDemoIds().sort(), expected);
-        assert.deepEqual(listTemplates().map((t) => t.id).sort(), listDemoIds().sort());
-        assert.equal(listTemplates().length, 5);
+        assert.deepEqual(listTemplates().map((t) => t.id).sort(),
+            ['custom_design_v1', ...weddingDemos]);
+        assert.deepEqual(listDemoIds().sort(), weddingDemos);
+        assert.deepEqual(
+            listTemplates().filter((t) => t.categoryKey === 'wedding').map((t) => t.id).sort(),
+            listDemoIds().sort(),
+        );
+        assert.equal(listTemplates().length, 6);
     });
 
     test('its identity is valid and unknown variants fail closed', () => {
@@ -3814,7 +3847,9 @@ describe('the fifth wedding template', () => {
 
     test('it shares the CATEGORY placement and section objects by identity', () => {
         const cel = resolveTemplate(CEL_ID);
-        for (const other of listTemplates().map((t) => t.id).filter((i) => i !== CEL_ID)) {
+        // Its four WEDDING siblings — the custom template legitimately carries
+        // its own (empty) placements and its own two-section order.
+        for (const other of listDemoIds().filter((i) => i !== CEL_ID)) {
             assert.equal(cel.imagePlacements, resolveTemplate(other).imagePlacements);
             assert.equal(cel.sections, resolveTemplate(other).sections);
         }
@@ -3876,7 +3911,8 @@ describe('the fifth wedding template', () => {
             crop: { x: 0, y: 0.12, w: 1, h: 0.55 },
         };
         const ratios = [];
-        for (const id of listTemplates().map((t) => t.id)) {
+        // The five WEDDING designs — the set that shares the category geometry.
+        for (const id of listDemoIds()) {
             const raw = demoConfig(id);
             raw.interludeImages.afterMessage.image = { ...shot };
             const { ok, config } = normalizeConfig(raw);
@@ -4159,7 +4195,7 @@ describe('the shared template contract', () => {
      * each other in CI, so each pins the digest of its own copy: if the two
      * ever disagree, one of them is stale and this is where it shows. */
     const CONTRACT_SHA256 =
-        '73a05fcf6977404a8ff5fc9354458c18c536ad6a876f09f1e06de869a1ffe0bd';
+        '7440fff3db84067221d13cf103c9b30139584c86e96d9725c2689eacb3ab15d6';
 
     test('is the copy both repositories agreed on', () => {
         const normalized = CONTRACT_RAW.replace(/\r\n/g, '\n');
@@ -4167,10 +4203,10 @@ describe('the shared template contract', () => {
             CONTRACT_SHA256);
     });
 
-    test('lists exactly the five designs, in order', () => {
+    test('lists exactly the six designs, in order', () => {
         assert.deepEqual(contract.templates.map((t) => t.id), [
             'wedding_romantic_v1', 'wedding_classic_gold_v1', 'wedding_botanical_v1',
-            'wedding_editorial_v1', 'wedding_celestial_v1',
+            'wedding_editorial_v1', 'wedding_celestial_v1', 'custom_design_v1',
         ]);
         assert.deepEqual(contract.categories, Object.keys(CATEGORIES));
         assert.equal(contract.contractVersion, CONTRACT_VERSION);
@@ -4181,8 +4217,11 @@ describe('the shared template contract', () => {
         // a set comparison would let a reshuffle through unnoticed.
         assert.deepEqual(listTemplates().map((t) => t.id),
             contract.templates.map((t) => t.id));
+        // Demos remain WEDDING-only by decision: a demo of "your own design"
+        // would have to invent the design.
         assert.deepEqual(listDemoIds().sort(),
-            contract.templates.map((t) => t.id).sort());
+            contract.templates.filter((t) => t.categoryKey === 'wedding')
+                .map((t) => t.id).sort());
     });
 
     test('the renderer agrees field for field on every identity', () => {
@@ -4197,7 +4236,12 @@ describe('the shared template contract', () => {
             // The contract's assetDir is where BOTH sides look for this
             // design's own artwork; the renderer states it as a file path.
             assert.equal(t.stylesheet, expected.assetDir + '/template.css');
-            assert.equal(t.assets['hero-default'], expected.assetDir + '/hero-default.jpg');
+            if (expected.categoryKey === 'wedding') {
+                assert.equal(t.assets['hero-default'], expected.assetDir + '/hero-default.jpg');
+            } else {
+                // The custom template ships no artwork — the upload IS the art.
+                assert.deepEqual(t.assets, {});
+            }
             assert.ok(statSync(join(INVITATION, 'templates', expected.assetDir)).isDirectory());
         }
     });
@@ -4205,23 +4249,49 @@ describe('the shared template contract', () => {
     test('every contracted design is actually drawable and deployable', () => {
         for (const expected of contract.templates) {
             // A design in the contract that the renderer cannot draw is the one
-            // failure mode this whole mechanism exists to prevent.
+            // failure mode this whole mechanism exists to prevent. Wedding
+            // designs prove it with their demo; the custom design — which has
+            // none — proves it with a minimal stored-shaped document.
             const template = resolveTemplate(expected.id);
-            const { ok, config } = normalizeConfig(demoConfig(expected.id));
-            assert.equal(ok, true, expected.id + ' has no usable demo');
+            const raw = expected.categoryKey === 'wedding'
+                ? demoConfig(expected.id)
+                : {
+                    contractVersion: 1,
+                    categoryKey: 'custom',
+                    templateKey: 'custom_design',
+                    templateVersion: 1,
+                    sections: {
+                        design: {
+                            image: { source: 'storage', bucket: 'invitation-media', path: 'evt-1/design.jpg' },
+                            imageAlt: 'Invitación',
+                            width: 1200,
+                            height: 1800,
+                        },
+                    },
+                };
+            const { ok, config } = normalizeConfig(raw);
+            assert.equal(ok, true, expected.id + ' has no usable document');
             const out = renderInvitation({
                 template,
                 config,
-                route: parseRoute('?demo=' + expected.id),
+                route: parseRoute(expected.categoryKey === 'wedding'
+                    ? '?demo=' + expected.id
+                    : '?i=abcd1234abcd1234'),
                 document: createDocument(),
                 assetBase: 'https://cosioyair.github.io/vyvent-legal/invitation/assets/',
                 templateBase: 'https://cosioyair.github.io/vyvent-legal/invitation/templates/',
+                storageUrl: (bucket, path) => 'https://project.supabase.co/storage/v1/object/public/' + bucket + '/' + path,
                 now: Date.parse('2026-08-01T12:00:00Z'),
                 pageUrl: 'x',
             });
             assert.equal(out.ok, true, expected.id + ' does not render');
-            assert.ok(statSync(join(INVITATION, 'templates', expected.assetDir,
-                'hero-default.jpg')).isFile());
+            if (expected.categoryKey === 'wedding') {
+                assert.ok(statSync(join(INVITATION, 'templates', expected.assetDir,
+                    'hero-default.jpg')).isFile());
+            } else {
+                assert.ok(out.node.querySelector('.inv-design__img'),
+                    expected.id + ' renders no design image');
+            }
         }
     });
 
@@ -4247,6 +4317,7 @@ describe('the shared template contract', () => {
                 ['wedding', 'wedding_botanical', 1],
                 ['wedding', 'wedding_editorial', 1],
                 ['wedding', 'wedding_celestial', 1],
+                ['custom', 'custom_design', 1],
             ],
         );
     });
@@ -4296,7 +4367,9 @@ describe('every design resets the lists its markup emits', () => {
         // The fix is presentational ONLY: a screen reader must still hear "list,
         // 2 items" — which is why the reset removes the marker rather than the
         // element, and why no template sets `display: contents` here.
-        for (const id of listTemplates().map((t) => t.id)) {
+        // Wedding designs only: the custom template has no gifts section (or
+        // any other wedding section) to render, structurally.
+        for (const id of listDemoIds()) {
             const { ok, config } = normalizeConfig(demoConfig(id));
             assert.equal(ok, true);
             const out = renderInvitation({
@@ -4372,7 +4445,14 @@ describe('a document is only ever themed once', () => {
     test('every design resolves its stylesheet and artwork from its OWN directory', () => {
         for (const t of listTemplates()) {
             const dir = t.stylesheet.split('/')[0];
-            assert.equal(t.assets['hero-default'], dir + '/hero-default.jpg');
+            if (t.categoryKey === 'wedding') {
+                assert.equal(t.assets['hero-default'], dir + '/hero-default.jpg');
+            } else {
+                // The custom template ships NO artwork: the organizer's upload
+                // is the artwork, and an assets entry here would be a file an
+                // organizer never chose.
+                assert.deepEqual(t.assets, {});
+            }
             // And no template's stylesheet mentions another's theme class, so
             // there is nothing to leak even if two were ever present at once.
             const css = readFileSync(join(INVITATION, 'templates', dir, 'template.css'), 'utf8');

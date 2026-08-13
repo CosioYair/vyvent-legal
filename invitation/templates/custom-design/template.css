@@ -1,0 +1,81 @@
+/* TEMPLATE — custom_design, version 1 · "Tu diseño".
+ *
+ * The first bring-your-own-design invitation: the organizer uploads ONE
+ * finished image that already carries every name, date, address and ornament,
+ * and this stylesheet deliberately adds NOTHING around it. Two jobs only:
+ *
+ *   1. A neutral ground. The uploaded design decides its own palette, so the
+ *      page frame must not compete with it — near-white paper, quiet ink, and
+ *      no ornament of any kind.
+ *   2. A readable pass card. The claim card is FUNCTIONAL UI, not part of the
+ *      uploaded art: it keeps the shared shell's surface/ink tokens so it stays
+ *      legible whatever colours the design uses, exactly like every other
+ *      template.
+ *
+ * THE IMAGE IS NEVER CROPPED. The design renders as an ordinary flowing <img>
+ * at the column's width with height following the image's own aspect ratio —
+ * there is no fixed-height container and no `object-fit` anywhere in this
+ * template, so cropping is impossible by construction. On desktop the shared
+ * `.inv-page` column (46–48rem) is the sensible maximum width: a portrait
+ * invitation is never stretched edge-to-edge across a monitor.
+ *
+ * SCOPE RULE: every rule below is scoped under `.tpl-custom-design`, which
+ * main.js puts on <html> and the renderer puts on the invitation element. The
+ * only unscoped declarations are the custom-property overrides on `:root`.
+ *
+ * VERSION LOCK: this stylesheet is version 1. A visual change that would alter
+ * an already-published invitation ships as version 2 with its own directory.
+ */
+
+/* CONTRAST (measured against the ground #F7F6F3):
+ *   --inv-ink        13.9 : 1
+ *   --inv-muted       5.6 : 1   body copy — WCAG AA
+ *   --inv-accent-ink  5.9 : 1   buttons, links, control borders
+ * The pass card and the controlled states inherit these through the shared
+ * shell, so no colour in the uploaded artwork can affect their legibility. */
+:root.tpl-custom-design {
+    --inv-bg: #F7F6F3;          /* neutral paper */
+    --inv-surface: #FFFFFF;     /* the pass card's own ground */
+    --inv-ink: #26242B;
+    --inv-muted: #5D5A64;
+    --inv-accent: #8F8CA3;      /* decoration only — hairlines */
+    --inv-accent-ink: #4F4A82;  /* text and controls */
+    --inv-line: rgba(38, 36, 43, 0.14);
+}
+
+:root.tpl-custom-design body { background: var(--inv-bg); }
+
+.tpl-custom-design ::selection { background: #E4E2EC; color: var(--inv-ink); }
+
+/* ── The design itself ──────────────────────────────────────────────────────
+ * The inner wrapper's 34rem measure exists for TEXT; the uploaded image IS the
+ * layout, so it widens to the full page column (46–48rem) while the section
+ * keeps the shared horizontal gutter — the one place that gutter lives, per
+ * the shell's layout rule. Vertical rhythm tightens: the design is the body of
+ * this page, not one section among many. */
+.tpl-custom-design .inv-section--design {
+    padding: 0.75rem var(--inv-gutter) 1.75rem;
+}
+
+.tpl-custom-design .inv-section--design .inv-section__inner {
+    max-width: none;
+}
+
+.tpl-custom-design .inv-design__img {
+    display: block;
+    width: 100%;
+    /* Height follows the image's own aspect ratio. The width/height
+     * ATTRIBUTES (written by the editor from the stored object's real pixel
+     * size) let the browser reserve the correct box before the bytes arrive,
+     * so the pass card above never shifts. */
+    height: auto;
+    /* A quiet frame so a design whose ground matches the page still reads as
+     * an object; never a crop, never a mask. */
+    border-radius: 6px;
+    box-shadow: 0 1px 2px rgba(38, 36, 43, 0.08), 0 8px 28px rgba(38, 36, 43, 0.10);
+}
+
+/* THE PASS CARD IS DELIBERATELY UNTOUCHED. `.inv-passes` and `.inv-btn` belong
+ * to the shared shell (base.css) on every template — that is what guarantees
+ * the claim controls stay readable regardless of the uploaded design's colours
+ * — and this template honours the rule like the five wedding designs do. */
