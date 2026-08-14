@@ -95,62 +95,121 @@
     }
 }
 
-/* ── Reclama tus pases ──────────────────────────────────────────────────────
- * The same scoped card treatment every wedding design gives the claim card,
- * on this template's neutral palette. Functional UI: whatever the uploaded
- * artwork looks like, this card sits on its own white surface above it. */
+/* ── Reclama tus pases — the GUEST ACTION CHIP ──────────────────────────────
+ * Not a document card: a compact frosted panel that shares the DESIGN'S OWN
+ * STAGE, so chip and artwork read as one composition instead of a white slab
+ * above a picture. Three ideas carry the whole treatment:
+ *
+ *   ALIGNED   the chip's inner column is the same 27rem stage the design
+ *             uses on wide viewports, and it sits tight above the image —
+ *             the section's 3.25rem shell padding collapses to a whisper.
+ *   QUIET     a translucent, blur-backed surface with a soft shadow floats
+ *             on the neutral ground rather than stamping a paper card on it;
+ *             the heading becomes a letter-spaced EYEBROW (still the h2 —
+ *             assistive tech keeps its landmark) and the decorative rule is
+ *             dropped.
+ *   LOUD WHERE IT COUNTS   the code pill and the solid CTA keep — gain —
+ *             relative prominence: everything around them shrank, they did
+ *             not. Touch targets stay ≥44px (layout-only tightening; button
+ *             identity — shape, colours, behaviour — remains the shell's).
+ */
+.tpl-custom-design .inv-section--passes {
+    padding: 1.1rem 1rem 0.4rem;
+}
+
 .tpl-custom-design .inv-passes .inv-section__inner {
-    padding: 1.75rem 1.25rem;
-    border: 1px solid var(--inv-line);
-    border-radius: var(--inv-radius);
-    background: var(--inv-surface);
+    /* THE SAME STAGE THE DESIGN USES — the alignment is the integration. */
+    max-width: 27rem;
+    padding: 0.95rem 1.1rem 0.85rem;
+    border: 1px solid rgba(38, 36, 43, 0.10);
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.78);
+    -webkit-backdrop-filter: blur(12px) saturate(1.15);
+    backdrop-filter: blur(12px) saturate(1.15);
+    box-shadow: 0 4px 18px rgba(38, 36, 43, 0.07);
     text-align: center;
 }
 
-/* The DRAFT EXAMPLE keeps a sketchy dashed frame — it is a mockup of the
- * card and should read as one, exactly like the demo explainer does on the
- * wedding designs. */
-.tpl-custom-design .inv-passes.is-example .inv-section__inner {
-    border-style: dashed;
-    background: rgba(255, 255, 255, 0.72);
+/* The h2, visually an eyebrow: small, spaced, in the control colour — reads
+ * instantly as "this is the pass area" without shouting over the artwork. */
+.tpl-custom-design .inv-passes .inv-heading {
+    font-family: var(--inv-font-body);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    color: var(--inv-accent-ink);
+}
+
+.tpl-custom-design .inv-passes .inv-rule { display: none; }
+
+.tpl-custom-design .inv-passes__body {
+    margin: 0.4rem 0 0.1rem;
+    color: var(--inv-muted);
+    font-size: 0.82rem;
+    line-height: 1.4;
 }
 
 .tpl-custom-design .inv-passes__allocation {
-    margin: 0.2rem 0 0.4rem;
+    margin: 0.15rem 0 0;
     font-weight: 600;
     color: var(--inv-ink);
-    font-size: 0.95rem;
+    font-size: 0.85rem;
+}
+
+/* The code is the chip's centre of gravity: bigger than everything around
+ * it, on the one OPAQUE surface inside the frosted panel. */
+.tpl-custom-design .inv-passes__code {
+    margin: 0.55rem 0 0;
+}
+
+.tpl-custom-design .inv-passes__code-value {
+    display: inline-block;
+    padding: 0.45rem 1.15rem;
+    border-radius: 999px;
+    background: var(--inv-surface);
+    border: 1px solid rgba(38, 36, 43, 0.14);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 1.02rem;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    color: var(--inv-ink);
 }
 
 .tpl-custom-design .inv-passes__actions {
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
-    gap: 0.75rem;
-    margin-top: 1rem;
+    gap: 0.5rem;
+    margin-top: 0.7rem;
+}
+
+/* Layout-only: tighter buttons that keep the 44px minimum touch target and
+ * every identity property (shape, colour, hover) from the shared shell. */
+.tpl-custom-design .inv-passes .inv-btn {
+    min-height: 44px;
+    padding: 0.55rem 1.15rem;
+    font-size: 0.88rem;
 }
 
 .tpl-custom-design .inv-passes__status {
-    min-height: 1.2em;
-    margin: 0.6rem 0 0;
+    min-height: 1.1em;
+    margin: 0.4rem 0 0;
     color: var(--inv-muted);
-    font-size: 0.85rem;
-}
-
-.tpl-custom-design .inv-passes__code-value {
-    display: inline-block;
-    margin: 0.25rem 0;
-    padding: 0.35rem 0.9rem;
-    border-radius: 999px;
-    background: var(--inv-bg);
-    border: 1px solid var(--inv-line);
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    font-size: 0.95rem;
-    letter-spacing: 0.14em;
+    font-size: 0.78rem;
 }
 
 .tpl-custom-design .inv-passes__note {
+    margin: 0.35rem 0 0;
     color: var(--inv-muted);
-    font-size: 0.82rem;
-    font-style: italic;
+    font-size: 0.72rem;
+    font-style: normal;
+    line-height: 1.4;
+}
+
+/* The DRAFT EXAMPLE keeps a sketchy dashed frame — it is a mockup of the
+ * chip and should read as one, exactly like the demo explainer does on the
+ * wedding designs. */
+.tpl-custom-design .inv-passes.is-example .inv-section__inner {
+    border-style: dashed;
+    background: rgba(255, 255, 255, 0.6);
 }

@@ -343,8 +343,17 @@ describe('CU-D · the full image renders — cropping is impossible by construct
         // directly after the colon so `\s*` cannot backtrack around it.)
         assert.ok(!/\.inv-design__img[^{]*\{[^}]*[^-]height:(?!\s*auto)/.test(css),
             'a non-auto height appeared on the design img');
-        // Buttons keep the shared shell's identity everywhere.
-        assert.equal(css.includes('.inv-btn'), false);
+        // Buttons keep the shared shell's IDENTITY everywhere: a scoped rule
+        // may tighten layout (size, padding — the same precedent as the
+        // wedding templates' `.inv-gifts .inv-btn { width }`), but never
+        // restyle what a button IS — colour, surface, shape or border.
+        for (const match of css.matchAll(/\.inv-btn[^{]*\{([^}]*)\}/g)) {
+            const body = match[1];
+            for (const forbidden of ['background', 'color', 'border-radius', 'border:']) {
+                assert.ok(!body.includes(forbidden),
+                    'button identity property overridden: ' + forbidden);
+            }
+        }
     });
 
     test('the visual contract: full-bleed on phones, a phone-width stage on desktop', () => {
@@ -371,6 +380,22 @@ describe('CU-D · the full image renders — cropping is impossible by construct
         assert.match(css, /\.tpl-custom-design \.inv-passes__code-value/);
         // The draft example reads as a mockup: dashed, like is-demo elsewhere.
         assert.match(css, /\.tpl-custom-design \.inv-passes\.is-example[\s\S]*?border-style:\s*dashed/);
+
+        // THE ACTION-CHIP CONTRACT (2026-08-14 redesign):
+        // integrated — the chip shares the design's 27rem stage…
+        assert.match(css, /\.inv-passes \.inv-section__inner[^}]*max-width:\s*27rem/,
+            'the chip must share the design stage width');
+        // …compact — the shell's 3.25rem section padding is collapsed…
+        assert.match(css, /\.inv-section--passes[^}]*padding:\s*1\.1rem/,
+            'the passes section must sit tight above the design');
+        // …quiet — eyebrow heading, no decorative rule…
+        assert.match(css, /\.inv-passes \.inv-heading[^}]*letter-spacing/,
+            'the heading must be restyled as an eyebrow');
+        assert.match(css, /\.inv-passes \.inv-rule[^}]*display:\s*none/,
+            'the decorative rule must be dropped inside the chip');
+        // …and still ACTIONABLE: touch targets never dip below 44px.
+        assert.match(css, /\.inv-passes \.inv-btn[^}]*min-height:\s*4[4-9]px/,
+            'buttons inside the chip must keep a >=44px touch target');
         // Everything stays scoped: no bare `.inv-passes` selector that could
         // leak into another template's page.
         for (const line of css.split('\n')) {
