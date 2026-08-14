@@ -49,20 +49,19 @@ export default function renderDesign(data, ctx) {
 
     const img = el('img', { class: 'inv-design__img', attrs, document: ctx.document });
 
-    /* THE MEDIA STAGE — the story composition, exactly (`.inv-framed`'s own
-     * model, adapted): ONE viewport at the upload contract's 9:16 target
-     * ratio holding TWO representations of the SAME photograph —
+    /* THE CARD BACKDROP — the same photograph, blurred, BEHIND the invitation
+     * card (2026-08-14 final correction). Two rules define it:
      *
-     *   backdrop   absolute, cover, blurred, slightly enlarged to hide the
-     *              blur's edge bleed, CLIPPED by the stage (`overflow:
-     *              hidden` on the stage, nothing page-level, nothing fixed);
-     *   foreground the sharp invitation, contain, centred, complete.
-     *
-     * A compliant 9:16 upload fills the stage edge to edge and the backdrop
-     * simply is not visible — correct. Any accepted variation (4:5 … 9:21)
-     * letterboxes INSIDE the stage, and those gaps show the invitation's own
-     * blurred colours instead of a flat ground. The blur can never appear
-     * above, below or outside the stage: it is an absolute child of it.
+     *   • the SHARP image occupies the card's full image area, flowing at the
+     *     card's width with its own aspect ratio — never shrunk into a stage,
+     *     never letterboxed, never showing blur bands inside its frame;
+     *   • the BLUR is the outer component's atmosphere: an absolutely
+     *     positioned layer the SHELL anchors (the article is its containing
+     *     block), bleeding slightly past the card on every side and sitting
+     *     at z-index −1 — behind the card's own surface, visible only as the
+     *     soft aura around it. Document-anchored, never position: fixed, so
+     *     it scrolls with the card and can never read as a detached page
+     *     strip.
      *
      * Both layers carry the SAME resolved URL — one object, browser-cached,
      * zero extra requests, zero backend involvement. */
@@ -80,13 +79,7 @@ export default function renderDesign(data, ctx) {
     // it. Nothing organizer-written is concatenated here.
     backdrop.setAttribute('style', 'background-image:url("' + src + '")');
 
-    const stage = el('div', {
-        class: 'inv-design__stage',
-        children: [backdrop, img],
-        document: ctx.document,
-    });
-
     // No heading: the uploaded design carries its own. The shell still gives
     // the section its landmark and `data-section` identity.
-    return section('design', '', ctx, [stage], { class: 'inv-design' });
+    return section('design', '', ctx, [backdrop, img], { class: 'inv-design' });
 }
