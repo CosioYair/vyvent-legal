@@ -223,6 +223,86 @@ describe('CU-C · the rendered page: passes first, design second, nothing else',
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+describe('CU-C2 · the DRAFT preview shows the pass EXAMPLE — and only there', () => {
+    const DRAFT_ROUTE = '?d=11111111-2222-4333-8444-555555555555&t=tok_tok_tok_tok_16';
+
+    test('a custom draft renders the example card first, then the design', () => {
+        const out = renderCustom(customRaw(), DRAFT_ROUTE);
+        assert.equal(out.ok, true);
+        assert.deepEqual(sectionsOf(out.node), ['passes', 'design']);
+        const card = out.node.querySelector('.inv-passes');
+        assert.ok((card.getAttribute('class') || '').includes('is-example'),
+            'the draft card must be marked as an example');
+        const html = serialize(card);
+        assert.ok(html.includes('XXXX-XXXX-XXXX'), 'placeholder code missing');
+        assert.ok(html.includes('no se reclama ningún pase'));
+        assert.ok(html.includes('sin código'),
+            'the example must say what happens without a code');
+    });
+
+    test('the example is non-interactive: no button, no link, no handoff', () => {
+        const out = renderCustom(customRaw(), DRAFT_ROUTE);
+        const card = out.node.querySelector('.inv-passes');
+        assert.equal(card.querySelectorAll('button').length, 0);
+        assert.equal(card.querySelectorAll('a').length, 0);
+        const html = serialize(card);
+        assert.equal(html.includes('Copiar código'), false);
+        assert.equal(html.includes('Abrir Orbiventt'), false);
+    });
+
+    test('a draft link carrying a code STILL renders the example, never the real card', () => {
+        const out = renderCustom(customRaw(), DRAFT_ROUTE + '&code=AAAA2222BBBB');
+        const card = out.node.querySelector('.inv-passes');
+        assert.ok((card.getAttribute('class') || '').includes('is-example'));
+        const html = serialize(card);
+        assert.equal(html.includes('AAAA2222BBBB'), false, 'a real code leaked into the example');
+        assert.equal(html.includes('Copiar código'), false);
+    });
+
+    test('the PUBLISHED page is untouched: no example without a code, the real card with one', () => {
+        const noCode = renderCustom(customRaw(), '?i=abcd1234abcd1234');
+        assert.deepEqual(sectionsOf(noCode.node), ['design']);
+        assert.equal(serialize(noCode.node).includes('is-example'), false);
+
+        const withCode = renderCustom(customRaw(), '?i=abcd1234abcd1234&code=AAAA2222BBBB');
+        const card = withCode.node.querySelector('.inv-passes');
+        assert.ok(card);
+        assert.equal((card.getAttribute('class') || '').includes('is-example'), false);
+        assert.ok(serialize(card).includes('Copiar código'));
+    });
+
+    test('a WEDDING draft still renders no pass section at all', () => {
+        const template = resolveTemplate('wedding_romantic_v1');
+        // A minimal valid wedding document, drawn on the draft route.
+        const { ok, config } = normalizeConfig({
+            contractVersion: 1,
+            categoryKey: 'wedding',
+            templateKey: 'wedding_romantic',
+            templateVersion: 1,
+            sections: {
+                hero: { partnerA: 'Ana', partnerB: 'Luis', date: '2027-04-17T18:00:00-06:00' },
+                message: { body: 'Los esperamos.' },
+                ceremony: { startsAt: '2027-04-17T18:00:00-06:00', venueName: 'Jardín' },
+            },
+        });
+        assert.equal(ok, true);
+        const out = renderInvitation({
+            template,
+            config,
+            route: parseRoute(DRAFT_ROUTE + '&code=AAAA2222BBBB'),
+            document: createDocument(),
+            assetBase: 'https://x/assets/',
+            templateBase: 'https://x/templates/',
+            storageUrl: STORAGE_URL,
+            now: Date.parse('2026-08-14T12:00:00Z'),
+            pageUrl: 'x',
+        });
+        assert.equal(out.ok, true);
+        assert.equal(serialize(out.node).includes('inv-passes'), false);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 describe('CU-D · the full image renders — cropping is impossible by construction', () => {
     test('the design is a plain flowing <img> with intrinsic dimensions', () => {
         const out = renderCustom(customRaw());
@@ -259,9 +339,46 @@ describe('CU-D · the full image renders — cropping is impossible by construct
         assert.match(css, /\.inv-design__img[\s\S]*?height:\s*auto/,
             'the design img must flow at its own aspect ratio');
         assert.match(css, /\.inv-design__img[\s\S]*?width:\s*100%/);
-        // The pass card belongs to the shared shell in every template.
-        assert.equal(css.includes('.inv-passes'), false);
+        // No fixed height may ever bound the design's box. (The lookahead sits
+        // directly after the colon so `\s*` cannot backtrack around it.)
+        assert.ok(!/\.inv-design__img[^{]*\{[^}]*[^-]height:(?!\s*auto)/.test(css),
+            'a non-auto height appeared on the design img');
+        // Buttons keep the shared shell's identity everywhere.
         assert.equal(css.includes('.inv-btn'), false);
+    });
+
+    test('the visual contract: full-bleed on phones, a phone-width stage on desktop', () => {
+        const css = readFileSync(join(ROOT, 'invitation', 'templates', 'custom-design', 'template.css'), 'utf8')
+            .replace(/\/\*[\s\S]*?\*\//g, '');
+        // Base (phone) rules: the design section drops the horizontal gutter
+        // entirely — a portrait design renders edge to edge, no side fill.
+        assert.match(css, /\.inv-section--design\s*\{[^}]*padding:\s*[0-9.]+rem 0 /,
+            'the phone layout must have zero horizontal padding');
+        // Desktop: the stage is phone-shaped, never the full 46rem column.
+        assert.match(css, /@media \(min-width: 48rem\)/);
+        assert.match(css, /max-width:\s*27rem/,
+            'the desktop stage must be phone-width');
+    });
+
+    test('the pass card gets the same scoped treatment the wedding designs give it', () => {
+        // Every wedding template styles `.tpl-X .inv-passes …` (surface, code
+        // pill, is-demo dashed variant). The custom template follows the SAME
+        // convention on its neutral palette — a bare, unstyled claim card was
+        // exactly the "improvised" look this pass removes.
+        const css = readFileSync(join(ROOT, 'invitation', 'templates', 'custom-design', 'template.css'), 'utf8')
+            .replace(/\/\*[\s\S]*?\*\//g, '');
+        assert.match(css, /\.tpl-custom-design \.inv-passes \.inv-section__inner/);
+        assert.match(css, /\.tpl-custom-design \.inv-passes__code-value/);
+        // The draft example reads as a mockup: dashed, like is-demo elsewhere.
+        assert.match(css, /\.tpl-custom-design \.inv-passes\.is-example[\s\S]*?border-style:\s*dashed/);
+        // Everything stays scoped: no bare `.inv-passes` selector that could
+        // leak into another template's page.
+        for (const line of css.split('\n')) {
+            if (line.includes('.inv-passes') && line.includes('{')) {
+                assert.ok(line.includes('.tpl-custom-design'),
+                    'unscoped pass-card selector: ' + line.trim());
+            }
+        }
     });
 
     test('alt text is accessibility, never visibility', () => {

@@ -1,23 +1,29 @@
 /* TEMPLATE — custom_design, version 1 · "Tu diseño".
  *
- * The first bring-your-own-design invitation: the organizer uploads ONE
- * finished image that already carries every name, date, address and ornament,
- * and this stylesheet deliberately adds NOTHING around it. Two jobs only:
+ * The bring-your-own-design invitation: the organizer uploads ONE finished
+ * image that already carries every name, date, address and ornament. This
+ * stylesheet has three jobs, and only three:
  *
- *   1. A neutral ground. The uploaded design decides its own palette, so the
- *      page frame must not compete with it — near-white paper, quiet ink, and
- *      no ornament of any kind.
- *   2. A readable pass card. The claim card is FUNCTIONAL UI, not part of the
- *      uploaded art: it keeps the shared shell's surface/ink tokens so it stays
- *      legible whatever colours the design uses, exactly like every other
- *      template.
+ *   1. A PHONE-SHAPED STAGE. The upload contract asks for a portrait design
+ *      (ideal 9:16, the story format — see the mobile editor's validation),
+ *      because an invitation is opened on a phone, held upright. On narrow
+ *      viewports the design therefore renders FULL-BLEED, edge to edge, like
+ *      the story it was exported as — no lateral fill, no frame. On wide
+ *      viewports the same design sits in a centred phone-width stage
+ *      (27rem ≈ a large handset) instead of stretching across a monitor.
+ *   2. A READABLE PASS CARD. The claim card is FUNCTIONAL UI, not part of the
+ *      uploaded art: it gets the same scoped card treatment every wedding
+ *      template gives it — its own surface, border and code pill — so it
+ *      stays legible whatever colours the design uses. The `is-example`
+ *      variant (draft preview) reads as a mockup: dashed frame, same bones —
+ *      exactly the convention `is-demo` established.
+ *   3. A neutral ground. The uploaded design decides its own palette; the
+ *      page frame must not compete with it.
  *
  * THE IMAGE IS NEVER CROPPED. The design renders as an ordinary flowing <img>
- * at the column's width with height following the image's own aspect ratio —
- * there is no fixed-height container and no `object-fit` anywhere in this
- * template, so cropping is impossible by construction. On desktop the shared
- * `.inv-page` column (46–48rem) is the sensible maximum width: a portrait
- * invitation is never stretched edge-to-edge across a monitor.
+ * at the stage's width with height following the image's own aspect ratio —
+ * there is no fixed-height container and no fit-cropping property anywhere in
+ * this template, so cropping is impossible by construction.
  *
  * SCOPE RULE: every rule below is scoped under `.tpl-custom-design`, which
  * main.js puts on <html> and the renderer puts on the invitation element. The
@@ -27,12 +33,12 @@
  * an already-published invitation ships as version 2 with its own directory.
  */
 
-/* CONTRAST (measured against the ground #F7F6F3):
+/* CONTRAST (measured against the ground #F7F6F3 and the card #FFFFFF):
  *   --inv-ink        13.9 : 1
  *   --inv-muted       5.6 : 1   body copy — WCAG AA
  *   --inv-accent-ink  5.9 : 1   buttons, links, control borders
- * The pass card and the controlled states inherit these through the shared
- * shell, so no colour in the uploaded artwork can affect their legibility. */
+ * The pass card and the controlled states inherit these, so no colour in the
+ * uploaded artwork can affect their legibility. */
 :root.tpl-custom-design {
     --inv-bg: #F7F6F3;          /* neutral paper */
     --inv-surface: #FFFFFF;     /* the pass card's own ground */
@@ -48,13 +54,13 @@
 .tpl-custom-design ::selection { background: #E4E2EC; color: var(--inv-ink); }
 
 /* ── The design itself ──────────────────────────────────────────────────────
- * The inner wrapper's 34rem measure exists for TEXT; the uploaded image IS the
- * layout, so it widens to the full page column (46–48rem) while the section
- * keeps the shared horizontal gutter — the one place that gutter lives, per
- * the shell's layout rule. Vertical rhythm tightens: the design is the body of
- * this page, not one section among many. */
+ * PHONE FIRST: full bleed. The portrait contract means the image IS the
+ * screen's shape, so the section drops the shared gutter entirely on narrow
+ * viewports — no side fill, no card chrome, nothing between the design and
+ * the glass. The inner wrapper's 34rem reading measure is for TEXT and is
+ * lifted here. */
 .tpl-custom-design .inv-section--design {
-    padding: 0.75rem var(--inv-gutter) 1.75rem;
+    padding: 0.5rem 0 1.75rem;
 }
 
 .tpl-custom-design .inv-section--design .inv-section__inner {
@@ -64,18 +70,87 @@
 .tpl-custom-design .inv-design__img {
     display: block;
     width: 100%;
-    /* Height follows the image's own aspect ratio. The width/height
+    /* Height follows the image's own aspect ratio; the width/height
      * ATTRIBUTES (written by the editor from the stored object's real pixel
      * size) let the browser reserve the correct box before the bytes arrive,
      * so the pass card above never shifts. */
     height: auto;
-    /* A quiet frame so a design whose ground matches the page still reads as
-     * an object; never a crop, never a mask. */
-    border-radius: 6px;
-    box-shadow: 0 1px 2px rgba(38, 36, 43, 0.08), 0 8px 28px rgba(38, 36, 43, 0.10);
 }
 
-/* THE PASS CARD IS DELIBERATELY UNTOUCHED. `.inv-passes` and `.inv-btn` belong
- * to the shared shell (base.css) on every template — that is what guarantees
- * the claim controls stay readable regardless of the uploaded design's colours
- * — and this template honours the rule like the five wedding designs do. */
+/* WIDE VIEWPORTS: a centred phone-width stage. A 9:16 design across a 46rem
+ * column would tower ~1300px tall; at 27rem it reads exactly like the phone
+ * it was designed for, framed as an object on the neutral ground. */
+@media (min-width: 48rem) {
+    .tpl-custom-design .inv-section--design {
+        padding: 1.25rem var(--inv-gutter) 2.25rem;
+    }
+
+    .tpl-custom-design .inv-section--design .inv-section__inner {
+        max-width: 27rem;
+    }
+
+    .tpl-custom-design .inv-design__img {
+        border-radius: 12px;
+        box-shadow: 0 1px 2px rgba(38, 36, 43, 0.08), 0 10px 32px rgba(38, 36, 43, 0.12);
+    }
+}
+
+/* ── Reclama tus pases ──────────────────────────────────────────────────────
+ * The same scoped card treatment every wedding design gives the claim card,
+ * on this template's neutral palette. Functional UI: whatever the uploaded
+ * artwork looks like, this card sits on its own white surface above it. */
+.tpl-custom-design .inv-passes .inv-section__inner {
+    padding: 1.75rem 1.25rem;
+    border: 1px solid var(--inv-line);
+    border-radius: var(--inv-radius);
+    background: var(--inv-surface);
+    text-align: center;
+}
+
+/* The DRAFT EXAMPLE keeps a sketchy dashed frame — it is a mockup of the
+ * card and should read as one, exactly like the demo explainer does on the
+ * wedding designs. */
+.tpl-custom-design .inv-passes.is-example .inv-section__inner {
+    border-style: dashed;
+    background: rgba(255, 255, 255, 0.72);
+}
+
+.tpl-custom-design .inv-passes__allocation {
+    margin: 0.2rem 0 0.4rem;
+    font-weight: 600;
+    color: var(--inv-ink);
+    font-size: 0.95rem;
+}
+
+.tpl-custom-design .inv-passes__actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.75rem;
+    margin-top: 1rem;
+}
+
+.tpl-custom-design .inv-passes__status {
+    min-height: 1.2em;
+    margin: 0.6rem 0 0;
+    color: var(--inv-muted);
+    font-size: 0.85rem;
+}
+
+.tpl-custom-design .inv-passes__code-value {
+    display: inline-block;
+    margin: 0.25rem 0;
+    padding: 0.35rem 0.9rem;
+    border-radius: 999px;
+    background: var(--inv-bg);
+    border: 1px solid var(--inv-line);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.95rem;
+    letter-spacing: 0.14em;
+}
+
+.tpl-custom-design .inv-passes__note {
+    color: var(--inv-muted);
+    font-size: 0.82rem;
+    font-style: italic;
+}
