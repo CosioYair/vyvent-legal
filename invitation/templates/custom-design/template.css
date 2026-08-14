@@ -63,50 +63,12 @@
 
 .tpl-custom-design ::selection { background: #E4E2EC; color: var(--inv-ink); }
 
-/* ── THE ATMOSPHERE ─────────────────────────────────────────────────────────
- * The uploaded photograph, once more, as the page's backing layer: the flat
- * ground around the shell becomes the invitation's own blurred colour field —
- * the story treatment (.inv-framed__bg's 24px/cover convention) promoted to a
- * fixed viewport layer. Three guarantees:
- *
- *   SUBTLE     heavily blurred, slightly desaturation-checked and dimmed by a
- *              veil, so it reads as tone, never as a second copy of the
- *              artwork. The negative inset hides the blur's edge bleed, the
- *              same trick the framing engine uses via scale().
- *   PROTECTED  the sharp image, the pass module and the shell sit ABOVE it
- *              (z-index −1) and are untouched — the shell's hairline and
- *              shadow keep their definition against any colour the veil
- *              produces.
- *   HARMLESS   position: fixed + a decorative div, not background-attachment
- *              (broken on iOS Safari); `--inv-bg` remains underneath as the
- *              fallback ground if the image ever fails to paint. */
-.tpl-custom-design .inv-design__backdrop {
-    position: fixed;
-    inset: -8%;
-    z-index: -1;
-    background-position: center;
-    background-size: cover;
-    background-repeat: no-repeat;
-    filter: blur(26px) saturate(1.05) brightness(0.9);
-    pointer-events: none;
-}
-
-/* The veil: one quiet dark wash so light artwork cannot glare, dark artwork
- * gains depth, and every foreground element keeps its contrast budget. */
-.tpl-custom-design .inv-design__backdrop::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: rgba(10, 8, 16, 0.45);
-}
-
-/* The page furniture now sits over the dark atmosphere: the footer's muted
- * ink would vanish, so it retunes to the shell's light muted — same wording,
- * same size, readable ground. */
-:root.tpl-custom-design .inv-footer,
-:root.tpl-custom-design .inv-footer a {
-    color: rgba(232, 224, 240, 0.75);
-}
+/* NOTE (2026-08-14 correction): an earlier revision painted this blur as a
+ * FIXED page-level atmosphere. On device that read as a blurred strip above
+ * the invitation — the shell's margin exposed it — while the image, filling
+ * its own width, never had gaps for the blur to fill. The blur now lives
+ * ONLY inside the media stage below; nothing in this template is
+ * position: fixed and no page/body/root surface ever carries the image. */
 
 /* ── THE UNIFIED SHELL ──────────────────────────────────────────────────────
  * The article that already wraps every section becomes the invitation object:
@@ -135,12 +97,57 @@
     max-width: none;
 }
 
+/* THE MEDIA STAGE — the story composition: one viewport at the upload
+ * contract's 9:16 target ratio (designContract.ts / the editor's validation)
+ * holding both representations of the same photograph. A compliant 9:16
+ * upload fills it edge to edge and the backdrop is simply invisible; any
+ * accepted variation (4:5 … 9:21) letterboxes INSIDE the stage and those
+ * gaps show the invitation's own blurred colours — never a flat ground.
+ * `overflow: hidden` is what makes blur escape impossible: the backdrop is
+ * an absolute child clipped by this box, and nothing else on the page ever
+ * carries the image. */
+.tpl-custom-design .inv-design__stage {
+    position: relative;
+    overflow: hidden;
+    aspect-ratio: 9 / 16;
+    background: #0E0B18;   /* paints the frame while the image streams in */
+}
+
+/* The backing layer: same image, cover, blurred. The slight scale hides the
+ * blur's edge bleed inside the stage's own clipping — the exact trick
+ * .inv-framed__bg uses (scale 1.12 / blur 24px); tuned a touch tighter here
+ * because the stage is larger than a framing slot. */
+.tpl-custom-design .inv-design__backdrop {
+    position: absolute;
+    inset: 0;
+    background-position: center;
+    background-size: cover;
+    background-repeat: no-repeat;
+    transform: scale(1.08);
+    filter: blur(22px);
+}
+
+/* A LIGHT wash only — enough that background artwork never competes with the
+ * sharp copy, while the invitation's own palette stays recognisable (the
+ * heavy 0.45 veil of the atmosphere revision is what made everything read
+ * grey). */
+.tpl-custom-design .inv-design__backdrop::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgba(12, 10, 20, 0.18);
+}
+
+/* The invitation itself: sharp, complete, centred. `contain` letterboxes and
+ * NEVER crops — the full artwork is always visible; `cover` is forbidden on
+ * this layer forever (test-pinned). */
 .tpl-custom-design .inv-design__img {
+    position: relative;
+    z-index: 1;
     display: block;
     width: 100%;
-    /* Height follows the image's own aspect ratio; the width/height
-     * attributes reserve the box before the bytes arrive. */
-    height: auto;
+    height: 100%;
+    object-fit: contain;
 }
 
 /* ── The seam: a 2px brand-gradient line between artwork and pass area ────── */

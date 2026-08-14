@@ -420,14 +420,19 @@ describe('CU-D · the full image renders — cropping is impossible by construct
         // not satisfy — or trip — an assertion about executable declarations.
         const css = readFileSync(join(ROOT, 'invitation', 'templates', 'custom-design', 'template.css'), 'utf8')
             .replace(/\/\*[\s\S]*?\*\//g, '');
-        assert.equal(css.includes('object-fit'), false, 'object-fit found in the custom template');
-        assert.match(css, /\.inv-design__img[\s\S]*?height:\s*auto/,
-            'the design img must flow at its own aspect ratio');
-        assert.match(css, /\.inv-design__img[\s\S]*?width:\s*100%/);
-        // No fixed height may ever bound the design's box. (The lookahead sits
-        // directly after the colon so `\s*` cannot backtrack around it.)
-        assert.ok(!/\.inv-design__img[^{]*\{[^}]*[^-]height:(?!\s*auto)/.test(css),
-            'a non-auto height appeared on the design img');
+        // `cover` may exist ONLY as the backdrop's background-size — never as
+        // an object-fit that could crop a rendered image, and above all never
+        // on the sharp invitation.
+        assert.equal(css.includes('object-fit: cover'), false,
+            'object-fit: cover found in the custom template');
+        // The sharp layer is CONTAIN: letterboxed inside the stage, complete,
+        // never cropped, never distorted.
+        const img = css.match(/\.inv-design__img\s*\{([^}]*)\}/);
+        assert.ok(img, 'the design img rule is missing');
+        assert.ok(img[1].includes('object-fit: contain'),
+            'the sharp invitation must be contain');
+        assert.ok(img[1].includes('width: 100%') && img[1].includes('height: 100%'),
+            'the sharp layer must fill the stage box (contain letterboxes inside it)');
         // Button identity may be restyled ONLY inside the pass module (the
         // dark shell makes the base light-surface identity unreadable there,
         // and what replaces it must be the canonical Orbiventt treatment —
@@ -526,48 +531,86 @@ describe('CU-D · the full image renders — cropping is impossible by construct
         assert.equal(img.getAttribute('aria-hidden'), 'true');
     });
 
-    test('the ATMOSPHERE: the same image backs the page, blurred — the sharp image untouched', () => {
+    test('the MEDIA STAGE: blur and sharp image are layers of ONE component', () => {
         for (const route of [
             '?i=abcd1234abcd1234',                                        // published, no code
             '?i=abcd1234abcd1234&code=AAAA2222BBBB',                      // published, code
             '?d=11111111-2222-4333-8444-555555555555&t=tok_tok_tok_tok_16', // draft
         ]) {
             const out = renderCustom(customRaw(), route);
+            const stage = out.node.querySelector('.inv-design__stage');
+            assert.ok(stage, 'media stage missing on ' + route);
             const backdrop = out.node.querySelector('.inv-design__backdrop');
-            assert.ok(backdrop, 'backdrop missing on ' + route);
+            const img = out.node.querySelector('.inv-design__img');
+            assert.ok(backdrop && img);
+
+            // THE GROUPING INVARIANT: both layers are direct children of the
+            // SAME stage — a blur strip outside the media frame is impossible.
+            assert.equal(backdrop.parentNode, stage, 'backdrop must live inside the stage');
+            assert.equal(img.parentNode, stage, 'the sharp image must live inside the stage');
+            assert.equal(stage.children.length, 2, 'the stage holds exactly the two layers');
+
+            // Layer order: backing first, sharp invitation above it.
+            assert.equal(stage.children[0], backdrop);
+            assert.equal(stage.children[1], img);
+
             // Decorative, and carrying EXACTLY the sharp image's resolved URL
-            // — one object, nothing new to fetch, nothing new to authorize.
+            // — one object, browser-cached, nothing new to fetch or authorize.
             assert.equal(backdrop.getAttribute('aria-hidden'), 'true');
-            const sharpSrc = out.node.querySelector('.inv-design__img').getAttribute('src');
-            assert.ok((backdrop.getAttribute('style') || '').includes(sharpSrc),
+            assert.ok((backdrop.getAttribute('style') || '').includes(img.getAttribute('src')),
                 'the backdrop must reuse the sharp image URL');
-            // The backdrop renders BEFORE the sharp image inside the section.
-            const html = serialize(out.node);
-            assert.ok(html.indexOf('inv-design__backdrop') < html.indexOf('inv-design__img'));
+
+            // And the stage itself sits inside the design section, inside the
+            // one shell — never above it, never at page level.
+            const section = out.node.querySelector('.inv-section--design');
+            assert.equal(stage.parentNode.parentNode, section);
         }
     });
 
-    test('the atmosphere stylesheet contract: fixed, behind, blurred, veiled', () => {
+    test('the stage stylesheet contract: clipped, covered, blurred inside — never page-level', () => {
         const css = readFileSync(join(ROOT, 'invitation', 'templates', 'custom-design', 'template.css'), 'utf8')
             .replace(/\/\*[\s\S]*?\*\//g, '');
+
+        // The stage owns geometry and clipping: the contract's 9:16 target
+        // ratio, and `overflow: hidden` so blur escape is impossible.
+        const stage = css.match(/\.inv-design__stage\s*\{([^}]*)\}/);
+        assert.ok(stage, 'stage rule missing');
+        assert.ok(stage[1].includes('position: relative'));
+        assert.ok(stage[1].includes('overflow: hidden'), 'the stage must clip its layers');
+        assert.match(stage[1], /aspect-ratio:\s*9\s*\/\s*16/,
+            'the stage geometry must be the upload contract\'s 9:16 target');
+
+        // The backing layer: absolute INSIDE the stage, cover, blurred, and
+        // slightly enlarged so blur edge-bleed hides under the clipping.
         const backdrop = css.match(/\.inv-design__backdrop\s*\{([^}]*)\}/);
         assert.ok(backdrop, 'backdrop rule missing');
-        assert.ok(backdrop[1].includes('position: fixed'), 'the atmosphere must be a fixed layer');
-        assert.ok(backdrop[1].includes('z-index: -1'), 'the atmosphere must sit behind all content');
-        assert.match(backdrop[1], /filter:[^;]*blur\(/, 'the atmosphere must be blurred');
-        assert.ok(backdrop[1].includes('background-size: cover'),
-            'the atmosphere covers — it is the backing layer, not the invitation');
-        assert.ok(backdrop[1].includes('pointer-events: none'));
-        // The veil, so light artwork cannot glare under the content.
-        assert.match(css, /\.inv-design__backdrop::after\s*\{[^}]*background:\s*rgba\(/,
-            'the veil is missing');
+        assert.ok(backdrop[1].includes('position: absolute'),
+            'the backdrop must be absolute within the stage');
+        assert.ok(backdrop[1].includes('inset: 0'));
+        assert.ok(backdrop[1].includes('background-size: cover'));
+        assert.match(backdrop[1], /filter:[^;]*blur\(/);
+        assert.match(backdrop[1], /transform:\s*scale\(1\.0/,
+            'the slight scale that hides blur edge-bleed is missing');
+
+        // A LIGHT wash only — the palette must survive (the heavy veil is
+        // what made the previous revision read grey).
+        const veil = css.match(/\.inv-design__backdrop::after\s*\{([^}]*)\}/);
+        assert.ok(veil, 'veil rule missing');
+        const alpha = veil[1].match(/rgba\([^)]*,\s*(0?\.\d+)\)/);
+        assert.ok(alpha && Number(alpha[1]) <= 0.25,
+            'the wash must stay light so the invitation\'s colours read through');
+
+        // NEVER PAGE-LEVEL AGAIN: nothing in this template is position:fixed,
+        // and no body/root/page surface carries an image.
+        assert.equal(css.includes('position: fixed'), false,
+            'a fixed layer reappeared — the blur belongs to the stage only');
+        assert.ok(!/body[^{]*\{[^}]*background-image/.test(css),
+            'the page body must never carry the invitation image');
+
         // THE SHARP IMAGE STAYS SHARP: no filter may ever reach it.
         for (const match of css.matchAll(/\.inv-design__img[^{]*\{([^}]*)\}/g)) {
             assert.ok(!match[1].includes('filter'), 'a filter reached the sharp image');
         }
-        // And the crop pin holds: still no object-fit anywhere in the template
-        // (the backdrop covers via background-size, not object-fit).
-        assert.equal(css.includes('object-fit'), false);
     });
 });
 
