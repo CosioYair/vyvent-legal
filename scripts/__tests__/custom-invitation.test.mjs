@@ -525,6 +525,50 @@ describe('CU-D · the full image renders — cropping is impossible by construct
         assert.equal(img.getAttribute('alt'), '');
         assert.equal(img.getAttribute('aria-hidden'), 'true');
     });
+
+    test('the ATMOSPHERE: the same image backs the page, blurred — the sharp image untouched', () => {
+        for (const route of [
+            '?i=abcd1234abcd1234',                                        // published, no code
+            '?i=abcd1234abcd1234&code=AAAA2222BBBB',                      // published, code
+            '?d=11111111-2222-4333-8444-555555555555&t=tok_tok_tok_tok_16', // draft
+        ]) {
+            const out = renderCustom(customRaw(), route);
+            const backdrop = out.node.querySelector('.inv-design__backdrop');
+            assert.ok(backdrop, 'backdrop missing on ' + route);
+            // Decorative, and carrying EXACTLY the sharp image's resolved URL
+            // — one object, nothing new to fetch, nothing new to authorize.
+            assert.equal(backdrop.getAttribute('aria-hidden'), 'true');
+            const sharpSrc = out.node.querySelector('.inv-design__img').getAttribute('src');
+            assert.ok((backdrop.getAttribute('style') || '').includes(sharpSrc),
+                'the backdrop must reuse the sharp image URL');
+            // The backdrop renders BEFORE the sharp image inside the section.
+            const html = serialize(out.node);
+            assert.ok(html.indexOf('inv-design__backdrop') < html.indexOf('inv-design__img'));
+        }
+    });
+
+    test('the atmosphere stylesheet contract: fixed, behind, blurred, veiled', () => {
+        const css = readFileSync(join(ROOT, 'invitation', 'templates', 'custom-design', 'template.css'), 'utf8')
+            .replace(/\/\*[\s\S]*?\*\//g, '');
+        const backdrop = css.match(/\.inv-design__backdrop\s*\{([^}]*)\}/);
+        assert.ok(backdrop, 'backdrop rule missing');
+        assert.ok(backdrop[1].includes('position: fixed'), 'the atmosphere must be a fixed layer');
+        assert.ok(backdrop[1].includes('z-index: -1'), 'the atmosphere must sit behind all content');
+        assert.match(backdrop[1], /filter:[^;]*blur\(/, 'the atmosphere must be blurred');
+        assert.ok(backdrop[1].includes('background-size: cover'),
+            'the atmosphere covers — it is the backing layer, not the invitation');
+        assert.ok(backdrop[1].includes('pointer-events: none'));
+        // The veil, so light artwork cannot glare under the content.
+        assert.match(css, /\.inv-design__backdrop::after\s*\{[^}]*background:\s*rgba\(/,
+            'the veil is missing');
+        // THE SHARP IMAGE STAYS SHARP: no filter may ever reach it.
+        for (const match of css.matchAll(/\.inv-design__img[^{]*\{([^}]*)\}/g)) {
+            assert.ok(!match[1].includes('filter'), 'a filter reached the sharp image');
+        }
+        // And the crop pin holds: still no object-fit anywhere in the template
+        // (the backdrop covers via background-size, not object-fit).
+        assert.equal(css.includes('object-fit'), false);
+    });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

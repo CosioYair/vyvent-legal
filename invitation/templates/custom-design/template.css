@@ -63,6 +63,51 @@
 
 .tpl-custom-design ::selection { background: #E4E2EC; color: var(--inv-ink); }
 
+/* ── THE ATMOSPHERE ─────────────────────────────────────────────────────────
+ * The uploaded photograph, once more, as the page's backing layer: the flat
+ * ground around the shell becomes the invitation's own blurred colour field —
+ * the story treatment (.inv-framed__bg's 24px/cover convention) promoted to a
+ * fixed viewport layer. Three guarantees:
+ *
+ *   SUBTLE     heavily blurred, slightly desaturation-checked and dimmed by a
+ *              veil, so it reads as tone, never as a second copy of the
+ *              artwork. The negative inset hides the blur's edge bleed, the
+ *              same trick the framing engine uses via scale().
+ *   PROTECTED  the sharp image, the pass module and the shell sit ABOVE it
+ *              (z-index −1) and are untouched — the shell's hairline and
+ *              shadow keep their definition against any colour the veil
+ *              produces.
+ *   HARMLESS   position: fixed + a decorative div, not background-attachment
+ *              (broken on iOS Safari); `--inv-bg` remains underneath as the
+ *              fallback ground if the image ever fails to paint. */
+.tpl-custom-design .inv-design__backdrop {
+    position: fixed;
+    inset: -8%;
+    z-index: -1;
+    background-position: center;
+    background-size: cover;
+    background-repeat: no-repeat;
+    filter: blur(26px) saturate(1.05) brightness(0.9);
+    pointer-events: none;
+}
+
+/* The veil: one quiet dark wash so light artwork cannot glare, dark artwork
+ * gains depth, and every foreground element keeps its contrast budget. */
+.tpl-custom-design .inv-design__backdrop::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgba(10, 8, 16, 0.45);
+}
+
+/* The page furniture now sits over the dark atmosphere: the footer's muted
+ * ink would vanish, so it retunes to the shell's light muted — same wording,
+ * same size, readable ground. */
+:root.tpl-custom-design .inv-footer,
+:root.tpl-custom-design .inv-footer a {
+    color: rgba(232, 224, 240, 0.75);
+}
+
 /* ── THE UNIFIED SHELL ──────────────────────────────────────────────────────
  * The article that already wraps every section becomes the invitation object:
  * one width, one radius, one surface, one shadow — for the artwork AND the
