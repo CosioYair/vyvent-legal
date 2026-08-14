@@ -59,7 +59,15 @@
     --tpl-brand-seam: linear-gradient(100deg, #8A18EA 0%, #5A18D4 27%, #3826CE 50%, #2348D6 74%, #1E74E6 100%);
 }
 
-:root.tpl-custom-design body { background: var(--inv-bg); }
+:root.tpl-custom-design body {
+    background: var(--inv-bg);
+    /* The card backdrop below spans the FULL viewport width behind the card
+     * (the calc(50% − 50vw) breakout). The band is sized in viewport units,
+     * so a desktop scrollbar can leave it a few pixels wider than the
+     * layout viewport — this guard swallows that epsilon so the page can
+     * never scroll or pan horizontally. Scoped to this template only. */
+    overflow-x: hidden;
+}
 
 .tpl-custom-design ::selection { background: #E4E2EC; color: var(--inv-ink); }
 
@@ -114,10 +122,20 @@
  *   area by exactly nothing. */
 .tpl-custom-design .inv-design__backdrop {
     position: absolute;
-    inset: -1.25rem;
+    /* A FULL-VIEWPORT-WIDTH BAND behind the card (2026-08-14 outer-shell
+     * fix): the previous 1.25rem halo left the page's light ground visible
+     * beside the card, which read as a white slab under it. The classic
+     * breakout — left/right at calc(50% − 50vw) from the centred card —
+     * takes the backdrop to the screen edges on every device, so the sides
+     * show the invitation's own blurred colours instead of the page ground.
+     * Vertically it still hugs the component (1.25rem bleed), and the blur's
+     * natural edge fade is the soft transition into the neutral page above
+     * and below. */
+    top: -1.25rem;
+    bottom: -1.25rem;
+    left: calc(50% - 50vw);
+    right: calc(50% - 50vw);
     z-index: -1;
-    overflow: hidden;          /* rounds the veil with the shape below */
-    border-radius: 30px;
     background-position: center;
     background-size: cover;
     background-repeat: no-repeat;

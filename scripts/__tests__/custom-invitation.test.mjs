@@ -581,18 +581,29 @@ describe('CU-D · the full image renders — cropping is impossible by construct
         assert.ok(shell[1].includes('position: relative'),
             'the shell must be the backdrop\'s containing block');
 
-        // The backdrop: absolute, bleeding PAST the card (negative inset),
-        // behind it (z-index −1), cover, blurred, inert.
+        // The backdrop: absolute, behind the card (z-index −1), bleeding past
+        // it vertically AND spanning the FULL VIEWPORT WIDTH horizontally —
+        // the calc(50% − 50vw) breakout is what stops the page's light ground
+        // from showing beside the card as a white slab.
         const backdrop = css.match(/\.inv-design__backdrop\s*\{([^}]*)\}/);
         assert.ok(backdrop, 'backdrop rule missing');
         assert.ok(backdrop[1].includes('position: absolute'));
-        assert.match(backdrop[1], /inset:\s*-/,
-            'the aura must bleed past the card — that is what "behind the card" means');
+        assert.match(backdrop[1], /top:\s*-/,
+            'the band must bleed past the card vertically');
+        assert.match(backdrop[1], /left:\s*calc\(50% - 50vw\)/,
+            'the band must reach the viewport\'s left edge');
+        assert.match(backdrop[1], /right:\s*calc\(50% - 50vw\)/,
+            'the band must reach the viewport\'s right edge');
         assert.ok(backdrop[1].includes('z-index: -1'),
             'the backdrop must paint behind the card surface');
         assert.ok(backdrop[1].includes('background-size: cover'));
         assert.match(backdrop[1], /filter:[^;]*blur\(/);
         assert.ok(backdrop[1].includes('pointer-events: none'));
+
+        // The viewport-unit band needs the scoped horizontal-overflow guard,
+        // or a desktop scrollbar's few extra pixels would let the page pan.
+        assert.match(css, /:root\.tpl-custom-design body\s*\{[^}]*overflow-x:\s*hidden/,
+            'the scoped overflow-x guard is missing');
 
         // A LIGHT wash only — the aura carries the invitation's palette.
         const veil = css.match(/\.inv-design__backdrop::after\s*\{([^}]*)\}/);
