@@ -576,10 +576,39 @@ describe('CU-D · the full image renders — cropping is impossible by construct
         assert.equal(/\.inv-design__stage/.test(css), false,
             'stage CSS survived the correction');
 
-        // The SHELL anchors the backdrop: it is the positioned ancestor.
+        // THE LIVE-VISIBILITY INVARIANT (measured on the deployed page):
+        // base.css paints `html` itself, so body's background does NOT
+        // promote to the canvas and covers root-level negative-z layers.
+        // The shell must therefore be a positioned element WITH an explicit
+        // z-index — a stacking context — so it, and the z:−1 backdrop inside
+        // it, paint ABOVE the page ground.
         const shell = css.match(/\.inv-invitation\.tpl-custom-design\s*\{([^}]*)\}/);
         assert.ok(shell[1].includes('position: relative'),
             'the shell must be the backdrop\'s containing block');
+        assert.match(shell[1], /z-index:\s*0/,
+            'without an explicit z-index the body background buries the backdrop');
+        // Inside that context the shell's own border/shadow would paint UNDER
+        // the backdrop — they may not exist on the shell itself.
+        assert.ok(!/[^-]border:\s/.test(shell[1]),
+            'a shell border would be buried under the backdrop — use the ring');
+        assert.ok(!shell[1].includes('box-shadow'),
+            'a shell shadow would be buried under the backdrop');
+
+        // The hairline lives on the overlay ring instead, above the content.
+        const ring = css.match(/\.inv-invitation\.tpl-custom-design::after\s*\{([^}]*)\}/);
+        assert.ok(ring, 'the hairline ring is missing');
+        assert.match(ring[1], /border:\s*1px solid/);
+        assert.match(ring[1], /z-index:\s*1/);
+        assert.ok(ring[1].includes('pointer-events: none'));
+
+        // And the pass module paints its OWN dark surface — the article's
+        // background is under the backdrop now, and light-on-dark pass text
+        // must never sit directly on arbitrary blurred artwork.
+        const passes = css.match(/\.tpl-custom-design \.inv-passes\s*\{([^}]*)\}/);
+        assert.ok(passes[1].includes('background: var(--tpl-shell)'),
+            'the pass module needs its own opaque shell surface');
+        assert.match(passes[1], /border-radius:\s*0 0/,
+            'the pass module rounds the card\'s bottom corners');
 
         // The backdrop: absolute, behind the card (z-index −1), bleeding past
         // it vertically AND spanning the FULL VIEWPORT WIDTH horizontally —
