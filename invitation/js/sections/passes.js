@@ -24,11 +24,12 @@
  *   draft      no CLAIM, ever — the organizer's private rehearsal never offers
  *              one. On the CUSTOM (Personalizada) template only, the draft
  *              renders a clearly-labelled EXAMPLE of the card instead
- *              (`draftExampleCard`): the custom page is passes-then-design and
- *              nothing else, so a preview showing only the image told the
- *              organizer nothing about the layout their guests will actually
- *              open. The example is the real component with a placeholder code
- *              and no controls; wedding drafts keep rendering nothing here.
+ *              (`draftExampleCard`): the custom page is design-then-passes
+ *              inside ONE shell and nothing else, so a preview showing only
+ *              the image told the organizer nothing about the layout their
+ *              guests will actually open. The example is the real component
+ *              with a placeholder code and no controls; wedding drafts keep
+ *              rendering nothing here.
  *
  * The "Abrir Orbiventt" destination arrives PRE-RESOLVED in `ctx.handoff`
  * (main.js → app-return.js). When the resolver produced no usable destination —

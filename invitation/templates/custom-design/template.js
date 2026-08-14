@@ -6,11 +6,15 @@
  * authoritative for every piece of visual invitation information, so this
  * descriptor lists exactly two sections and nothing else:
  *
- *   passes   the existing pass-claim shell section, FIRST. It renders only
- *            when the link actually carries a validated code — the shared
- *            renderer's own rule — so a guest without a pass interaction sees
- *            the design as the first content instead of an empty frame.
- *   design   the uploaded image, rendered whole. See sections/design.js.
+ *   design   the uploaded image, rendered whole, FIRST — the artwork is the
+ *            invitation and leads the composition (FROZEN 2026-08-14,
+ *            superseding the original passes-first order). See
+ *            sections/design.js.
+ *   passes   the existing pass-claim shell section, directly beneath the
+ *            design INSIDE THE SAME SHELL. It renders only when the link
+ *            actually carries a validated code (or as the labelled draft
+ *            example) — the shared renderer's own rule — so a guest without
+ *            a pass interaction sees the framed design and nothing else.
  *
  * NO WEDDING SECTION appears here, which is the entire point: hero, message,
  * ceremony, countdown, gallery, gifts, closing and the interlude slots simply
@@ -53,6 +57,9 @@ export default {
         passesHeading: 'Reclama tus pases',
     },
 
-    /* PASSES FIRST, DESIGN SECOND, NOTHING ELSE — the frozen contract. */
-    sections: ['passes', 'design'],
+    /* DESIGN FIRST, PASSES SECOND, NOTHING ELSE — the frozen content order
+     * (2026-08-14). Both render inside ONE shell: the renderer's own
+     * `article.inv-invitation` is styled as the unified Orbiventt container,
+     * so the artwork and the pass module are one invitation object. */
+    sections: ['design', 'passes'],
 };

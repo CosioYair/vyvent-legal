@@ -89,8 +89,10 @@ describe('CU-A · registry identity', () => {
         assert.equal(CUSTOM_CATEGORY_KEY, 'custom');
     });
 
-    test('PASSES FIRST, DESIGN SECOND is structural — the descriptor lists nothing else', () => {
-        assert.deepEqual(resolveTemplate(CUSTOM_ID).sections, ['passes', 'design']);
+    test('DESIGN FIRST, PASSES SECOND is structural — the descriptor lists nothing else', () => {
+        // FROZEN 2026-08-14: the artwork leads the composition; the pass
+        // module follows it inside the same shell.
+        assert.deepEqual(resolveTemplate(CUSTOM_ID).sections, ['design', 'passes']);
     });
 
     test('near-miss identities fail closed', () => {
@@ -182,13 +184,13 @@ describe('CU-B · normalization is the category’s own', () => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 describe('CU-C · the rendered page: passes first, design second, nothing else', () => {
-    test('with a validated code, the pass card is the FIRST content', () => {
+    test('with a validated code, the DESIGN leads and the pass module follows', () => {
         const out = renderCustom(customRaw(), '?i=abcd1234abcd1234&code=AAAA2222BBBB');
         assert.equal(out.ok, true);
-        assert.deepEqual(sectionsOf(out.node), ['passes', 'design']);
+        assert.deepEqual(sectionsOf(out.node), ['design', 'passes']);
         const html = serialize(out.node);
-        assert.ok(html.indexOf('inv-passes') < html.indexOf('inv-design__img'),
-            'the design rendered before the pass card');
+        assert.ok(html.indexOf('inv-design__img') < html.indexOf('inv-passes'),
+            'the pass module rendered before the design');
     });
 
     test('without a code, no empty pass frame renders — the design is first', () => {
@@ -226,10 +228,10 @@ describe('CU-C · the rendered page: passes first, design second, nothing else',
 describe('CU-C2 · the DRAFT preview shows the pass EXAMPLE — and only there', () => {
     const DRAFT_ROUTE = '?d=11111111-2222-4333-8444-555555555555&t=tok_tok_tok_tok_16';
 
-    test('a custom draft renders the example card first, then the design', () => {
+    test('a custom draft renders the design first, then the example card', () => {
         const out = renderCustom(customRaw(), DRAFT_ROUTE);
         assert.equal(out.ok, true);
-        assert.deepEqual(sectionsOf(out.node), ['passes', 'design']);
+        assert.deepEqual(sectionsOf(out.node), ['design', 'passes']);
         const card = out.node.querySelector('.inv-passes');
         assert.ok((card.getAttribute('class') || '').includes('is-example'),
             'the draft card must be marked as an example');
@@ -303,6 +305,89 @@ describe('CU-C2 · the DRAFT preview shows the pass EXAMPLE — and only there',
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+describe('CU-G · ONE invitation object — the grouping invariant', () => {
+    // DOM order alone is not the contract: the design and the pass module
+    // must be SIBLINGS inside the SAME template-level shell (the renderer's
+    // article), which carries both theme identity and the shell styling. A
+    // future change that renders them into separate wrappers must fail here.
+
+    test('with a code: design and passes are direct children of the ONE shell', () => {
+        const out = renderCustom(customRaw(), '?i=abcd1234abcd1234&code=AAAA2222BBBB');
+        const shell = out.node;
+        const cls = shell.getAttribute('class') || '';
+        assert.ok(cls.includes('inv-invitation') && cls.includes('tpl-custom-design'),
+            'the shell must be the themed inv-invitation article');
+
+        const children = shell.children;
+        assert.equal(children.length, 2, 'the shell must contain exactly two sections');
+        assert.ok((children[0].getAttribute('class') || '').includes('inv-section--design'));
+        assert.ok((children[1].getAttribute('class') || '').includes('inv-passes'));
+
+        const design = shell.querySelector('.inv-section--design');
+        const passes = shell.querySelector('.inv-passes');
+        assert.equal(design.parentNode, shell, 'design must sit directly in the shell');
+        assert.equal(passes.parentNode, shell, 'passes must sit directly in the shell');
+        assert.equal(design.parentNode, passes.parentNode, 'ONE parent, one object');
+    });
+
+    test('without a code: the shell holds the design alone — no spacer, no residue', () => {
+        const out = renderCustom(customRaw(), '?i=abcd1234abcd1234');
+        const shell = out.node;
+        assert.ok((shell.getAttribute('class') || '').includes('tpl-custom-design'));
+        const children = shell.children;
+        assert.equal(children.length, 1, 'exactly the design — nothing else in the shell');
+        assert.ok((children[0].getAttribute('class') || '').includes('inv-section--design'));
+        const html = serialize(shell);
+        assert.equal(html.includes('inv-passes'), false);
+        assert.equal(html.includes('is-example'), false);
+    });
+
+    test('the draft preview groups identically: design then example, one shell', () => {
+        const out = renderCustom(customRaw(), '?d=11111111-2222-4333-8444-555555555555&t=tok_tok_tok_tok_16');
+        const shell = out.node;
+        const children = shell.children;
+        assert.equal(children.length, 2);
+        assert.ok((children[0].getAttribute('class') || '').includes('inv-section--design'));
+        assert.ok((children[1].getAttribute('class') || '').includes('is-example'));
+        assert.equal(children[1].parentNode, shell);
+    });
+
+    test('a WEDDING page is NOT the custom shell — its article keeps its own theme', () => {
+        // The shell styling binds to `.inv-invitation.tpl-custom-design`; a
+        // wedding article carries its own theme class, so no wedding page can
+        // ever pick up the custom container.
+        const template = resolveTemplate('wedding_romantic_v1');
+        const { ok, config } = normalizeConfig({
+            contractVersion: 1,
+            categoryKey: 'wedding',
+            templateKey: 'wedding_romantic',
+            templateVersion: 1,
+            sections: {
+                hero: { partnerA: 'Ana', partnerB: 'Luis', date: '2027-04-17T18:00:00-06:00' },
+                message: { body: 'Los esperamos.' },
+                ceremony: { startsAt: '2027-04-17T18:00:00-06:00', venueName: 'Jardín' },
+            },
+        });
+        assert.equal(ok, true);
+        const out = renderInvitation({
+            template,
+            config,
+            route: parseRoute('?i=abcd1234abcd1234'),
+            document: createDocument(),
+            assetBase: 'https://x/assets/',
+            templateBase: 'https://x/templates/',
+            storageUrl: STORAGE_URL,
+            now: Date.parse('2026-08-14T12:00:00Z'),
+            pageUrl: 'x',
+        });
+        assert.equal(out.ok, true);
+        const cls = out.node.getAttribute('class') || '';
+        assert.ok(cls.includes('tpl-wedding-romantic'));
+        assert.equal(cls.includes('tpl-custom-design'), false);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 describe('CU-D · the full image renders — cropping is impossible by construction', () => {
     test('the design is a plain flowing <img> with intrinsic dimensions', () => {
         const out = renderCustom(customRaw());
@@ -343,59 +428,86 @@ describe('CU-D · the full image renders — cropping is impossible by construct
         // directly after the colon so `\s*` cannot backtrack around it.)
         assert.ok(!/\.inv-design__img[^{]*\{[^}]*[^-]height:(?!\s*auto)/.test(css),
             'a non-auto height appeared on the design img');
-        // Buttons keep the shared shell's IDENTITY everywhere: a scoped rule
-        // may tighten layout (size, padding — the same precedent as the
-        // wedding templates' `.inv-gifts .inv-btn { width }`), but never
-        // restyle what a button IS — colour, surface, shape or border.
-        for (const match of css.matchAll(/\.inv-btn[^{]*\{([^}]*)\}/g)) {
-            const body = match[1];
-            for (const forbidden of ['background', 'color', 'border-radius', 'border:']) {
-                assert.ok(!body.includes(forbidden),
-                    'button identity property overridden: ' + forbidden);
+        // Button identity may be restyled ONLY inside the pass module (the
+        // dark shell makes the base light-surface identity unreadable there,
+        // and what replaces it must be the canonical Orbiventt treatment —
+        // pinned in the identity test below). Anywhere else, a button rule
+        // may tighten layout but never restyle what a button IS.
+        for (const match of css.matchAll(/([^{}]+)\{([^}]*)\}/g)) {
+            const [, selector, body] = match;
+            if (!selector.includes('.inv-btn')) continue;
+            const touchesIdentity = ['background', 'color', 'border-radius', 'border:', 'border-color']
+                .some((p) => body.includes(p));
+            if (touchesIdentity) {
+                assert.ok(selector.includes('.inv-passes'),
+                    'button identity overridden outside the pass module: ' + selector.trim());
             }
         }
     });
 
-    test('the visual contract: full-bleed on phones, a phone-width stage on desktop', () => {
+    test('the UNIFIED SHELL contract: one container owns the composition', () => {
         const css = readFileSync(join(ROOT, 'invitation', 'templates', 'custom-design', 'template.css'), 'utf8')
             .replace(/\/\*[\s\S]*?\*\//g, '');
-        // Base (phone) rules: the design section drops the horizontal gutter
-        // entirely — a portrait design renders edge to edge, no side fill.
-        assert.match(css, /\.inv-section--design\s*\{[^}]*padding:\s*[0-9.]+rem 0 /,
-            'the phone layout must have zero horizontal padding');
-        // Desktop: the stage is phone-shaped, never the full 46rem column.
-        assert.match(css, /@media \(min-width: 48rem\)/);
-        assert.match(css, /max-width:\s*27rem/,
-            'the desktop stage must be phone-width');
+
+        // The renderer's own article IS the shell: one width, one radius, one
+        // surface — and `overflow: hidden` is the only thing that ever touches
+        // the image's corners.
+        const shell = css.match(/\.inv-invitation\.tpl-custom-design\s*\{([^}]*)\}/);
+        assert.ok(shell, 'the article shell rule is missing');
+        assert.ok(shell[1].includes('max-width: 27rem'), 'the shell must be phone-stage width');
+        assert.ok(shell[1].includes('border-radius'), 'the shell owns the primary radius');
+        assert.ok(shell[1].includes('overflow: hidden'), 'the shell must clip its own corners');
+        assert.ok(/margin:[^;]*auto/.test(shell[1]), 'the shell must centre itself');
+        // …and it never touches the viewport edges on phones.
+        assert.ok(/width:\s*calc\(100% - /.test(shell[1]), 'the shell needs side gutters');
+
+        // The sections surrender their geometry to the shell: the image is
+        // flush and the pass area continues on the same surface — no second
+        // card, no own max-width, no page gap between the two.
+        assert.match(css, /\.inv-section--design\s*\{[^}]*padding:\s*0/,
+            'the design section must be flush inside the shell');
+        assert.match(css, /\.inv-section--passes\s*\{[^}]*padding:\s*0/,
+            'the passes section must not re-introduce page padding');
+        assert.ok(!/\.inv-passes \.inv-section__inner[^}]*max-width:\s*2\drem/.test(css),
+            'the pass area must not carry its own card width inside the shell');
+
+        // The seam: a thin brand-gradient line, never a whitespace gap.
+        assert.match(css, /\.tpl-custom-design \.inv-passes\s*\{[^}]*border-image:/,
+            'the image→passes seam must be the brand gradient line');
     });
 
-    test('the pass card gets the same scoped treatment the wedding designs give it', () => {
-        // Every wedding template styles `.tpl-X .inv-passes …` (surface, code
-        // pill, is-demo dashed variant). The custom template follows the SAME
-        // convention on its neutral palette — a bare, unstyled claim card was
-        // exactly the "improvised" look this pass removes.
+    test('the pass module carries the CANONICAL Orbiventt identity, restrained', () => {
         const css = readFileSync(join(ROOT, 'invitation', 'templates', 'custom-design', 'template.css'), 'utf8')
             .replace(/\/\*[\s\S]*?\*\//g, '');
+
         assert.match(css, /\.tpl-custom-design \.inv-passes \.inv-section__inner/);
         assert.match(css, /\.tpl-custom-design \.inv-passes__code-value/);
-        // The draft example reads as a mockup: dashed, like is-demo elsewhere.
-        assert.match(css, /\.tpl-custom-design \.inv-passes\.is-example[\s\S]*?border-style:\s*dashed/);
-
-        // THE ACTION-CHIP CONTRACT (2026-08-14 redesign):
-        // integrated — the chip shares the design's 27rem stage…
-        assert.match(css, /\.inv-passes \.inv-section__inner[^}]*max-width:\s*27rem/,
-            'the chip must share the design stage width');
-        // …compact — the shell's 3.25rem section padding is collapsed…
-        assert.match(css, /\.inv-section--passes[^}]*padding:\s*1\.1rem/,
-            'the passes section must sit tight above the design');
-        // …quiet — eyebrow heading, no decorative rule…
+        // The compact-module contract from the previous pass survives inside
+        // the shell: eyebrow heading, no decorative rule, ≥44px targets.
         assert.match(css, /\.inv-passes \.inv-heading[^}]*letter-spacing/,
-            'the heading must be restyled as an eyebrow');
+            'the heading must stay an eyebrow');
         assert.match(css, /\.inv-passes \.inv-rule[^}]*display:\s*none/,
-            'the decorative rule must be dropped inside the chip');
-        // …and still ACTIONABLE: touch targets never dip below 44px.
+            'the decorative rule must stay dropped');
         assert.match(css, /\.inv-passes \.inv-btn[^}]*min-height:\s*4[4-9]px/,
-            'buttons inside the chip must keep a >=44px touch target');
+            'buttons must keep a >=44px touch target');
+
+        // The primary CTA is the EXISTING premium treatment (404.html
+        // #openApp.btn), identified by its exact canonical gradient stops —
+        // a reused brand asset, never an invented gradient.
+        assert.ok(css.includes('#8A18EA') && css.includes('#3826CE') && css.includes('#1E74E6'),
+            'the canonical purple→blue CTA gradient stops are missing');
+        assert.match(css, /\.inv-passes \.inv-btn--solid\s*\{/,
+            'the solid CTA must be styled inside the pass module');
+        assert.match(css, /\.inv-passes \.inv-btn--ghost\s*\{[^}]*border-color/,
+            'the secondary CTA needs a readable outline on the dark shell');
+        // Focus stays visible on the dark surface.
+        assert.match(css, /\.inv-passes \.inv-btn:focus-visible/,
+            'focus-visible treatment missing inside the pass module');
+
+        // The draft example reads as a mockup: dashed, per the is-demo
+        // convention, translated to the dark surface.
+        assert.match(css, /\.inv-passes\.is-example[\s\S]*?dashed/);
+
         // Everything stays scoped: no bare `.inv-passes` selector that could
         // leak into another template's page.
         for (const line of css.split('\n')) {

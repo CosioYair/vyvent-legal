@@ -1,66 +1,89 @@
 /* TEMPLATE — custom_design, version 1 · "Tu diseño".
  *
- * The bring-your-own-design invitation: the organizer uploads ONE finished
- * image that already carries every name, date, address and ornament. This
- * stylesheet has three jobs, and only three:
+ * ONE INVITATION OBJECT (frozen composition, 2026-08-14). The renderer's own
+ * `article.inv-invitation` — the shared parent every template already has —
+ * is styled here as the UNIFIED ORBIVENTT SHELL: a single dark, quietly
+ * branded container holding
  *
- *   1. A PHONE-SHAPED STAGE. The upload contract asks for a portrait design
- *      (ideal 9:16, the story format — see the mobile editor's validation),
- *      because an invitation is opened on a phone, held upright. On narrow
- *      viewports the design therefore renders FULL-BLEED, edge to edge, like
- *      the story it was exported as — no lateral fill, no frame. On wide
- *      viewports the same design sits in a centred phone-width stage
- *      (27rem ≈ a large handset) instead of stretching across a monitor.
- *   2. A READABLE PASS CARD. The claim card is FUNCTIONAL UI, not part of the
- *      uploaded art: it gets the same scoped card treatment every wedding
- *      template gives it — its own surface, border and code pill — so it
- *      stays legible whatever colours the design uses. The `is-example`
- *      variant (draft preview) reads as a mockup: dashed frame, same bones —
- *      exactly the convention `is-demo` established.
- *   3. A neutral ground. The uploaded design decides its own palette; the
- *      page frame must not compete with it.
+ *      the host's uploaded artwork, FIRST and flush to the shell,
+ *      then the Orbiventt pass module, directly beneath it,
  *
- * THE IMAGE IS NEVER CROPPED. The design renders as an ordinary flowing <img>
- * at the stage's width with height following the image's own aspect ratio —
- * there is no fixed-height container and no fit-cropping property anywhere in
- * this template, so cropping is impossible by construction.
+ * separated only by a thin brand-gradient seam. No second card, no page gap,
+ * no restart: without a code the shell simply ends after the artwork and still
+ * reads as a finished, framed invitation.
  *
- * SCOPE RULE: every rule below is scoped under `.tpl-custom-design`, which
- * main.js puts on <html> and the renderer puts on the invitation element. The
- * only unscoped declarations are the custom-property overrides on `:root`.
+ * TWO VISUAL OWNERS, ONE SYSTEM. The image is the ORGANIZER's identity and
+ * stays unobstructed and dominant; the pass area is ORBIVENTT's functional
+ * identity — the canonical dark tokens and the existing premium "Abrir
+ * Orbiventt" treatment from the event-preview page (404.html), not an
+ * invented look; the shell connects both. Branding is deliberately
+ * restrained: a hairline violet border, a soft glow, one 2px gradient seam.
+ * Nothing competes with the artwork.
  *
- * VERSION LOCK: this stylesheet is version 1. A visual change that would alter
- * an already-published invitation ships as version 2 with its own directory.
+ * THE IMAGE IS NEVER CROPPED. It renders as a flowing <img> at the shell's
+ * width with height following its own aspect ratio; the ONLY clipping is the
+ * shell's rounded corners (`overflow: hidden`), which trims the corner
+ * pixels of the frame — never content, never a fit-crop, no fixed heights.
+ *
+ * BRAND TOKENS (verbatim from the canonical dark surface in 404.html):
+ *   surface #15101F · text #E8E0F0 · muted #9B8FB8 · primary #A855F7
+ *   premium CTA gradient: 100deg #8A18EA → #5A18D4 → #3826CE → #2348D6 → #1E74E6
+ *
+ * CONTRAST (on the shell surface #15101F):
+ *   #E8E0F0 text        ≈ 13.9 : 1
+ *   #9B8FB8 muted       ≈  5.9 : 1   body copy — WCAG AA
+ *   #C4B5FD eyebrow     ≈  9.2 : 1
+ *   #FFFFFF on the CTA gradient ≥ 4.6 : 1 at its lightest stop
+ *
+ * SCOPE RULE: every rule is scoped under `.tpl-custom-design`. The shell
+ * selector is `.inv-invitation.tpl-custom-design` — the ARTICLE, never the
+ * `:root` that carries the same theme class.
+ *
+ * VERSION LOCK: this stylesheet is version 1. A visual change that would
+ * alter an already-published invitation ships as version 2.
  */
-
-/* CONTRAST (measured against the ground #F7F6F3 and the card #FFFFFF):
- *   --inv-ink        13.9 : 1
- *   --inv-muted       5.6 : 1   body copy — WCAG AA
- *   --inv-accent-ink  5.9 : 1   buttons, links, control borders
- * The pass card and the controlled states inherit these, so no colour in the
- * uploaded artwork can affect their legibility. */
 :root.tpl-custom-design {
-    --inv-bg: #F7F6F3;          /* neutral paper */
-    --inv-surface: #FFFFFF;     /* the pass card's own ground */
+    --inv-bg: #F7F6F3;          /* the page ground the shell floats on */
+    --inv-surface: #FFFFFF;
     --inv-ink: #26242B;
     --inv-muted: #5D5A64;
-    --inv-accent: #8F8CA3;      /* decoration only — hairlines */
-    --inv-accent-ink: #4F4A82;  /* text and controls */
+    --inv-accent: #8F8CA3;
+    --inv-accent-ink: #4F4A82;
     --inv-line: rgba(38, 36, 43, 0.14);
+
+    /* The Orbiventt shell's own palette — canonical dark tokens. */
+    --tpl-shell: #15101F;
+    --tpl-shell-text: #E8E0F0;
+    --tpl-shell-muted: #9B8FB8;
+    --tpl-shell-eyebrow: #C4B5FD;
+    --tpl-brand-seam: linear-gradient(100deg, #8A18EA 0%, #5A18D4 27%, #3826CE 50%, #2348D6 74%, #1E74E6 100%);
 }
 
 :root.tpl-custom-design body { background: var(--inv-bg); }
 
 .tpl-custom-design ::selection { background: #E4E2EC; color: var(--inv-ink); }
 
-/* ── The design itself ──────────────────────────────────────────────────────
- * PHONE FIRST: full bleed. The portrait contract means the image IS the
- * screen's shape, so the section drops the shared gutter entirely on narrow
- * viewports — no side fill, no card chrome, nothing between the design and
- * the glass. The inner wrapper's 34rem reading measure is for TEXT and is
- * lifted here. */
+/* ── THE UNIFIED SHELL ──────────────────────────────────────────────────────
+ * The article that already wraps every section becomes the invitation object:
+ * one width, one radius, one surface, one shadow — for the artwork AND the
+ * pass module. `overflow: hidden` is what lets the flush image share the
+ * shell's top corners without any clipping of its own. */
+.inv-invitation.tpl-custom-design {
+    width: calc(100% - 1.75rem);
+    max-width: 27rem;              /* the phone-stage width, on every viewport */
+    margin: 1rem auto 2.25rem;
+    background: var(--tpl-shell);
+    border: 1px solid rgba(168, 85, 247, 0.30);
+    border-radius: 20px;
+    overflow: hidden;
+    box-shadow:
+        0 12px 44px rgba(88, 40, 180, 0.16),
+        0 2px 10px rgba(5, 3, 10, 0.28);
+}
+
+/* ── The design: flush artwork, top of the shell ──────────────────────────── */
 .tpl-custom-design .inv-section--design {
-    padding: 0.5rem 0 1.75rem;
+    padding: 0;
 }
 
 .tpl-custom-design .inv-section--design .inv-section__inner {
@@ -71,80 +94,44 @@
     display: block;
     width: 100%;
     /* Height follows the image's own aspect ratio; the width/height
-     * ATTRIBUTES (written by the editor from the stored object's real pixel
-     * size) let the browser reserve the correct box before the bytes arrive,
-     * so the pass card above never shifts. */
+     * attributes reserve the box before the bytes arrive. */
     height: auto;
 }
 
-/* WIDE VIEWPORTS: a centred phone-width stage. A 9:16 design across a 46rem
- * column would tower ~1300px tall; at 27rem it reads exactly like the phone
- * it was designed for, framed as an object on the neutral ground. */
-@media (min-width: 48rem) {
-    .tpl-custom-design .inv-section--design {
-        padding: 1.25rem var(--inv-gutter) 2.25rem;
-    }
-
-    .tpl-custom-design .inv-section--design .inv-section__inner {
-        max-width: 27rem;
-    }
-
-    .tpl-custom-design .inv-design__img {
-        border-radius: 12px;
-        box-shadow: 0 1px 2px rgba(38, 36, 43, 0.08), 0 10px 32px rgba(38, 36, 43, 0.12);
-    }
+/* ── The seam: a 2px brand-gradient line between artwork and pass area ────── */
+.tpl-custom-design .inv-passes {
+    border-top: 2px solid transparent;
+    border-image: var(--tpl-brand-seam) 1;
 }
 
-/* ── Reclama tus pases — the GUEST ACTION CHIP ──────────────────────────────
- * Not a document card: a compact frosted panel that shares the DESIGN'S OWN
- * STAGE, so chip and artwork read as one composition instead of a white slab
- * above a picture. Three ideas carry the whole treatment:
- *
- *   ALIGNED   the chip's inner column is the same 27rem stage the design
- *             uses on wide viewports, and it sits tight above the image —
- *             the section's 3.25rem shell padding collapses to a whisper.
- *   QUIET     a translucent, blur-backed surface with a soft shadow floats
- *             on the neutral ground rather than stamping a paper card on it;
- *             the heading becomes a letter-spaced EYEBROW (still the h2 —
- *             assistive tech keeps its landmark) and the decorative rule is
- *             dropped.
- *   LOUD WHERE IT COUNTS   the code pill and the solid CTA keep — gain —
- *             relative prominence: everything around them shrank, they did
- *             not. Touch targets stay ≥44px (layout-only tightening; button
- *             identity — shape, colours, behaviour — remains the shell's).
- */
+/* ── Reclama tus pases — Orbiventt's half of the invitation ─────────────────
+ * Continues INSIDE the shell on the shell's own surface: no card of its own,
+ * no second radius, no gap. Compact (the previous pass's footprint kept),
+ * instantly identifiable: eyebrow → allocation → code capsule → CTA row. */
 .tpl-custom-design .inv-section--passes {
-    padding: 1.1rem 1rem 0.4rem;
+    padding: 0;
 }
 
 .tpl-custom-design .inv-passes .inv-section__inner {
-    /* THE SAME STAGE THE DESIGN USES — the alignment is the integration. */
-    max-width: 27rem;
-    padding: 0.95rem 1.1rem 0.85rem;
-    border: 1px solid rgba(38, 36, 43, 0.10);
-    border-radius: 16px;
-    background: rgba(255, 255, 255, 0.78);
-    -webkit-backdrop-filter: blur(12px) saturate(1.15);
-    backdrop-filter: blur(12px) saturate(1.15);
-    box-shadow: 0 4px 18px rgba(38, 36, 43, 0.07);
+    max-width: none;
+    padding: 1rem 1.1rem 1.05rem;
     text-align: center;
 }
 
-/* The h2, visually an eyebrow: small, spaced, in the control colour — reads
- * instantly as "this is the pass area" without shouting over the artwork. */
+/* The h2 as an eyebrow: the access cue, in the brand's light violet. */
 .tpl-custom-design .inv-passes .inv-heading {
     font-family: var(--inv-font-body);
     font-size: 0.72rem;
     font-weight: 700;
-    letter-spacing: 0.16em;
-    color: var(--inv-accent-ink);
+    letter-spacing: 0.18em;
+    color: var(--tpl-shell-eyebrow);
 }
 
 .tpl-custom-design .inv-passes .inv-rule { display: none; }
 
 .tpl-custom-design .inv-passes__body {
     margin: 0.4rem 0 0.1rem;
-    color: var(--inv-muted);
+    color: var(--tpl-shell-muted);
     font-size: 0.82rem;
     line-height: 1.4;
 }
@@ -152,12 +139,11 @@
 .tpl-custom-design .inv-passes__allocation {
     margin: 0.15rem 0 0;
     font-weight: 600;
-    color: var(--inv-ink);
+    color: var(--tpl-shell-text);
     font-size: 0.85rem;
 }
 
-/* The code is the chip's centre of gravity: bigger than everything around
- * it, on the one OPAQUE surface inside the frosted panel. */
+/* The code capsule: the highest-contrast element in the module. */
 .tpl-custom-design .inv-passes__code {
     margin: 0.55rem 0 0;
 }
@@ -166,13 +152,13 @@
     display: inline-block;
     padding: 0.45rem 1.15rem;
     border-radius: 999px;
-    background: var(--inv-surface);
-    border: 1px solid rgba(38, 36, 43, 0.14);
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(168, 85, 247, 0.40);
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     font-size: 1.02rem;
     font-weight: 600;
     letter-spacing: 0.16em;
-    color: var(--inv-ink);
+    color: #FFFFFF;
 }
 
 .tpl-custom-design .inv-passes__actions {
@@ -183,33 +169,62 @@
     margin-top: 0.7rem;
 }
 
-/* Layout-only: tighter buttons that keep the 44px minimum touch target and
- * every identity property (shape, colour, hover) from the shared shell. */
+/* Buttons: compact layout, ≥44px targets. On the dark shell the base
+ * light-surface button identity is unreadable, so the two controls adopt the
+ * CANONICAL Orbiventt treatments — copied, not invented:
+ *   solid  = the premium "Abrir Orbiventt" CTA from the event-preview page
+ *            (404.html #openApp.btn): the purple→blue gradient, glass border,
+ *            restrained glow.
+ *   ghost  = the canonical dark-surface secondary: quiet outline, shell text.
+ * These overrides live ONLY inside `.inv-passes` on this template. */
 .tpl-custom-design .inv-passes .inv-btn {
     min-height: 44px;
     padding: 0.55rem 1.15rem;
     font-size: 0.88rem;
 }
 
+.tpl-custom-design .inv-passes .inv-btn--solid {
+    background: var(--tpl-brand-seam);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    color: #fff;
+    box-shadow:
+        0 6px 20px rgba(84, 60, 232, 0.38),
+        inset 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+
+.tpl-custom-design .inv-passes .inv-btn--ghost {
+    border-color: rgba(232, 224, 240, 0.35);
+    color: var(--tpl-shell-text);
+    background: transparent;
+}
+
+.tpl-custom-design .inv-passes .inv-btn--ghost:hover {
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.tpl-custom-design .inv-passes .inv-btn:focus-visible {
+    outline: 2px solid var(--tpl-shell-eyebrow);
+    outline-offset: 2px;
+}
+
 .tpl-custom-design .inv-passes__status {
     min-height: 1.1em;
     margin: 0.4rem 0 0;
-    color: var(--inv-muted);
+    color: var(--tpl-shell-muted);
     font-size: 0.78rem;
 }
 
 .tpl-custom-design .inv-passes__note {
     margin: 0.35rem 0 0;
-    color: var(--inv-muted);
+    color: var(--tpl-shell-muted);
     font-size: 0.72rem;
     font-style: normal;
     line-height: 1.4;
 }
 
-/* The DRAFT EXAMPLE keeps a sketchy dashed frame — it is a mockup of the
- * chip and should read as one, exactly like the demo explainer does on the
- * wedding designs. */
+/* The DRAFT EXAMPLE reads as a mockup inside the same shell: a dashed inset
+ * outline — the is-demo convention translated to the dark surface. */
 .tpl-custom-design .inv-passes.is-example .inv-section__inner {
-    border-style: dashed;
-    background: rgba(255, 255, 255, 0.6);
+    outline: 1px dashed rgba(196, 181, 253, 0.45);
+    outline-offset: -7px;
 }
