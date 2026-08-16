@@ -211,7 +211,10 @@ describe('CU-C · the rendered page: passes first, design second, nothing else',
         const html = serialize(out.node);
         for (const marker of ['inv-hero', 'inv-message', 'inv-ceremony', 'inv-countdown',
             'inv-gallery', 'inv-gifts', 'inv-dress', 'inv-closing', 'inv-interlude',
-            'inv-actions']) {
+            'inv-actions',
+            // The 2026-08-16 page-wide removal, pinned here too: these labels
+            // no longer exist for ANY category.
+            'Compartir invitación', 'Abrir ubicación']) {
             assert.equal(html.includes(marker), false, marker + ' leaked onto a custom page');
         }
     });

@@ -1425,16 +1425,38 @@ describe('automatic actions', () => {
         assert.equal(icsFileName(''), 'invitacion.ics');
     });
 
-    test('the demo renders a calendar download and a share control', () => {
+    test('the demo renders a calendar download and nothing else in the actions block', () => {
         const { node } = renderDemo();
         const download = node.querySelectorAll('a').find((a) => a.hasAttribute('download'));
         assert.ok(download, 'no calendar download');
         assert.ok(download.getAttribute('href').startsWith('data:text/calendar;charset=utf-8,'));
         assert.equal(download.getAttribute('download'), 'boda-de-valentina-y-mateo.ics');
 
-        const buttons = node.querySelectorAll('button');
-        assert.equal(buttons.length, 1);
-        assert.equal(buttons[0].getAttribute('type'), 'button');
+        // The share control was a <button>; with it removed the invitation
+        // page (outside the pass-claim card) has none.
+        assert.equal(node.querySelectorAll('button').length, 0);
+    });
+
+    test('"Compartir invitación" and "Abrir ubicación" never render, even when their stored flags are on', () => {
+        // 2026-08-16 removal, pinned CENTRALLY: existing documents still carry
+        // `actions.share/map: true`, and the answer must not depend on them.
+        const raw = demoConfig(DEMO_ID);
+        raw.actions = { calendar: true, share: true, map: true };
+        const { node } = renderDemo({ raw });
+        const html = serialize(node);
+
+        assert.ok(!html.includes('Compartir invitación'));
+        assert.ok(!html.includes('Abrir ubicación'));
+        assert.equal(node.querySelectorAll('button').length, 0);
+
+        // No dangling status line either — the block is the download and only
+        // the download, so nothing renders as an empty strip below it.
+        assert.equal(node.querySelectorAll('.inv-actions__status').length, 0);
+
+        // What remains, remains: the calendar download and the place section's
+        // own "Cómo llegar" link were NOT part of the removal.
+        assert.ok(html.includes('Agregar al calendario'));
+        assert.ok(html.includes('Cómo llegar'));
     });
 
     test('an action switched off in the configuration is absent', () => {
