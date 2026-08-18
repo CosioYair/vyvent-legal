@@ -506,6 +506,24 @@ describe('arm() · the guarded fallback', () => {
     assert.deepEqual(b.navigations, [APP_HREF]);
   });
 
+  /* The DEV harness drives `arm()` directly against a deliberately unreachable
+   * target so a physical device can take the not-installed branch without
+   * uninstalling the app. That entry point has to work standalone. */
+  test('the exported arm() runs the same guarded fallback on a hand-built plan', () => {
+    const b = makeBrowser({ userAgent: UA.iphone });
+    const a = makeAnchor();
+    const plan = { strategy: 'ios-scheme-fallback', href: 'vyventabsent://e/x', storeUrl: APPSTORE };
+
+    LINKS.arm(a, plan, { window: b.win, document: b.doc, now: b.now });
+    a.click();
+    assert.deepEqual(b.navigations, ['vyventabsent://e/x']);
+
+    b.advance(FALLBACK_MS);
+    b.runDueTimers();
+    assert.deepEqual(b.navigations, ['vyventabsent://e/x', APPSTORE]);
+    assert.equal(b.listenerCount(), 0);
+  });
+
   test('arming is inert without a control or a usable plan', () => {
     const b = makeBrowser();
     const plan = planFor(b);

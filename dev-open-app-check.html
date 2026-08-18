@@ -83,6 +83,17 @@
         </div>
 
         <div class="card">
+            <div class="k" style="margin-bottom:.6rem">App ausente (simulada)</div>
+            <p class="sub" style="margin:0 0 .75rem">
+                Mismo mecanismo, apuntando a un destino que ningún dispositivo puede
+                resolver. Prueba la rama “no instalada” sin desinstalar nada.
+            </p>
+            <a class="btn" id="openAbsent" href="#" style="background:linear-gradient(135deg,#ff9d3b,#ff5c7a)">Abrir Orbiventt (ausente)</a>
+            <div class="k" style="margin-top:.75rem">Destino</div>
+            <div class="v" id="absentTarget">—</div>
+        </div>
+
+        <div class="card">
             <div class="k" style="margin-bottom:.5rem">Eventos del navegador</div>
             <ul id="log"></ul>
         </div>
@@ -143,6 +154,45 @@
         var anchor = el('openApp');
         anchor.setAttribute('href', plan.href);
         plan.arm(anchor);
+
+        /* ── The "app absent" rehearsal ──────────────────────────────────────
+         * Uninstalling Orbiventt to test the fallback is slow, and on a phone
+         * that is signed in it is destructive. This control runs the SAME
+         * module code against a target the device provably cannot resolve — an
+         * Android package that does not exist, or a scheme nothing registers —
+         * so the browser takes the not-installed branch for real:
+         *
+         *   Android  Chrome finds no such package → navigates to
+         *            `S.browser_fallback_url` → Google Play. Proves the intent
+         *            fallback end to end.
+         *   iOS      nothing answers the scheme → `arm()`'s timer survives its
+         *            guards → App Store. Proves the lifecycle path, which is
+         *            the only part of iOS that is ours to get wrong.
+         *
+         * The store URLs are the module's own, so this cannot pass against a
+         * listing the real button does not use. */
+        var absentPlan = plan.strategy === 'android-intent'
+            ? {
+                strategy: 'android-intent',
+                storeUrl: plan.storeUrl,
+                href: plan.href.replace(
+                    ';package=' + LINKS.ANDROID_PACKAGE + ';',
+                    ';package=' + LINKS.ANDROID_PACKAGE + '.absent;'
+                )
+            }
+            : {
+                strategy: 'ios-scheme-fallback',
+                storeUrl: plan.storeUrl,
+                href: HANDOFF.href.replace(/^vyvent:/, 'vyventabsent:')
+            };
+
+        var absent = el('openAbsent');
+        el('absentTarget').textContent = absentPlan.href;
+        absent.setAttribute('href', absentPlan.href);
+        LINKS.arm(absent, absentPlan, { window: window, document: document });
+        absent.addEventListener('click', function () {
+            note('click (ausente) → se espera la tienda: ' + absentPlan.storeUrl);
+        });
 
         // Observation only — these listeners are additional to the module's own
         // and never cancel anything. They are what turns "it did something" into

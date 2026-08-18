@@ -337,6 +337,11 @@
         isMobilePlatform: isMobilePlatform,
         androidIntentUrl: androidIntentUrl,
         smartOpen: smartOpen,
+        // Exposed for the DEV validation harness, which drives the REAL
+        // lifecycle against a deliberately unreachable target so a physical
+        // device can prove the not-installed branch without uninstalling the
+        // app. Page code should use `smartOpen(...).arm(anchor)` instead.
+        arm: arm,
     };
 
     // Browser: a global, loaded as a classic script before the page's logic.
