@@ -390,18 +390,68 @@ describe('arm() · the guarded fallback', () => {
     assert.deepEqual(b.navigations, [APP_HREF], 'returning from the app opened the store');
   });
 
-  test('`pagehide` and `blur` each cancel on their own', () => {
-    for (const [target, type] of [['window', 'pagehide'], ['window', 'blur']]) {
-      const b = makeBrowser({ userAgent: UA.iphone });
-      const a = makeAnchor();
-      planFor(b).arm(a);
-      a.click();
-      b.fire(target, type);
-      assert.equal(b.pendingTimers(), 0, `${type} did not cancel the fallback`);
-      b.advance(FALLBACK_MS * 4);
-      b.runDueTimers();
-      assert.deepEqual(b.navigations, [APP_HREF], `${type} still let the store through`);
-    }
+  test('`pagehide` cancels on its own — it means the page really went away', () => {
+    const b = makeBrowser({ userAgent: UA.iphone });
+    const a = makeAnchor();
+    planFor(b).arm(a);
+    a.click();
+    b.fire('window', 'pagehide');
+    assert.equal(b.pendingTimers(), 0, 'pagehide did not cancel the fallback');
+    b.advance(FALLBACK_MS * 4);
+    b.runDueTimers();
+    assert.deepEqual(b.navigations, [APP_HREF], 'pagehide still let the store through');
+  });
+
+  /* ── THE 2026-08-18 PRODUCTION INCIDENT ─────────────────────────────────────
+   * Reported from a real iPhone, in a Safari session that had never visited the
+   * site — so not a cache artefact. Tap → Safari answers "la dirección no es
+   * válida" → dismiss → nothing. The guest was stranded.
+   *
+   * Losing keyboard focus is NOT leaving. Safari blurs the page to present its
+   * own native UI, and the invalid-address alert is exactly that. The old code
+   * read that blur as "Orbiventt opened" and cancelled the fallback at the one
+   * moment it was needed. */
+  test('plain `blur` is NOT proof the app opened — the fallback survives it', () => {
+    const b = makeBrowser({ userAgent: UA.iphone });
+    const a = makeAnchor();
+    planFor(b).arm(a);
+
+    a.click();
+    b.fire('window', 'blur');                     // Safari's native alert takes focus
+
+    assert.equal(b.pendingTimers(), 1, 'blur cancelled the fallback — the incident');
+    b.advance(FALLBACK_MS);
+    b.runDueTimers();
+    assert.deepEqual(b.navigations, [APP_HREF, APPSTORE],
+      'a blurred page never reached the App Store');
+  });
+
+  test('`visibilitychange` with hidden cancels — that IS departure', () => {
+    const b = makeBrowser({ userAgent: UA.iphone });
+    const a = makeAnchor();
+    planFor(b).arm(a);
+    a.click();
+    b.doc.hidden = true;
+    b.fire('document', 'visibilitychange');
+    assert.equal(b.pendingTimers(), 0);
+    b.advance(FALLBACK_MS * 4);
+    b.runDueTimers();
+    assert.deepEqual(b.navigations, [APP_HREF]);
+  });
+
+  /* A visible page whose visibility never changed did not lose the foreground,
+   * so `visibilitychange` alone must not cancel anything. */
+  test('a visibilitychange that reports VISIBLE leaves the fallback armed', () => {
+    const b = makeBrowser({ userAgent: UA.iphone });
+    const a = makeAnchor();
+    planFor(b).arm(a);
+    a.click();
+    b.doc.hidden = false;
+    b.fire('document', 'visibilitychange');
+    assert.equal(b.pendingTimers(), 1);
+    b.advance(FALLBACK_MS);
+    b.runDueTimers();
+    assert.deepEqual(b.navigations, [APP_HREF, APPSTORE]);
   });
 
   test('a timer that fires while hidden cancels — the visit is happening in the app', () => {
@@ -416,21 +466,63 @@ describe('arm() · the guarded fallback', () => {
     assert.deepEqual(b.navigations, [APP_HREF]);
   });
 
-  /* THE ONE A NAIVE TIMER GETS WRONG. The tab is suspended while the app is
-   * open, so the callback can run minutes late, with the page visible again,
-   * describing a launch that actually succeeded. Wall-clock is the only witness
-   * left by then. */
-  test('a timer suspended with the tab and fired late cancels, even if nothing else did', () => {
+  /* THE SECOND HALF OF THE SAME INCIDENT, and it would have survived a
+   * blur-only fix. A native alert blocks the run loop, so the timer cannot fire
+   * until the guest dismisses it — which can take as long as they like. The old
+   * code cancelled on wall-clock lateness, reading a slow dismissal as a
+   * returning visitor. Lateness is not evidence; DEPARTURE is. */
+  test('a fallback delayed by a blocked run loop still runs when execution resumes', () => {
+    for (const delay of [FALLBACK_MS + 1, 5_000, 60_000]) {
+      const b = makeBrowser({ userAgent: UA.iphone });
+      const a = makeAnchor();
+      planFor(b).arm(a);
+      a.click();
+
+      b.advance(delay);          // JS could not run; the page never went away
+      b.runDueTimers();
+
+      assert.deepEqual(b.navigations, [APP_HREF, APPSTORE],
+        `a ${delay}ms-late timer stranded the guest`);
+    }
+  });
+
+  /* The mirror image, and the property the wall-clock guard used to protect:
+   * once the page has actually departed, no amount of later execution may open
+   * a store behind the app. `everHidden` carries that across the gap. */
+  test('once the page has departed, a later timer can never open the store', () => {
     const b = makeBrowser({ userAgent: UA.iphone });
     const a = makeAnchor();
     planFor(b).arm(a);
     a.click();
 
-    b.advance(FALLBACK_MS + SUSPEND_SLACK_MS + 1);   // gone, then back
+    b.doc.hidden = true;
+    b.fire('document', 'visibilitychange');   // Orbiventt opened
+    b.advance(120_000);
+    b.doc.hidden = false;                     // the guest comes back much later
+    b.fire('document', 'visibilitychange');
     b.runDueTimers();
 
-    assert.deepEqual(b.navigations, [APP_HREF], 'a late timer sent a returning guest to the store');
+    assert.deepEqual(b.navigations, [APP_HREF], 'the store opened behind a working app');
+    assert.equal(b.pendingTimers(), 0);
     assert.equal(b.listenerCount(), 0);
+  });
+
+  test('a timer that fires while hidden cancels — the visit is happening in the app', () => {
+    const b = makeBrowser({ userAgent: UA.iphone });
+    const a = makeAnchor();
+    planFor(b).arm(a);
+    a.click();
+    // The page went away WITHOUT any event this browser chose to deliver.
+    b.doc.hidden = true;
+    b.advance(FALLBACK_MS);
+    b.runDueTimers();
+    assert.deepEqual(b.navigations, [APP_HREF]);
+  });
+
+  /* The retired wall-clock slack. Kept as an explicit assertion so nobody
+   * reintroduces a timing proxy for departure. */
+  test('there is no wall-clock slack left — lateness alone decides nothing', () => {
+    assert.equal(SUSPEND_SLACK_MS, 0);
   });
 
   test('a browser that refuses the scheme outright reaches the store immediately', () => {
@@ -464,7 +556,8 @@ describe('arm() · the guarded fallback', () => {
 
     assert.equal(a.handlerCount(), 1, 'more than one click handler was attached');
     assert.equal(b.pendingTimers(), 1, 'a repeated tap created a second timer');
-    assert.equal(b.listenerCount(), 3, 'a repeated tap duplicated the lifecycle listeners');
+    // Exactly the two DEPARTURE listeners — visibilitychange and pagehide.
+    assert.equal(b.listenerCount(), 2, 'a repeated tap duplicated the lifecycle listeners');
     assert.deepEqual(b.navigations, [APP_HREF], 'a repeated tap navigated twice');
     assert.equal(a.preventedCount(), 3, 'every tap must be handled here, not by the browser');
 
@@ -534,9 +627,71 @@ describe('arm() · the guarded fallback', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Android and desktop must come through the iOS fix untouched
+// ─────────────────────────────────────────────────────────────────────────────
+describe('the 2026-08-18 iOS fix changes nothing for Android or desktop', () => {
+  test('Android still gets the intent URL, package and Play fallback', () => {
+    const b = makeBrowser({ userAgent: UA.android });
+    const plan = planFor(b);
+    assert.equal(plan.strategy, 'android-intent');
+    assert.equal(plan.href, androidIntentUrl(APP_HREF, PLAY));
+    assert.ok(plan.href.includes(';package=com.vyvent.mobile;'));
+    assert.ok(plan.href.includes(';scheme=vyvent;'));
+    assert.ok(plan.href.includes('S.browser_fallback_url='));
+    assert.equal(plan.storeUrl, PLAY);
+  });
+
+  /* Android's real fallback is the browser's, not ours. Our timer is only a
+   * safety net for a WebView that ignores intent:// — and it must behave the
+   * same way iOS now does: departure cancels, lateness does not. */
+  test('Android · the safety-net timer follows the same departure rule', () => {
+    const b = makeBrowser({ userAgent: UA.android });
+    const a = makeAnchor();
+    planFor(b).arm(a);
+    a.click();
+    b.fire('window', 'blur');                    // must NOT cancel
+    b.advance(FALLBACK_MS);
+    b.runDueTimers();
+    assert.deepEqual(b.navigations, [androidIntentUrl(APP_HREF, PLAY), PLAY]);
+
+    const c = makeBrowser({ userAgent: UA.android });
+    const d = makeAnchor();
+    planFor(c).arm(d);
+    d.click();
+    c.doc.hidden = true;
+    c.fire('document', 'visibilitychange');      // must cancel
+    c.advance(FALLBACK_MS * 4);
+    c.runDueTimers();
+    assert.deepEqual(c.navigations, [androidIntentUrl(APP_HREF, PLAY)]);
+  });
+
+  test('desktop still arms nothing and still points straight at a store', () => {
+    for (const [ua, store] of [[UA.windows, PLAY], [UA.mac, APPSTORE]]) {
+      const b = makeBrowser({ userAgent: ua });
+      const a = makeAnchor();
+      const plan = planFor(b);
+      plan.arm(a);
+      assert.equal(plan.strategy, 'store-direct');
+      assert.equal(plan.href, store);
+      assert.equal(a.handlerCount(), 0);
+      assert.equal(b.listenerCount(), 0);
+      assert.equal(b.pendingTimers(), 0);
+    }
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Privacy — the code goes to the app, and nowhere else
 // ─────────────────────────────────────────────────────────────────────────────
 describe('the invitation code never leaks', () => {
+  test('the app deep link keeps the code on every mobile platform', () => {
+    for (const ua of [UA.iphone, UA.android]) {
+      const plan = planFor(makeBrowser({ userAgent: ua }));
+      assert.ok(plan.href.includes(`code=${CODE}`), `${ua}: the deep link lost the code`);
+      assert.ok(plan.href.includes(EVENT_ID), `${ua}: the deep link lost the destination`);
+    }
+  });
+
   test('no store navigation on any platform ever carries the code', () => {
     for (const ua of [UA.iphone, UA.android, UA.windows, UA.mac]) {
       const b = makeBrowser({ userAgent: ua });
@@ -545,6 +700,8 @@ describe('the invitation code never leaks', () => {
       plan.arm(a);
       if (plan.strategy !== 'store-direct') {
         a.click();
+        // Drive the failing-scheme path all the way to the store.
+        b.fire('window', 'blur');
         b.advance(FALLBACK_MS);
         b.runDueTimers();
       }

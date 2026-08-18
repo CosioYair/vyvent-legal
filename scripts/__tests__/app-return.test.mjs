@@ -285,7 +285,7 @@ describe('404.html routes every app handoff through the resolver', () => {
     .replace(/\/\*[\s\S]*?\*\//g, '');
 
   test('loads app-return.js', () => {
-    assert.ok(page.includes('<script src="app-return.js"></script>'));
+    assert.match(page, /<script src="app-return\.js(\?v=[0-9a-z.-]+)?"><\/script>/);
   });
 
   test('builds no app-scheme link of its own', () => {
