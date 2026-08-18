@@ -228,7 +228,7 @@ describe('3 + 16 + 17 · demo mode has no backend', () => {
             const code = codeOnly(source);
             for (const m of code.matchAll(/\bimport\s*\(([^)]*)\)/g)) {
                 const specifier = m[1].trim();
-                assert.match(specifier, /^'\.\/[a-z-]+\.js'$/,
+                assert.match(specifier, /^'\.\/[a-z-]+\.js(\?v=[0-9a-z.-]+)?'$/,
                     `${rel} has a non-literal dynamic import: ${specifier}`);
             }
         }
@@ -516,7 +516,7 @@ describe('no real invitation can inherit demonstration content', () => {
         assert.ok(!/^\s*import\s[^\n]*demo-data/m.test(code),
             'main.js statically imports demo-data.js');
         // It is reached exactly once, through a literal dynamic import.
-        const dynamic = [...code.matchAll(/import\s*\(\s*'\.\/demo-data\.js'\s*\)/g)];
+        const dynamic = [...code.matchAll(/import\s*\(\s*'\.\/demo-data\.js(\?v=[0-9a-z.-]+)?'\s*\)/g)];
         assert.equal(dynamic.length, 1, 'expected exactly one dynamic demo-data import');
     });
 
@@ -1263,9 +1263,9 @@ describe('13 + 14 · the same bytes work under both deployment roots', () => {
 
     test('the page resolves its own relative URLs through the single <base> tag', () => {
         assert.ok(INDEX_HTML.includes('<base href="/vyvent-legal/">'));
-        assert.ok(INDEX_HTML.includes('src="invitation/js/main.js"'));
-        assert.ok(INDEX_HTML.includes('href="invitation/css/base.css"'));
-        assert.ok(INDEX_HTML.includes('<script src="env.js"></script>'));
+        assert.match(INDEX_HTML, /src="invitation\/js\/main\.js(\?v=[0-9a-z.-]+)?"/);
+        assert.match(INDEX_HTML, /href="invitation\/css\/base\.css(\?v=[0-9a-z.-]+)?"/);
+        assert.match(INDEX_HTML, /<script src="env\.js(\?v=[0-9a-z.-]+)?"><\/script>/);
     });
 });
 
@@ -2620,7 +2620,7 @@ describe('the app handoff plumbing', () => {
     });
 
     test('the page loads the shared resolver before the module bootstrap', () => {
-        assert.ok(INDEX_HTML.includes('<script src="app-return.js"></script>'));
+        assert.match(INDEX_HTML, /<script src="app-return\.js(\?v=[0-9a-z.-]+)?"><\/script>/);
         assert.ok(
             INDEX_HTML.indexOf('app-return.js') < INDEX_HTML.indexOf('invitation/js/main.js'),
             'app-return.js must load before main.js',
@@ -2647,7 +2647,9 @@ describe('the app handoff plumbing', () => {
     });
 
     test('the page loads the shared app-links module before the module bootstrap', () => {
-        assert.ok(INDEX_HTML.includes('<script src="app-store-links.js"></script>'));
+        // The `?v=` cache key is expected but not mandated: the tag may carry
+        // one or not, and bumping it must never break this assertion.
+        assert.match(INDEX_HTML, /<script src="app-store-links\.js(\?v=[0-9A-Za-z._-]+)?"><\/script>/);
         assert.ok(
             INDEX_HTML.indexOf('app-store-links.js') < INDEX_HTML.indexOf('invitation/js/main.js'),
             'app-store-links.js must load before main.js',
@@ -4577,14 +4579,16 @@ describe('a document is only ever themed once', () => {
         // template is chosen. The demo branch resolves inline; the two stored
         // branches hand the very same function to `resolve.js`, which is what
         // makes "an unknown id fails closed" one rule rather than three.
-        assert.match(CODE, /import \{ resolveTemplate \} from '\.\/registry\.js'/);
+        assert.match(CODE, /import \{ resolveTemplate \} from '\.\/registry\.js(\?v=[0-9a-z.-]+)?'/);
         assert.match(CODE, /const template = resolveTemplate\(route\.demoId\)/);
         assert.match(CODE, /^\s*resolveTemplate,$/m);       // injected, not re-implemented
         const resolveJs = codeOnly(readFileSync(join(INVITATION, 'js', 'resolve.js'), 'utf8'));
         assert.match(resolveJs, /deps\.resolveTemplate\(/);
         // …and resolve.js must not reach for the registry itself, or the
-        // injection would be decorative and the two could drift.
-        assert.ok(!resolveJs.includes("from './registry.js'"));
+        // injection would be decorative and the two could drift. Matched on
+        // the specifier PREFIX, so the WEB_BUILD cache key cannot smuggle the
+        // import past this guard.
+        assert.ok(!/from\s*'\.\/registry\.js/.test(resolveJs));
         assert.ok(!/import\(\s*[^'"]/.test(CODE), 'main.js builds a dynamic import specifier');
         assert.ok(!CODE.includes('templates/' + '${'), 'main.js concatenates a template path');
     });
