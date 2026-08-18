@@ -2335,6 +2335,7 @@ describe('the pass-claim card (published)', () => {
             navigator: over.navigator,
             pageUrl: 'https://cosioyair.github.io/vyvent-legal/invitation/?i=q7m2k9x4pt3wz8ab',
             handoff: 'handoff' in over ? over.handoff : HANDOFF,
+            smartOpen: 'smartOpen' in over ? over.smartOpen : null,
         });
         return { ...result, document };
     }
@@ -2378,6 +2379,64 @@ describe('the pass-claim card (published)', () => {
         const open = node.querySelectorAll('a').find((a) => /Abrir Orbiventt/.test(a.textContent));
         assert.ok(open, 'no open control');
         assert.equal(open.getAttribute('href'), HANDOFF.href);
+    });
+
+    /* ── The smart CTA ──────────────────────────────────────────────────────
+     * ONE button owns both outcomes. What changes between an installed and an
+     * absent Orbiventt is the href the plan supplies — never the number of
+     * controls on the card, and never the copy. */
+    test('the smart plan supplies the href, and the CTA stays a single button', () => {
+        const intent = 'intent://e/91000001-0000-4000-8000-000000000001?code=' + CODE
+            + '#Intent;scheme=vyvent;package=com.vyvent.mobile'
+            + ';S.browser_fallback_url=https%3A%2F%2Fplay.google.com%2Fstore%2Fapps%2Fdetails%3Fid%3Dcom.vyvent.mobile;end';
+        const out = renderPublished({
+            smartOpen: { strategy: 'android-intent', href: intent, storeUrl: 'https://play.google.com/x', platform: 'android', arm: () => () => {} },
+        });
+        const node = passesNode(out);
+        const links = node.querySelectorAll('a');
+        assert.equal(links.length, 1, 'a second download control appeared on the card');
+        assert.equal(links[0].getAttribute('href'), intent);
+        assert.match(links[0].textContent, /Abrir Orbiventt/);
+        // The label is untouched, and no "Descargar" wording was introduced.
+        assert.ok(!/Descargar/i.test(node.textContent), 'the card grew download copy');
+        assert.ok(!/App Store|Google Play/i.test(node.textContent));
+    });
+
+    test('the plan is armed exactly once, on the control that was rendered', () => {
+        const armed = [];
+        const out = renderPublished({
+            smartOpen: {
+                strategy: 'ios-scheme-fallback',
+                href: HANDOFF.href,
+                storeUrl: 'https://apps.apple.com/app/id6788249586',
+                platform: 'ios',
+                arm: (anchor) => { armed.push(anchor); return () => {}; },
+            },
+        });
+        const node = passesNode(out);
+        const open = node.querySelectorAll('a').find((a) => /Abrir Orbiventt/.test(a.textContent));
+        assert.equal(armed.length, 1, 'the fallback was armed ' + armed.length + ' times');
+        assert.equal(armed[0], open, 'the fallback was armed on the wrong element');
+    });
+
+    /* The DEV mirror's Expo Go handoff produces no plan (app-store-links.js
+     * returns null for it), and a null plan must leave the card byte-identical
+     * to what shipped before the smart CTA existed. */
+    test('with no plan the CTA is exactly the pre-resolved handoff href, as before', () => {
+        const withPlan = renderPublished({ smartOpen: null });
+        const node = passesNode(withPlan);
+        const open = node.querySelectorAll('a').find((a) => /Abrir Orbiventt/.test(a.textContent));
+        assert.equal(open.getAttribute('href'), HANDOFF.href);
+    });
+
+    test('a plan can never resurrect a button the handoff refused', () => {
+        const out = renderPublished({
+            handoff: { open: false, href: null, source: 'none', reason: 'expo-go-required' },
+            smartOpen: { strategy: 'store-direct', href: 'https://play.google.com/x', storeUrl: 'https://play.google.com/x', platform: 'desktop', arm: () => () => {} },
+        });
+        const node = passesNode(out);
+        assert.ok(node, 'the card vanished');
+        assert.equal(node.querySelectorAll('a').length, 0, 'a closed handoff still rendered a control');
     });
 
     test('without a usable handoff there is no automatic button, and the card survives', () => {
@@ -2565,6 +2624,33 @@ describe('the app handoff plumbing', () => {
         assert.ok(
             INDEX_HTML.indexOf('app-return.js') < INDEX_HTML.indexOf('invitation/js/main.js'),
             'app-return.js must load before main.js',
+        );
+    });
+
+    /* ── The smart CTA's wiring ─────────────────────────────────────────────
+     * The store listings have exactly one declaration on this site. The
+     * invitation tree must reach them only through the shared module, the same
+     * discipline the app handoff already follows. */
+    test('main.js resolves the open-or-install plan through the shared module', () => {
+        const code = codeOnly(readFileSync(join(INVITATION, 'js', 'main.js'), 'utf8'));
+        assert.ok(code.includes('__ORB_APP_LINKS__'), 'main.js does not use the shared app-links module');
+        assert.ok(code.includes('smartOpen'), 'main.js does not ask for a smart-open plan');
+    });
+
+    test('no module in the invitation tree hard-codes a store URL or an intent URL', () => {
+        for (const { rel, source } of moduleSources()) {
+            const code = codeOnly(source);
+            for (const needle of ['play.google.com', 'apps.apple.com', 'itms-apps', 'intent://', 'com.vyvent.mobile']) {
+                assert.ok(!code.includes(needle), `${rel} hard-codes ${needle}`);
+            }
+        }
+    });
+
+    test('the page loads the shared app-links module before the module bootstrap', () => {
+        assert.ok(INDEX_HTML.includes('<script src="app-store-links.js"></script>'));
+        assert.ok(
+            INDEX_HTML.indexOf('app-store-links.js') < INDEX_HTML.indexOf('invitation/js/main.js'),
+            'app-store-links.js must load before main.js',
         );
     });
 
