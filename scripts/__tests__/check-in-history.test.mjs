@@ -234,6 +234,89 @@ describe('history boundary', () => {
     });
 });
 
+/* ── 3 · success confirmation dwell + timer safety ─────────────────────────── */
+
+describe('success confirmation', () => {
+    test('CHECKED_IN dwells ~3 s — never the old ~1.4 s', () => {
+        const v = ui.describeResult({ status: 'CHECKED_IN', occupant_label: 'Ana' });
+        assert.ok(v.autoDismissMs > 1500);
+        assert.ok(v.autoDismissMs >= 2500 && v.autoDismissMs <= 3500);
+        assert.equal(ui.SUCCESS_DISMISS_MS, 3000);
+    });
+
+    test('Continuar is offered on success for immediate dismissal', () => {
+        // render() hides Continue only for OFFLINE; success keeps it visible,
+        // and the button is wired straight to dismissResult.
+        const render = /function render\(result\)[\s\S]*?\n\}/.exec(MAIN_CODE)[0];
+        assert.match(render, /continueBtn'\)\.hidden = offline/);
+        assert.match(MAIN_CODE, /continueBtn'\)\.addEventListener\('click', dismissResult\)/);
+    });
+
+    test('the auto-return timer is TRACKED, and dismissal cancels it', () => {
+        const render = /function render\(result\)[\s\S]*?\n\}/.exec(MAIN_CODE)[0];
+        assert.match(render, /state\.resultTimer = setTimeout\(dismissResult/);
+        // No untracked result timer may exist anywhere.
+        assert.equal(/(?<!state\.resultTimer = )setTimeout\(dismissResult/.test(MAIN_CODE), false,
+            'an untracked dismiss timer exists');
+        const dismiss = /function dismissResult\(\)[\s\S]*?\n\}/.exec(MAIN_CODE)[0];
+        assert.match(dismiss, /clearResultTimer\(\)/);
+    });
+
+    test('dismissResult is idempotent — double Continuar and a late timer are no-ops', () => {
+        const dismiss = /function dismissResult\(\)[\s\S]*?\n\}/.exec(MAIN_CODE)[0];
+        // The guard: once the card is hidden, a second call does nothing, so a
+        // cancelled-but-raced timer cannot restart scanning twice or touch the
+        // next scan's state.
+        assert.match(dismiss, /if \(el\('result'\)\.hidden\) return;/);
+    });
+
+    test('a NEW result cancels the previous success timer before rendering', () => {
+        const render = /function render\(result\)[\s\S]*?\n\}/.exec(MAIN_CODE)[0];
+        const firstStatement = render.split('\n').slice(1, 4).join('\n');
+        assert.match(firstStatement, /clearResultTimer\(\)/);
+    });
+
+    test('every camera stop clears the pending timer — Ingresos, Cerrar, terminal, departure', () => {
+        // ONE cleanup path: stopScanning() clears the timer, and it is what
+        // openHistory (Ingresos), goHome (Cerrar/Volver), fatal (terminal) and
+        // the departure handlers all call.
+        const stop = /function stopScanning\(\)[\s\S]*?\n\}/.exec(MAIN_CODE)[0];
+        assert.match(stop, /clearResultTimer\(\)/);
+        const openH = /function openHistory\(\)[\s\S]*?\n\}/.exec(MAIN_CODE)[0];
+        assert.match(openH, /stopScanning\(\)/);
+        const goHome = /function goHome\(\)[\s\S]*?\n\}/.exec(MAIN_CODE)[0];
+        assert.match(goHome, /stopScanning\(\)/);
+        const fatal = /function fatal\([\s\S]*?\n\}/.exec(MAIN_CODE)[0];
+        assert.match(fatal, /stopScanning\(\)/);
+    });
+
+    test('decoding stays paused while the result is visible and resumes on dismissal', () => {
+        // submit() halts the loop before rendering; dismissResult resumes it
+        // only when a live stream exists. Single-flight stays intact via the
+        // gate's begin/end around the request.
+        const submit = /async function submit\(\)[\s\S]*?\n\}/.exec(MAIN_CODE)[0];
+        assert.match(submit, /state\.scanning = false/);
+        const dismiss = /function dismissResult\(\)[\s\S]*?\n\}/.exec(MAIN_CODE)[0];
+        assert.match(dismiss, /state\.scanning = true/);
+        assert.match(dismiss, /if \(state\.stream\)/);
+    });
+
+    test('ALREADY_CHECKED_IN still NEVER auto-dismisses', () => {
+        const v = ui.describeResult({ status: 'ALREADY_CHECKED_IN', occupant_label: 'Ana' });
+        assert.equal(v.autoDismissMs, null);
+        assert.equal(v.requiresContinue, true);
+    });
+
+    test('error states keep explicit acknowledgement — no auto-dismiss anywhere else', () => {
+        for (const status of ['INVALID_PASS', 'WRONG_EVENT', 'PASS_NOT_ELIGIBLE',
+                              'QR_DISABLED', 'SCANNER_NOT_STARTED', 'RATE_LIMITED']) {
+            const v = ui.describeResult({ status });
+            assert.equal(v.autoDismissMs, null, status);
+            assert.equal(v.requiresContinue, true, status);
+        }
+    });
+});
+
 /* ── helpers ───────────────────────────────────────────────────────────────── */
 
 function fakeTimers() {

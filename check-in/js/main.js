@@ -26,15 +26,15 @@
  * shape checks, cooldown, single-flight, debounce — exists for battery and for
  * the operator's eyes. The one-time guarantee is a unique index in Postgres.
  */
-import { captureCapability, clearCapability, newNonce } from './session.js?v=20260820a';
-import { checkIn, resolveAccess, searchCheckins } from './backend.js?v=20260820a';
-import { describeCameraError, startCamera, stopCamera } from './camera.js?v=20260820a';
-import { createDecoder, createScanGate, isPassShape } from './decode.js?v=20260820a';
+import { captureCapability, clearCapability, newNonce } from './session.js?v=20260820b';
+import { checkIn, resolveAccess, searchCheckins } from './backend.js?v=20260820b';
+import { describeCameraError, startCamera, stopCamera } from './camera.js?v=20260820b';
+import { createDecoder, createScanGate, isPassShape } from './decode.js?v=20260820b';
 import {
     describeCounter, describeResult, describeHistoryRow, historyEmptyText,
     shouldStopCamera, isTerminalStatus,
-} from './ui.js?v=20260820a';
-import { createStaleGuard, debounce, normalizeQuery } from './history.js?v=20260820a';
+} from './ui.js?v=20260820b';
+import { createStaleGuard, debounce, normalizeQuery } from './history.js?v=20260820b';
 
 var DECODE_INTERVAL_MS = 125; // ~8 decode attempts/second.
 var SEARCH_DEBOUNCE_MS = 300;
@@ -58,6 +58,10 @@ var state = {
     /* After a stop-camera result the Continue button goes HOME, not back to a
      * camera that was deliberately stopped. */
     resultGoesHome: false,
+    /* The success auto-return timer. ONE cleanup path (clearResultTimer) is
+     * shared by Continuar, Ingresos, Cerrar, terminal states and departure, so
+     * a stale timer can never fire against a later scan's result. */
+    resultTimer: null,
     /* The operator has scanned this visit — relabels the start button so a
      * stopped camera reads as resumable, not as starting over. */
     hasScanned: false,
@@ -168,8 +172,16 @@ async function beginScanning() {
     tick();
 }
 
+function clearResultTimer() {
+    if (state.resultTimer) {
+        clearTimeout(state.resultTimer);
+        state.resultTimer = null;
+    }
+}
+
 function stopScanning() {
     state.scanning = false;
+    clearResultTimer();
     if (state.loopTimer) { clearTimeout(state.loopTimer); state.loopTimer = null; }
     stopCamera(state.stream, el('video'));
     state.stream = null;
@@ -213,6 +225,9 @@ async function submit() {
 }
 
 function render(result) {
+    // A result replacing another must first cancel the old auto-return, or a
+    // 3-second timer from the previous success could dismiss THIS card.
+    clearResultTimer();
     var view = describeResult(result);
     var card = el('result');
 
@@ -261,11 +276,15 @@ function render(result) {
     }
 
     if (!view.requiresContinue && view.autoDismissMs) {
-        setTimeout(dismissResult, view.autoDismissMs);
+        state.resultTimer = setTimeout(dismissResult, view.autoDismissMs);
     }
 }
 
 function dismissResult() {
+    // IDEMPOTENT: Continuar then the timer (or a double tap) must not restart
+    // scanning twice or touch the next result. Whoever dismisses first wins.
+    clearResultTimer();
+    if (el('result').hidden) return;
     hide('result');
     // This attempt is resolved. The next code scanned starts a new one.
     state.attemptNonce = null;

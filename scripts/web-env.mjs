@@ -131,7 +131,7 @@ export const PROD_ONLY_PATHS = [
  * crawlers on the invitation's public URL; this one fingerprints the CODE for
  * browsers on asset URLs. They share a letter and nothing else.
  */
-export const WEB_BUILD = '20260820a';
+export const WEB_BUILD = '20260820b';
 
 export const DEV_SUPABASE_REF = 'mfaymuisnpfdolqogktx';
 export const PROD_SUPABASE_REF = 'lehwxjbjlehsdkqxlzrb';

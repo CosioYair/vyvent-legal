@@ -203,12 +203,17 @@ describe('results', () => {
         checked_in_at: '2026-09-04T23:14:00Z',
     };
 
-    test('CHECKED_IN succeeds, names the occupant, and auto-returns', () => {
+    test('CHECKED_IN succeeds, names the occupant, and auto-returns after ~3 s', () => {
         const v = ui.describeResult({ status: 'CHECKED_IN', ...IDENTITY });
         assert.equal(v.tone, 'ok');
         assert.equal(v.title, 'ACCESO REGISTRADO');
         assert.ok(v.lines.includes('Ana Ruiz'));
-        assert.ok(v.autoDismissMs > 0 && v.autoDismissMs <= 1500);
+        // Physical testing: ~1.4 s was too fast to read the name and time. The
+        // dwell is now ~3 s, and the OLD threshold is explicitly rejected so a
+        // future "snappier" edit fails here instead of at a door.
+        assert.ok(v.autoDismissMs > 1500, 'success dismisses at the old, unreadable speed');
+        assert.ok(v.autoDismissMs >= 2500 && v.autoDismissMs <= 3500,
+            `dwell ${v.autoDismissMs}ms is outside the ~3 s contract`);
         assert.equal(v.requiresContinue, false);
     });
 

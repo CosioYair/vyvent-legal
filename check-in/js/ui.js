@@ -8,11 +8,16 @@
  *      wrong event, disabled, expired, revoked, offline — names nobody. A
  *      failure that leaked a name would turn a scanner link into a guest-list
  *      oracle.
- *   2. SUCCESS AUTO-RETURNS; A CONFLICT DOES NOT. A green flash and back to the
- *      camera keeps a queue moving. `PASE YA UTILIZADO` may mean someone is
- *      presenting a copied screenshot, so it waits for a human to press
- *      Continuar rather than scrolling past on its own.
+ *   2. SUCCESS AUTO-RETURNS; A CONFLICT DOES NOT. `PASE YA UTILIZADO` may mean
+ *      someone is presenting a copied screenshot, so it waits for a human to
+ *      press Continuar rather than scrolling past on its own. Success returns
+ *      on its own after ~3 s — physical testing showed the original ~1.4 s was
+ *      too fast to actually read the name and time — and Continuar is always
+ *      offered so an operator in a hurry dismisses it immediately.
  */
+
+/** Success dwell time. ~1.4 s was physically unreadable; 3 s is the contract. */
+export var SUCCESS_DISMISS_MS = 3000;
 
 /** Terminal authorization states — the capability is dead, stop and forget it. */
 var TERMINAL = { SCANNER_REVOKED: true, SCANNER_EXPIRED: true };
@@ -63,7 +68,7 @@ export function describeResult(result) {
             title: 'ACCESO REGISTRADO',
             detail: null,
             lines: identityLines(result),
-            autoDismissMs: 1400,
+            autoDismissMs: SUCCESS_DISMISS_MS,
             requiresContinue: false,
             identity: true,
         };

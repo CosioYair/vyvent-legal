@@ -9,11 +9,11 @@
  * the bytes arrive (no layout shift), and a failure degrades to the template's
  * own gradient rather than an empty hole.
  */
-import { el } from '../dom.js?v=20260820a';
-import { resolveImage } from '../security.js?v=20260820a';
-import { framedArt } from '../framing.js?v=20260820a';
-import { formatLongDate } from '../config.js?v=20260820a';
-import { timeEl } from './shell.js?v=20260820a';
+import { el } from '../dom.js?v=20260820b';
+import { resolveImage } from '../security.js?v=20260820b';
+import { framedArt } from '../framing.js?v=20260820b';
+import { formatLongDate } from '../config.js?v=20260820b';
+import { timeEl } from './shell.js?v=20260820b';
 
 export default function renderHero(data, ctx) {
     if (!data) return null;

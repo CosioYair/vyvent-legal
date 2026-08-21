@@ -20,9 +20,9 @@
  *   • An OPTIONAL section that THROWS is caught and skipped. One malformed
  *     value in a gallery item can never take down the ceremony details.
  */
-import { el } from './dom.js?v=20260820a';
-import { resolveSection } from './sections/index.js?v=20260820a';
-import { matchesConfig } from './registry.js?v=20260820a';
+import { el } from './dom.js?v=20260820b';
+import { resolveSection } from './sections/index.js?v=20260820b';
+import { matchesConfig } from './registry.js?v=20260820b';
 
 /**
  * @param {object} opts
