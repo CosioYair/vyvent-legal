@@ -223,13 +223,44 @@ describe('history rows', () => {
         assert.ok(v.lines.some((l) => l.startsWith('Revertido: ')));
     });
 
-    test('an anonymous companion shows holder context, never an invented name', () => {
+    test('an anonymous companion’s TITLE is the relationship itself', () => {
         const v = ui.describeHistoryRow({
             occupant_label: null, holder_label: 'María González',
             seat_label: 'Pase 3', checked_in_at: '2026-09-04T21:00:00Z',
         });
-        assert.equal(v.title, 'Acompañante');
-        assert.ok(v.lines.some((l) => l === 'Titular: María González'));
+        assert.equal(v.title, 'Acompañante de María González');
+        // Never doubled with a second relationship line, never Titular:.
+        assert.equal(v.lines.some((l) => l.includes('Acompañante')), false);
+        assert.equal(v.lines.some((l) => l.startsWith('Titular')), false);
+    });
+
+    test('a NAMED companion row names its holder — duplicate ordinals disambiguated', () => {
+        // TWO different holders, each with a Pase 9. Without holder context
+        // these were physically indistinguishable at a door.
+        const a = ui.describeHistoryRow({
+            occupant_label: 'Aaron', holder_label: 'Yair Cosio',
+            seat_label: 'Pase 9', checked_in_at: '2026-09-04T21:23:00Z',
+            scanner_label: 'Scanner principal',
+        });
+        const b = ui.describeHistoryRow({
+            occupant_label: 'Dago', holder_label: 'María González',
+            seat_label: 'Pase 9', checked_in_at: '2026-09-04T21:25:00Z',
+            scanner_label: 'Scanner 2',
+        });
+        assert.ok(a.lines.includes('Acompañante de Yair Cosio'));
+        assert.ok(b.lines.includes('Acompañante de María González'));
+        assert.notDeepEqual(a.lines, b.lines);
+    });
+
+    test('a HOLDER row reads Titular', () => {
+        const v = ui.describeHistoryRow({
+            occupant_label: 'Yair Cosio', holder_label: null,
+            seat_label: 'Pase 1', checked_in_at: '2026-09-04T20:00:00Z',
+            scanner_label: 'Scanner principal',
+        });
+        assert.equal(v.title, 'Yair Cosio');
+        assert.ok(v.lines.includes('Titular'));
+        assert.equal(v.lines.some((l) => l.includes('Acompañante')), false);
     });
 
     test('the two empty states carry the approved es-MX copy', () => {

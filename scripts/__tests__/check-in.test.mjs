@@ -226,13 +226,43 @@ describe('results', () => {
         assert.match(v.detail, /Registrado a las/);
     });
 
-    test('an anonymous companion gets holder context, not an invented name', () => {
+    test('an anonymous companion IS “Acompañante de <holder>” — never a bare label', () => {
         const v = ui.describeResult({
             status: 'CHECKED_IN', occupant_label: null,
             holder_label: 'María González', seat_label: 'Pase 2 de 3',
         });
-        assert.ok(v.lines.includes('Acompañante'));
-        assert.ok(v.lines.some((l) => l.includes('Titular: María González')));
+        // The relationship IS the identity line for an anonymous seat...
+        assert.equal(v.lines[0], 'Acompañante de María González');
+        // ...never doubled, never generic, never the old Titular: form.
+        assert.equal(v.lines.includes('Acompañante'), false);
+        assert.equal(v.lines.some((l) => l.startsWith('Titular: ')), false);
+        assert.ok(v.lines.includes('Pase 2 de 3'));
+    });
+
+    test('a NAMED companion names both the person and the holder', () => {
+        const v = ui.describeResult({
+            status: 'CHECKED_IN', occupant_label: 'Aaron',
+            holder_label: 'Yair Cosio', seat_label: 'Pase 2 de 3',
+        });
+        assert.deepEqual(v.lines, ['Aaron', 'Acompañante de Yair Cosio', 'Pase 2 de 3']);
+    });
+
+    test('the HOLDER reads as Titular, never as anyone’s companion', () => {
+        const v = ui.describeResult({
+            status: 'CHECKED_IN', occupant_label: 'Yair Cosio',
+            seat_label: 'Pase 1 de 3',
+        });
+        assert.deepEqual(v.lines, ['Yair Cosio', 'Pase 1 de 3 · Titular']);
+        assert.equal(v.lines.some((l) => l.includes('Acompañante')), false);
+    });
+
+    test('ALREADY_CHECKED_IN carries the same relationship presentation', () => {
+        const v = ui.describeResult({
+            status: 'ALREADY_CHECKED_IN', occupant_label: 'Aaron',
+            holder_label: 'Yair Cosio', seat_label: 'Pase 2 de 3',
+            checked_in_at: '2026-09-04T21:23:00Z',
+        });
+        assert.ok(v.lines.includes('Acompañante de Yair Cosio'));
     });
 
     test('NO failure status carries identity', () => {

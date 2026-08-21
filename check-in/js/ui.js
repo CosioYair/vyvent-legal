@@ -117,14 +117,37 @@ export function describeResult(result) {
     };
 }
 
-/** The minimum a door needs to verify the person standing in front of it. */
+/** The minimum a door needs to verify the person standing in front of it.
+ *
+ * WHO A COMPANION BELONGS TO IS ALWAYS EXPLICIT (locked, 2026-08-20). The
+ * server marks the relationship with one field: `holder_label` is present on
+ * EVERY companion pass — named or anonymous — and absent on the holder's own.
+ *
+ *   holder            Yair Cosio            · Pase 1 de 3 · Titular
+ *   named companion   Aaron · Acompañante de Yair Cosio · Pase 2 de 3
+ *   anonymous         Acompañante de Yair Cosio · Pase 3 de 3
+ *
+ * For an anonymous seat the relationship IS the identity line — never a bare
+ * "Acompañante" floating without context, and never the awkward doubling of
+ * "Acompañante" + "Acompañante de X". */
 function identityLines(result) {
     var lines = [];
-    if (result.occupant_label) lines.push(String(result.occupant_label));
-    else if (result.holder_label) lines.push('Acompañante');
-    if (result.seat_label) lines.push(String(result.seat_label));
-    if (!result.occupant_label && result.holder_label) {
-        lines.push('Titular: ' + String(result.holder_label));
+    var relationship = result.holder_label
+        ? 'Acompañante de ' + String(result.holder_label)
+        : null;
+
+    if (result.occupant_label) {
+        lines.push(String(result.occupant_label));
+        if (relationship) lines.push(relationship);
+    } else if (relationship) {
+        lines.push(relationship);
+    }
+
+    if (result.seat_label) {
+        // No holder_label ⇒ the holder's own pass ⇒ say so on the seat line.
+        lines.push(relationship
+            ? String(result.seat_label)
+            : String(result.seat_label) + ' · Titular');
     }
     return lines;
 }
@@ -150,12 +173,19 @@ function timeOf(iso) {
 export function describeHistoryRow(row) {
     if (!row || typeof row !== 'object') return null;
 
-    var title = row.occupant_label ? String(row.occupant_label) : 'Acompañante';
+    // Same relationship rule as scan results: holder_label present ⇒ a
+    // companion of that holder; absent ⇒ the holder's own pass (Titular).
+    // This is what disambiguates two different holders each owning a Pase 9.
+    var relationship = row.holder_label
+        ? 'Acompañante de ' + String(row.holder_label)
+        : null;
+    var title = row.occupant_label
+        ? String(row.occupant_label)
+        : (relationship || 'Acompañante');
     var lines = [];
+    if (row.occupant_label && relationship) lines.push(relationship);
+    if (!relationship) lines.push('Titular');
     if (row.seat_label) lines.push(String(row.seat_label));
-    if (!row.occupant_label && row.holder_label) {
-        lines.push('Titular: ' + String(row.holder_label));
-    }
 
     var reverted = !!row.reverted_at;
     if (reverted) {
