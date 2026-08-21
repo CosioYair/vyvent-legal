@@ -119,3 +119,33 @@ body { display: flex; flex-direction: column; overflow: hidden; }
     .panel h1 { font-size: 1.75rem; }
     .reticle { width: 300px; }
 }
+
+/* ── Ingresos (history) ───────────────────────────────────────────────────── */
+.panel--top { justify-content: flex-start; overflow-y: auto; }
+
+.history-head {
+    display: flex; align-items: center; justify-content: space-between;
+    width: 100%; max-width: 480px; margin: 0 auto;
+}
+.scanner__bar-actions { display: flex; gap: 0.5rem; align-items: center; }
+
+.history-search {
+    width: 100%; max-width: 480px; margin: 0.25rem auto 0;
+    padding: 0.85rem 1rem; border-radius: 12px;
+    border: 1px solid var(--border); background: var(--surface);
+    color: var(--text); font-size: 1rem;
+}
+.history-search::placeholder { color: var(--muted); }
+
+.history-list {
+    width: 100%; max-width: 480px; margin: 0.25rem auto 0;
+    display: flex; flex-direction: column; gap: 0.5rem; text-align: left;
+}
+.history-row {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 0.7rem 0.9rem;
+}
+.history-row--reverted { opacity: 0.6; }
+.history-row--reverted .history-row__title { text-decoration: line-through; }
+.history-row__title { font-size: 1rem; font-weight: 700; }
+.history-row__line { color: var(--muted); font-size: 0.85rem; margin-top: 1px; }

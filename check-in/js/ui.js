@@ -133,6 +133,45 @@ function timeOf(iso) {
 }
 
 /**
+ * One HISTORY row → what the operator reads in the Ingresos list.
+ *
+ * The same identity rules as scan results: a display label, a seat label, a
+ * time and a scanner label — never an email, phone, username or id. A reverted
+ * entry is SHOWN as reverted with both times, because "already admitted and
+ * then undone" is exactly what a second operator needs to know; undoing it
+ * stays a manager-only act inside Orbiventt, and no id is present to aim a
+ * reversal at.
+ */
+export function describeHistoryRow(row) {
+    if (!row || typeof row !== 'object') return null;
+
+    var title = row.occupant_label ? String(row.occupant_label) : 'Acompañante';
+    var lines = [];
+    if (row.seat_label) lines.push(String(row.seat_label));
+    if (!row.occupant_label && row.holder_label) {
+        lines.push('Titular: ' + String(row.holder_label));
+    }
+
+    var reverted = !!row.reverted_at;
+    if (reverted) {
+        lines.push('Check-in revertido');
+        if (row.checked_in_at) lines.push('Ingreso original: ' + timeOf(row.checked_in_at));
+        lines.push('Revertido: ' + timeOf(row.reverted_at));
+    } else {
+        var when = row.checked_in_at ? 'Ingresó ' + timeOf(row.checked_in_at) : '';
+        var scanner = row.scanner_label ? String(row.scanner_label) : '';
+        if (when || scanner) lines.push([when, scanner].filter(Boolean).join(' · '));
+    }
+
+    return { title: title, lines: lines, reverted: reverted };
+}
+
+/** Empty-state copy for the Ingresos view. */
+export function historyEmptyText(hasQuery) {
+    return hasQuery ? 'No se encontraron ingresos.' : 'Aún no hay ingresos registrados.';
+}
+
+/**
  * The entry counter.
  *
  * SERVER VALUES ONLY. Never a credential count (durable rows include suspended

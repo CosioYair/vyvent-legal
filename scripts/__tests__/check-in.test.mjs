@@ -349,21 +349,23 @@ describe('camera', () => {
 /* ── Backend surface ───────────────────────────────────────────────────────── */
 
 describe('backend', () => {
-    test('the RPC allowlist is closed to exactly the two scanner functions', async () => {
+    test('the RPC allowlist is closed to exactly the three scanner functions', async () => {
         const calls = [];
         const fetchStub = async (url) => { calls.push(url); return { ok: true, json: async () => ({ ok: 1 }) }; };
         const env = { supaUrl: 'https://x.supabase.co', supaAnon: 'anon' };
 
         assert.notEqual(await backend.callRpc('scanner_resolve_access', {}, { fetch: fetchStub, env }), null);
         assert.notEqual(await backend.callRpc('scanner_check_in', {}, { fetch: fetchStub, env }), null);
-        // Anything else is refused WITHOUT a request being made.
+        assert.notEqual(await backend.callRpc('scanner_search_checkins', {}, { fetch: fetchStub, env }), null);
+        // Anything else is refused WITHOUT a request being made. Reversal and
+        // the manager surfaces stay unreachable from this page forever.
         for (const forbidden of [
             'get_event_checkin_summary', 'revert_event_pass_checkin', 'get_my_event_passes',
             'get_event_scanner_accesses', 'get_published_invitation',
         ]) {
             assert.equal(await backend.callRpc(forbidden, {}, { fetch: fetchStub, env }), null, forbidden);
         }
-        assert.equal(calls.length, 2);
+        assert.equal(calls.length, 3);
     });
 
     test('there is no guest-list endpoint of any kind', () => {

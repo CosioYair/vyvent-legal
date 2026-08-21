@@ -29,16 +29,16 @@
     <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
     <title>Scanner · Orbiventt</title>
 
-    <link rel="stylesheet" href="check-in/css/scanner.css?v=20260819a">
+    <link rel="stylesheet" href="check-in/css/scanner.css?v=20260820a">
 
     <!-- ENV-SPECIFIC. The single environment boundary for the whole site. -->
-    <script src="env.js?v=20260819a"></script>
+    <script src="env.js?v=20260820a"></script>
     <!-- VENDORED DECODER, loaded as a classic script because it is a UMD build
          that assigns `window.jsQR`. BarcodeDetector is absent from the entire
          iOS platform (Safari and Chrome there are both WebKit), so this is a
          first-class decode path, not a fallback. Apache-2.0; see
          check-in/js/vendor/jsqr-LICENSE.txt. -->
-    <script src="check-in/js/vendor/jsqr.js?v=20260819a"></script>
+    <script src="check-in/js/vendor/jsqr.js?v=20260820a"></script>
 </head>
 <body>
 
@@ -57,6 +57,7 @@
         <!-- iOS WebKit grants getUserMedia only from a user gesture, so this
              button is the mechanism, not decoration. -->
         <button type="button" class="btn" id="startBtn">Iniciar scanner</button>
+        <button type="button" class="btn btn--ghost" id="historyBtn">Ver ingresos</button>
 
         <div class="error-box" id="cameraError" hidden>
             <h2 id="cameraErrorTitle"></h2>
@@ -69,6 +70,9 @@
         <p class="brand">Orbiventt</p>
         <h1 id="fatalTitle"></h1>
         <p class="sub" id="fatalDetail"></p>
+        <!-- Shown for RECOVERABLE states only (offline, not started). A
+             terminal revoked/expired access hides it — that link is dead. -->
+        <button type="button" class="btn" id="fatalRetryBtn" hidden>Reintentar</button>
     </section>
 
     <!-- Scanning: the camera dominates. -->
@@ -77,7 +81,13 @@
 
         <div class="scanner__bar">
             <span class="name" id="scannerBarName">Orbiventt</span>
-            <button type="button" class="scanner__close" id="closeBtn">Cerrar scanner</button>
+            <div class="scanner__bar-actions">
+                <button type="button" class="scanner__close" id="historyFromScanBtn">Ingresos</button>
+                <!-- Cerrar = STOP THE CAMERA. It never forgets the
+                     authorization: the capability survives in sessionStorage
+                     and Reanudar scanner continues without the original URL. -->
+                <button type="button" class="scanner__close" id="closeBtn">Cerrar scanner</button>
+            </div>
         </div>
 
         <div class="reticle"></div>
@@ -91,6 +101,21 @@
         </div>
     </section>
 
-    <script type="module" src="check-in/js/main.js?v=20260819a"></script>
+    <!-- Ingresos: recorded check-in history for THIS event, searchable by
+         name. History only — an attendee who was never scanned does not exist
+         here, which is what keeps this from becoming a guest-list browser. -->
+    <section id="historyPanel" class="panel panel--top" hidden>
+        <div class="history-head">
+            <p class="brand">Ingresos</p>
+            <button type="button" class="scanner__close" id="backToScanBtn">Escanear</button>
+        </div>
+        <p class="counter" id="historyCounter"></p>
+        <input type="search" id="historySearch" class="history-search"
+               placeholder="Buscar por nombre" autocomplete="off" autocapitalize="none">
+        <p class="meta" id="historyStatus"></p>
+        <div id="historyResults" class="history-list"></div>
+    </section>
+
+    <script type="module" src="check-in/js/main.js?v=20260820a"></script>
 </body>
 </html>

@@ -22,6 +22,7 @@
 var RPCS = Object.create(null);
 RPCS.scanner_resolve_access = true;
 RPCS.scanner_check_in = true;
+RPCS.scanner_search_checkins = true;
 
 /** @returns {?{url: string, anon: string}} null when env.js did not load. */
 export function backendConfig(env) {
@@ -89,6 +90,21 @@ export function resolveAccess(capability, opts) {
  * second time when its first response was lost, instead of telling an operator
  * a guest already entered when the network simply dropped a packet.
  */
+/**
+ * Check-in HISTORY for the capability's own event — recorded entries only,
+ * event-wide across every scanner of that event. The event scope is derived
+ * server-side from the capability; nothing here could widen it. This is the
+ * one read the door has beyond scanning, and it can only surface people who
+ * were already physically admitted.
+ */
+export function searchCheckins(capability, query, limit, opts) {
+    return callRpc(
+        'scanner_search_checkins',
+        { p_scanner_token: capability, p_query: query || null, p_limit: limit || 25 },
+        opts,
+    );
+}
+
 export function checkIn(capability, passToken, nonce, opts) {
     return callRpc(
         'scanner_check_in',
