@@ -23,10 +23,10 @@
  * listener (never an inline `onerror`, which the page's CSP forbids), leaving
  * the band collapsed rather than a broken-icon hole mid-invitation.
  */
-import { el } from '../dom.js?v=20260820b';
-import { resolveImage } from '../security.js?v=20260820b';
-import { framedArt } from '../framing.js?v=20260820b';
-import { INTERLUDE_SLOTS } from '../config.js?v=20260820b';
+import { el } from '../dom.js?v=20260820c';
+import { resolveImage } from '../security.js?v=20260820c';
+import { framedArt } from '../framing.js?v=20260820c';
+import { INTERLUDE_SLOTS } from '../config.js?v=20260820c';
 
 /** Fallback intrinsic size, used only if a template declares no placement. */
 const BAND_W = 1600;

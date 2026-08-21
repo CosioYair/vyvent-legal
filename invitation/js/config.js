@@ -33,8 +33,8 @@ import {
     safeExternalUrl,
     safeAssetPath,
     resolveMapUrl,
-} from './security.js?v=20260820b';
-import { framingWindow } from './framing.js?v=20260820b';
+} from './security.js?v=20260820c';
+import { framingWindow } from './framing.js?v=20260820c';
 
 /** The contract version this renderer understands. */
 export const CONTRACT_VERSION = 1;

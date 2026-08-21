@@ -115,6 +115,48 @@ describe('session semantics', () => {
 /* ── 2 · Ingresos history ──────────────────────────────────────────────────── */
 
 describe('history search plumbing', () => {
+    test('debounce works under BROWSER-STRICT host timers (the search bug)', () => {
+        // THE 2026-08-20 FIELD BUG. The default timers used to hold the host
+        // setTimeout as an object method; browsers invoke that with
+        // `this === timers` and WebIDL throws `Illegal invocation`, so every
+        // keystroke threw and Ingresos never filtered. Node timers are not
+        // this-sensitive, which is how 22 tests passed over it. This test
+        // installs this-strict globals — as a browser would — and requires the
+        // DEFAULT timer path to survive them.
+        const realSet = globalThis.setTimeout;
+        const realClear = globalThis.clearTimeout;
+        const queue = [];
+        globalThis.setTimeout = function (fn) {
+            if (this !== undefined && this !== globalThis) {
+                throw new TypeError('Illegal invocation');
+            }
+            queue.push(fn);
+            return queue.length;
+        };
+        globalThis.clearTimeout = function (id) {
+            if (this !== undefined && this !== globalThis) {
+                throw new TypeError('Illegal invocation');
+            }
+            queue[id - 1] = null;   // honour cancellation, like a real timer
+        };
+        try {
+            let calls = 0;
+            const fn = history.debounce(() => { calls += 1; }, 300); // DEFAULT timers
+            fn(); fn();
+            queue.splice(0).forEach((f) => f && f());
+            assert.equal(calls, 1);
+        } finally {
+            globalThis.setTimeout = realSet;
+            globalThis.clearTimeout = realClear;
+        }
+    });
+
+    test('the default timers never hold a bare host function reference', () => {
+        const src = readFileSync(join(CHECKIN, 'js', 'history.js'), 'utf8');
+        assert.equal(/set:\s*setTimeout/.test(src), false, 'bare setTimeout stored as a method');
+        assert.equal(/clear:\s*clearTimeout/.test(src), false, 'bare clearTimeout stored as a method');
+    });
+
     test('debounce fires once per burst, on the trailing edge', () => {
         let calls = 0;
         const timers = fakeTimers();

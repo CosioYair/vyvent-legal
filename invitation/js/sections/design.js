@@ -23,9 +23,9 @@
  * path validation, project-origin pinning. Alt text is accessibility, never
  * visibility, exactly as everywhere else.
  */
-import { el } from '../dom.js?v=20260820b';
-import { resolveImage } from '../security.js?v=20260820b';
-import { section } from './shell.js?v=20260820b';
+import { el } from '../dom.js?v=20260820c';
+import { resolveImage } from '../security.js?v=20260820c';
+import { section } from './shell.js?v=20260820c';
 
 export default function renderDesign(data, ctx) {
     if (!data || !data.image) return null;

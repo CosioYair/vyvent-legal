@@ -14,7 +14,19 @@
 
 /** Trailing-edge debounce. `cancel()` drops any pending call. */
 export function debounce(fn, ms, timers) {
-    var t = timers || { set: setTimeout, clear: clearTimeout };
+    // THE 2026-08-20 SEARCH BUG LIVED ON THIS LINE. The default used to be
+    // `{ set: setTimeout, clear: clearTimeout }` — the HOST functions stored as
+    // object methods. In a browser, `t.set(...)` then invokes setTimeout with
+    // `this === t`, and WebIDL-bound globals throw `Illegal invocation` for
+    // that. Every keystroke threw inside the input handler, so the search
+    // callback never fired and Ingresos never filtered — while Node's timers,
+    // which are not `this`-sensitive, let the whole test suite pass over it.
+    // The wrappers below call the globals as FUNCTIONS, which both runtimes
+    // accept, and a test now pins that no bare host reference can return here.
+    var t = timers || {
+        set: function (cb, delay) { return setTimeout(cb, delay); },
+        clear: function (id) { clearTimeout(id); },
+    };
     var pending = null;
     var wrapped = function () {
         var args = arguments;

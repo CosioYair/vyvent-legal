@@ -4,8 +4,8 @@
  * purpose: the template gives it a deliberate ending rather than letting the
  * document just stop after the last set of buttons.
  */
-import { el, paragraphs } from '../dom.js?v=20260820b';
-import { section } from './shell.js?v=20260820b';
+import { el, paragraphs } from '../dom.js?v=20260820c';
+import { section } from './shell.js?v=20260820c';
 
 export default function renderClosing(data, ctx) {
     if (!data) return null;
