@@ -39,8 +39,10 @@ var ALLOWED_ATTRS = {
     'aria-hidden': true,
     'aria-live': true,
     'aria-describedby': true,
+    'aria-modal': true,
     'data-view': true,
     'data-state': true,
+    'data-index': true,
 };
 
 function doc(d) {
@@ -91,9 +93,9 @@ export function el(tag, opts) {
 var SVG_NS = 'http://www.w3.org/2000/svg';
 
 /**
- * SVG attributes a pass QR may carry — and nothing else. Every value written
- * here is a NUMBER or a constant the page itself chose (`qr.js`): no guest
- * text, no server text, ever reaches an SVG attribute.
+ * SVG attributes a pass QR or a line icon may carry — and nothing else. Every
+ * value written here is a NUMBER or a constant the page itself chose (`qr.js`,
+ * `gallery.js`): no guest text, no server text, ever reaches an SVG attribute.
  */
 var ALLOWED_SVG_ATTRS = {
     class: true,
@@ -109,6 +111,10 @@ var ALLOWED_SVG_ATTRS = {
     d: true,
     'shape-rendering': true,
     preserveAspectRatio: true,
+    stroke: true,
+    'stroke-width': true,
+    'stroke-linecap': true,
+    'stroke-linejoin': true,
 };
 
 /**

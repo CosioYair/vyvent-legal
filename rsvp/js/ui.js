@@ -14,22 +14,26 @@
  * through `dom.js` — there is no innerHTML anywhere in this tree, and the test
  * suite's DOM stub throws if one ever appears.
  *
- * ONE DELIBERATE CHOICE, THEN ONE PRIMARY CONTROL PER SCREEN. A link with no
- * answer yet shows TWO EQUAL paths — "Confirmar desde la web" / "Confirmar
- * desde la app" — and no primary at all; each path then has exactly one:
- * "Sí, asistiré" → "Confirmar" / "Enviar respuesta", or "Abrir Orbiventt".
- * A link that already holds an answer shows the answer, "Cambiar mi
- * respuesta" and "Administrar mis pases" (primary when the organizer has
- * turned QR access on), and the app path only as a quiet link.
+ * TWO REAL PATHS, THEN ONE PRIMARY CONTROL PER SCREEN. A link with no answer
+ * yet shows the event, its photos, the link warning and ONE deliberate
+ * choice: "Confirmar desde la web" / "Prefiero usar Orbiventt". The app path
+ * is the app's own one-tap handoff — `vyvent://e/{id}?code=…` through the
+ * shared smart-open plan, or the DEV Expo Go return address — so Orbiventt
+ * opens with the invitation already in hand; the code is only the FALLBACK
+ * behind it. A link that already holds an answer shows the answer, the same
+ * two paths ("Cambiar mi respuesta" / "Prefiero usar Orbiventt") and, centred
+ * right under them, "Administrar mis pases" (primary once the organizer has
+ * turned QR access on) — available from the first paint, no re-confirmation.
  *
  * THE LINK IS THE KEY. Possession of the link is what lets a guest see and
  * manage the household's answer and passes, so a warning box that cannot be
- * collapsed says so at the moment it starts to matter: when the web path is
- * chosen, on the confirmation screen, and on every return visit.
+ * collapsed says so from the first visit, on the confirmation screen, and on
+ * every return.
  */
-import { el, setText, clear, paragraphs } from './dom.js?v=20261012a';
-import { displayCode } from './session.js?v=20261012a';
-import { qrNode } from './qr.js?v=20261012a';
+import { el, setText, clear, paragraphs } from './dom.js?v=20261012b';
+import { displayCode } from './session.js?v=20261012b';
+import { qrNode } from './qr.js?v=20261012b';
+import { photoList, galleryNode, lineIcon } from './gallery.js?v=20261012b';
 
 export var LIMITS = {
     NAME: 80,
@@ -78,6 +82,21 @@ export var COPY = {
     passesGone: 'No encontramos tus pases. Vuelve a abrir tu enlace de invitación.',
     passUnavailable: 'Este pase no está disponible por ahora.',
     benefitsLead: 'Con Orbiventt también puedes:',
+    manage: 'Administrar mis pases',
+    webPath: 'Confirmar desde la web',
+    webPathHint: 'Sin cuenta, en un minuto.',
+    changePath: 'Cambiar mi respuesta',
+    changePathHint: 'Pases, acompañantes o mensaje.',
+    appPath: 'Prefiero usar Orbiventt',
+    appPathHintOpen: 'Se abre con tu invitación lista. Chat, fotos y más.',
+    appPathHintClosed: 'Chat, fotos, notificaciones y más.',
+    appLeadOpen: 'Orbiventt se abre con tu invitación lista para reclamar y asignar tus pases.',
+    appLeadStore: 'Instala Orbiventt y abre tu invitación desde la app para reclamar tus pases.',
+    appFallback: '¿No se abre? Ingresa este código en Orbiventt:',
+    appOpen: 'Abrir Orbiventt',
+    appStore: 'Descargar Orbiventt',
+    bringTitle: 'Lo que te toca llevar',
+    bringHint: 'Te lo asignó el organizador.',
 };
 
 /* ── pure helpers ─────────────────────────────────────────────────────────── */
@@ -256,6 +275,20 @@ function findParty(parties, party) {
     return null;
 }
 
+/**
+ * The app handoff this page may offer: `{href, arm}` when the shared resolver
+ * opened it (production `vyvent://…`, or the DEV Expo Go return address),
+ * null when closed. The smart-open plan's href wins when there is one (the
+ * Android intent URL, the iOS guarded scheme); its `arm` wires the fallback.
+ */
+export function appHandoff(o) {
+    var handoff = o && o.handoff;
+    if (!handoff || handoff.open !== true || !handoff.href) return null;
+    var plan = o.smartOpen;
+    var href = plan && typeof plan.href === 'string' && plan.href ? plan.href : handoff.href;
+    return { href: href, arm: plan && typeof plan.arm === 'function' ? plan.arm : null };
+}
+
 /* ── small builders ───────────────────────────────────────────────────────── */
 
 function button(label, variant, onClick, d, attrs) {
@@ -273,15 +306,20 @@ function button(label, variant, onClick, d, attrs) {
     return node;
 }
 
+function pathText(title, hint, d) {
+    return el('span', {
+        class: 'rsvp-path__text',
+        children: [el('strong', { text: title, document: d }), el('span', { text: hint, document: d })],
+        document: d,
+    });
+}
+
 /** A tall two-line choice button: title + one-line hint. Never primary. */
 function pathButton(title, hint, onClick, d) {
     var node = el('button', {
         class: 'rsvp-btn rsvp-btn--path',
         attrs: { type: 'button' },
-        children: [
-            el('strong', { text: title, document: d }),
-            el('span', { text: hint, document: d }),
-        ],
+        children: [pathText(title, hint, d)],
         document: d,
     });
     if (typeof node.addEventListener === 'function') node.addEventListener('click', onClick);
@@ -308,6 +346,9 @@ function errorLine(d) {
 function valueOf(input) {
     return input && typeof input.value === 'string' ? input.value : '';
 }
+
+var ICON_BASKET = 'M3 10h18M5 10l1.5 9h11L19 10M9 10l3-6 3 6';
+var ICON_CHECK = 'M5 12l4 4L19 6';
 
 /* ── controlled states ────────────────────────────────────────────────────── */
 
@@ -400,7 +441,7 @@ function codeEntryNode(model, handlers, o) {
 
 /* ── the event ────────────────────────────────────────────────────────────── */
 
-function eventCard(payload, o) {
+function eventCard(payload, handlers, o) {
     var d = o.document;
     var event = payload.event || {};
     var invitation = payload.invitation || {};
@@ -418,13 +459,13 @@ function eventCard(payload, o) {
     var greeting = text(invitation.greeting, LIMITS.GREETING);
     var description = text(event.description, LIMITS.DESCRIPTION);
 
-    var gallery = [];
-    var paths = Array.isArray(event.gallery_paths) ? event.gallery_paths.slice(0, 6) : [];
-    for (var i = 0; i < paths.length; i += 1) {
-        var url = resolve('event-photos', paths[i]);
-        if (!url || (first && url === first.url)) continue;
-        gallery.push(el('img', { attrs: { src: url, alt: '', loading: 'lazy', decoding: 'async' }, document: d }));
-    }
+    // The gallery: every photo the invitation may show, as a compact grid
+    // that opens the viewer. The hero cover is not repeated as a tile.
+    var photos = photoList(payload, resolve);
+    var gallery = galleryNode(photos, handlers, {
+        document: d,
+        skipUrl: first && first.kind === 'cover' ? first.url : null,
+    });
 
     var links = [];
     if (map) links.push(externalLink(map, 'Cómo llegar', d, 'rsvp-btn rsvp-btn--ghost'));
@@ -476,7 +517,7 @@ function eventCard(payload, o) {
                     links.length ? el('div', { class: 'rsvp-event__links', children: links, document: d }) : null,
                 ].concat(
                     paragraphs(description, 'rsvp-event__desc', d),
-                    gallery.length ? [el('div', { class: 'rsvp-gallery', children: gallery, document: d })] : [],
+                    gallery ? [gallery] : [],
                 ),
                 document: d,
             }),
@@ -524,15 +565,58 @@ function benefitsList(d) {
     return el('ul', { class: 'rsvp-benefits', children: items, document: d });
 }
 
-/** The quiet, link-styled way into the app path. */
-function appPathLink(handlers, d) {
-    return button('Prefiero usar la app', 'link', function () { handlers.onChoose('app', null); }, d);
+/** The quiet, link-styled way into the app screen (store / code fallback). */
+function appPathLink(handlers, d, label) {
+    return button(label || COPY.appPath, 'link', function () { handlers.onChoose('app', null); }, d);
+}
+
+/**
+ * THE APP PATH as a choice: Orbiventt's own icon, "Prefiero usar Orbiventt"
+ * and a hint. When the shared handoff is open this IS the one-tap handoff —
+ * an anchor carrying `vyvent://e/{id}?code=…` (or the DEV Expo Go address),
+ * armed with the smart-open fallback — so the app opens with the invitation
+ * already in hand. When it is closed (desktop, no return address on the DEV
+ * mirror) it leads to the app screen, where the store and the code wait.
+ * Styled as a path, never as the page's primary.
+ */
+function appPathControl(handlers, o) {
+    var d = o.document;
+    var open = appHandoff(o);
+    var children = [
+        el('img', { class: 'rsvp-path__icon', attrs: { src: 'favicon-96x96.png', alt: '', decoding: 'async' }, document: d }),
+        pathText(COPY.appPath, open ? COPY.appPathHintOpen : COPY.appPathHintClosed, d),
+    ];
+    if (open) {
+        var anchor = el('a', {
+            class: 'rsvp-btn rsvp-btn--path rsvp-btn--path-app',
+            attrs: { href: open.href, 'data-state': 'open' },
+            children: children,
+            document: d,
+        });
+        if (open.arm) open.arm(anchor);
+        return anchor;
+    }
+    var node = el('button', {
+        class: 'rsvp-btn rsvp-btn--path rsvp-btn--path-app',
+        attrs: { type: 'button', 'data-state': 'closed' },
+        children: children,
+        document: d,
+    });
+    if (typeof node.addEventListener === 'function') node.addEventListener('click', function () { handlers.onChoose('app', null); });
+    return node;
+}
+
+/** Under an OPEN app path: the manual route stays reachable, quietly. */
+function appFallbackLink(handlers, o) {
+    if (!appHandoff(o)) return null;
+    return el('p', { class: 'rsvp-app-link', children: [appPathLink(handlers, o.document, 'Abrir con el código manualmente')], document: o.document });
 }
 
 /* ── the answer ───────────────────────────────────────────────────────────── */
 
-/** No answer yet: ONE deliberate choice between two equal paths. No primary. */
-function pathChoiceCard(handlers, d) {
+/** No answer yet: ONE deliberate choice between two real paths. No primary. */
+function pathChoiceCard(handlers, o) {
+    var d = o.document;
     return el('section', {
         class: 'rsvp-card rsvp-prompt',
         children: [
@@ -541,11 +625,12 @@ function pathChoiceCard(handlers, d) {
             el('div', {
                 class: 'rsvp-paths',
                 children: [
-                    pathButton('Confirmar desde la web', 'Sin cuenta, en un minuto.', function () { handlers.onChoose('choose', null); }, d),
-                    pathButton('Confirmar desde la app', 'Chat, fotos, notificaciones y más.', function () { handlers.onChoose('app', null); }, d),
+                    pathButton(COPY.webPath, COPY.webPathHint, function () { handlers.onChoose('choose', null); }, d),
+                    appPathControl(handlers, o),
                 ],
                 document: d,
             }),
+            appFallbackLink(handlers, o),
         ],
         document: d,
     });
@@ -554,15 +639,20 @@ function pathChoiceCard(handlers, d) {
 /**
  * "Abrir Orbiventt" — the same two-module contract as the invitation's pass
  * card: the destination arrives PRE-RESOLVED (`app-return.js`), the device
- * plan alongside (`app-store-links.js`). Null when the handoff is closed —
- * the DEV mirror — and the copy path carries the guest instead.
+ * plan alongside (`app-store-links.js`). Null when the handoff is closed.
  */
-function openControl(handoff, smartOpen, d, variant) {
-    if (!handoff || handoff.open !== true || !handoff.href) return null;
-    var href = smartOpen && typeof smartOpen.href === 'string' && smartOpen.href ? smartOpen.href : handoff.href;
-    var anchor = el('a', { class: 'rsvp-btn rsvp-btn--' + (variant || 'primary'), attrs: { href: href }, text: 'Abrir Orbiventt', document: d });
-    if (smartOpen && typeof smartOpen.arm === 'function') smartOpen.arm(anchor);
+function openControl(o, variant) {
+    var open = appHandoff(o);
+    if (!open) return null;
+    var anchor = el('a', { class: 'rsvp-btn rsvp-btn--' + (variant || 'primary'), attrs: { href: open.href }, text: COPY.appOpen, document: o.document });
+    if (open.arm) open.arm(anchor);
     return anchor;
+}
+
+/** "Descargar Orbiventt" — the store for THIS device, when known. */
+function storeControl(o, variant) {
+    if (!o.storeUrl) return null;
+    return externalLink(o.storeUrl, COPY.appStore, o.document, 'rsvp-btn rsvp-btn--' + (variant || 'ghost'));
 }
 
 function copyButton(code, o, status) {
@@ -581,32 +671,36 @@ function copyButton(code, o, status) {
 }
 
 /**
- * The APP path — the original app-oriented flow, exactly as the invitation's
- * pass card draws it: the code, "Copiar código", and the single smart-open
- * "Abrir Orbiventt" when the handoff is open (never on the DEV mirror, where
- * the copy path IS the path). The code is visible on purpose: possession of
- * the code is the invitation credential in the product model.
+ * The APP screen: the one-tap "Abrir Orbiventt" (or the store when the app is
+ * not here), what the app adds, and — behind it, as the FALLBACK only — the
+ * invitation code with "Copiar código". The code is visible on purpose:
+ * possession of the code is the invitation credential in the product model,
+ * and a guest whose phone did not hand off still needs it. Never the
+ * headline, never the first control.
  */
 function appCard(model, handlers, o) {
     var d = o.document;
     var status = el('p', { class: 'rsvp-status', attrs: { role: 'status', 'aria-live': 'polite' }, document: d });
-    var open = openControl(o.handoff, o.smartOpen, d, 'primary');
+    var open = openControl(o, 'primary');
+    var store = open ? null : storeControl(o, 'primary');
     return el('section', {
         class: 'rsvp-card rsvp-app-path',
         attrs: { 'data-view': 'app' },
         children: [
-            el('h2', { text: 'Confirmar desde la app', document: d }),
-            el('p', { class: 'rsvp-muted', text: 'Usa este código en Orbiventt para reclamar y asignar tus pases.', document: d }),
-            // Selectable as ONE run (`user-select: all`), so nothing but the
-            // code itself sits inside this block.
-            el('p', { class: 'rsvp-code', attrs: { 'aria-label': 'Código de invitación' }, text: displayCode(model.code), document: d }),
-            el('div', { class: 'rsvp-actions', children: [open, copyButton(model.code, o, status)], document: d }),
-            status,
-            el('p', {
-                class: 'rsvp-muted',
-                text: open
-                    ? 'Si Orbiventt no se abre automáticamente, copia el código e ingrésalo manualmente en la aplicación.'
-                    : 'Copia el código e ingrésalo manualmente en la aplicación Orbiventt para reclamar tus pases.',
+            el('h2', { text: COPY.appPath, document: d }),
+            el('p', { class: 'rsvp-muted', text: open ? COPY.appLeadOpen : COPY.appLeadStore, document: d }),
+            benefitsList(d),
+            open || store ? el('div', { class: 'rsvp-actions', children: [open || store], document: d }) : null,
+            el('div', {
+                class: 'rsvp-fallback',
+                children: [
+                    el('p', { class: 'rsvp-muted rsvp-fallback__lead', text: COPY.appFallback, document: d }),
+                    // Selectable as ONE run (`user-select: all`), so nothing but
+                    // the code itself sits inside this block.
+                    el('p', { class: 'rsvp-code', attrs: { 'aria-label': 'Código de invitación' }, text: displayCode(model.code), document: d }),
+                    copyButton(model.code, o, status),
+                    status,
+                ],
                 document: d,
             }),
             button('Volver', 'quiet', handlers.onCancel, d),
@@ -627,7 +721,7 @@ function choiceCard(model, handlers, d) {
     return el('section', {
         class: 'rsvp-card rsvp-choice-card',
         children: [
-            el('h2', { text: party ? 'Cambiar mi respuesta' : '¿Nos acompañas?', document: d }),
+            el('h2', { text: party ? COPY.changePath : '¿Nos acompañas?', document: d }),
             party ? null : el('p', { class: 'rsvp-muted', text: 'Responde en un minuto. No necesitas una cuenta.', document: d }),
             canAttend ? null : el('p', { class: 'rsvp-hint', text: COPY.noSeats, document: d }),
             el('div', {
@@ -880,64 +974,130 @@ function answerLines(party, d) {
     ];
 }
 
-/** What the organizer asked this party to bring, when anything. */
-function assignedItems(party, d) {
+/**
+ * "Lo que te toca llevar" — what the organizer assigned this party on the
+ * event's checklist, as its own card: an icon plate, the title, one row per
+ * item. Read-only here (claiming and editing live in the app); hidden when
+ * nothing is assigned. Semantics unchanged: the server lists the items.
+ */
+function bringCard(party, d) {
     var assigned = Array.isArray(party.assigned_items) ? party.assigned_items : [];
     var items = [];
     for (var i = 0; i < assigned.length; i += 1) {
         var label = text(assigned[i] && assigned[i].label, LIMITS.ITEM);
-        if (label) items.push(el('li', { text: label, document: d }));
-    }
-    if (!items.length) return [];
-    return [
-        el('p', { class: 'rsvp-muted rsvp-party__items-lead', text: 'Te pidieron llevar:', document: d }),
-        el('ul', { class: 'rsvp-party__items', children: items, document: d }),
-    ];
-}
-
-/** "Tu respuesta actual" — one card per party under this code. */
-function partyCard(party, payload, accepting, handlers, d) {
-    var attending = party.rsvp_status === 'attending';
-    var manageable = passesAllowed(payload, party);
-    var qrOn = !!(payload.event && payload.event.qr_enabled === true);
-    var actions = [
-        manageable
-            ? button('Administrar mis pases', qrOn ? 'primary' : 'ghost', function () { handlers.onManage(party); }, d)
-            : null,
-        accepting
-            ? button('Cambiar mi respuesta', 'ghost', function () { handlers.onChoose('choose', party); }, d)
-            : null,
-    ];
-    var hasAction = !!(actions[0] || actions[1]);
-    return el('article', {
-        class: 'rsvp-card rsvp-party' + (attending ? '' : ' rsvp-party--declined'),
-        children: answerLines(party, d).concat(
-            attending ? assignedItems(party, d) : [],
-            [
-                manageable && qrOn ? el('p', { class: 'rsvp-ready', text: COPY.qrReady, document: d }) : null,
-                hasAction ? el('div', { class: 'rsvp-actions', children: actions, document: d }) : null,
+        if (!label) continue;
+        items.push(el('li', {
+            class: 'rsvp-bring__item',
+            children: [
+                lineIcon(ICON_CHECK, d, 'rsvp-icon rsvp-bring__check'),
+                el('span', { text: label, document: d }),
             ],
-        ),
+            document: d,
+        }));
+    }
+    if (!items.length) return null;
+    return el('section', {
+        class: 'rsvp-bring',
+        attrs: { 'aria-label': COPY.bringTitle },
+        children: [
+            el('div', {
+                class: 'rsvp-bring__head',
+                children: [
+                    el('span', { class: 'rsvp-bring__plate', attrs: { 'aria-hidden': 'true' }, children: [lineIcon(ICON_BASKET, d, 'rsvp-icon')], document: d }),
+                    el('div', {
+                        children: [
+                            el('p', { class: 'rsvp-bring__title', text: COPY.bringTitle, document: d }),
+                            el('p', { class: 'rsvp-bring__hint', text: COPY.bringHint, document: d }),
+                        ],
+                        document: d,
+                    }),
+                ],
+                document: d,
+            }),
+            el('ul', { class: 'rsvp-bring__list', children: items, document: d }),
+        ],
         document: d,
     });
 }
+
+/** The centred "Administrar mis pases" — primary once QR access is on. */
+function manageControl(party, payload, handlers, d) {
+    var qrOn = !!(payload.event && payload.event.qr_enabled === true);
+    return el('div', {
+        class: 'rsvp-manage',
+        children: [
+            qrOn ? el('p', { class: 'rsvp-ready', text: COPY.qrReady, document: d }) : null,
+            button(COPY.manage, qrOn ? 'primary' : 'ghost', function () { handlers.onManage(party); }, d, { 'data-state': qrOn ? 'qr-on' : 'qr-off' }),
+        ],
+        document: d,
+    });
+}
+
+/**
+ * "Tu respuesta actual" — one card per party under this code: the answer,
+ * what to bring, the two paths ("Cambiar mi respuesta" / "Prefiero usar
+ * Orbiventt") and, centred right under them, "Administrar mis pases".
+ */
+function partyCard(party, payload, accepting, handlers, o) {
+    var d = o.document;
+    var attending = party.rsvp_status === 'attending';
+    var manageable = passesAllowed(payload, party);
+    return el('article', {
+        class: 'rsvp-card rsvp-party' + (attending ? '' : ' rsvp-party--declined'),
+        children: answerLines(party, d).concat([
+            attending ? bringCard(party, d) : null,
+            accepting
+                ? el('div', {
+                    class: 'rsvp-paths',
+                    children: [
+                        pathButton(COPY.changePath, COPY.changePathHint, function () { handlers.onChoose('choose', party); }, d),
+                        appPathControl(handlers, o),
+                    ],
+                    document: d,
+                })
+                : null,
+            manageable ? manageControl(party, payload, handlers, d) : null,
+        ]),
+        document: d,
+    });
+}
+
+var STATE_LABEL = { active: 'Activo', qr_disabled: 'QR desactivado', suspended: 'No disponible' };
 
 function passCard(pass, index, total, holder, o) {
     var d = o.document;
     var pos = Number.isInteger(pass.pos) && pass.pos >= 1 ? pass.pos : index + 1;
     var occupant = text(pass.occupant_label, LIMITS.NAME);
-    var who = pass.occupant_kind === 'holder'
-        ? 'Titular: ' + (occupant || holder)
-        : (occupant ? 'Acompañante: ' + occupant : 'Acompañante');
+    var kind = pass.occupant_kind === 'holder' ? 'Titular' : 'Acompañante';
+    var who = pass.occupant_kind === 'holder' ? (occupant || holder) : occupant;
     var state = typeof pass.state === 'string' ? pass.state : 'unavailable';
     var qr = state === 'active' && typeof pass.payload === 'string' ? qrNode(pass.payload, o.qrcode, d) : null;
     var checkedIn = Date.parse(pass.checked_in_at || '');
+    var badge = Number.isFinite(checkedIn)
+        ? 'Ingresó · ' + fmt(checkedIn, TIME_FMT) + ' h'
+        : (STATE_LABEL[state] || 'No disponible');
+    var badgeKind = Number.isFinite(checkedIn) ? 'checked' : (state === 'active' ? 'active' : 'off');
 
     return el('article', {
         class: 'rsvp-pass',
         attrs: { 'data-state': state },
         children: [
-            el('p', { class: 'rsvp-pass__title', text: 'Pase ' + pos + ' de ' + total + ' · ' + who, document: d }),
+            el('div', {
+                class: 'rsvp-pass__head',
+                children: [
+                    el('span', { class: 'rsvp-pass__num', text: 'Pase ' + pos + ' de ' + total, document: d }),
+                    el('span', { class: 'rsvp-pass__badge rsvp-pass__badge--' + badgeKind, text: badge, document: d }),
+                ],
+                document: d,
+            }),
+            el('p', {
+                class: 'rsvp-pass__title',
+                children: [
+                    el('span', { class: 'rsvp-pass__kind', text: kind, document: d }),
+                    el('strong', { class: 'rsvp-pass__who', text: who || '', document: d }),
+                ],
+                document: d,
+            }),
             qr ? el('div', { class: 'rsvp-pass__qr', children: [qr], document: d }) : null,
             state === 'qr_disabled'
                 ? el('p', { class: 'rsvp-pass__state', text: COPY.qrDisabled, document: d })
@@ -987,12 +1147,12 @@ function passesSection(model, party, handlers, o) {
     return el('section', {
         class: 'rsvp-card rsvp-passes',
         attrs: { 'data-view': 'passes' },
-        children: [el('h2', { text: 'Administrar mis pases', document: d })].concat(
+        children: [el('h2', { text: COPY.manage, document: d })].concat(
             answerLines(party, d),
-            assignedItems(party, d),
             [
+                bringCard(party, d),
                 accepting
-                    ? button('Cambiar mi respuesta', 'ghost', function () { handlers.onChoose('choose', party); }, d)
+                    ? button(COPY.changePath, 'ghost', function () { handlers.onChoose('choose', party); }, d)
                     : null,
                 el('h3', { class: 'rsvp-passes__heading', text: 'Tus pases', document: d }),
                 list,
@@ -1008,7 +1168,7 @@ function passesSection(model, party, handlers, o) {
 /** After a web confirmation: what the app adds, with the app as a SECONDARY suggestion. */
 function promoCard(handlers, o) {
     var d = o.document;
-    var open = openControl(o.handoff, o.smartOpen, d, 'ghost');
+    var open = openControl(o, 'ghost');
     return el('section', {
         class: 'rsvp-card rsvp-promo',
         children: [
@@ -1021,12 +1181,27 @@ function promoCard(handlers, o) {
     });
 }
 
-function resultNodes(model, handlers, o) {
+/** The party a fresh result belongs to, as the CURRENT payload describes it. */
+function resultParty(model, parties) {
+    var r = model.result || {};
+    if (r.partyId) {
+        var byId = findParty(parties, { id: r.partyId });
+        if (byId) return byId;
+    }
+    for (var i = 0; i < parties.length; i += 1) {
+        if (parties[i].rsvp_status === r.status && text(parties[i].party_name, LIMITS.NAME) === r.name) return parties[i];
+    }
+    return null;
+}
+
+function resultNodes(model, handlers, o, parties) {
     var d = o.document;
     var r = model.result;
     var organizer = text(model.payload.event && model.payload.event.organizer && model.payload.event.organizer.display_name, LIMITS.NAME)
         || 'el organizador';
     if (r.status === 'attending') {
+        var party = resultParty(model, parties);
+        var manageable = party && passesAllowed(model.payload, party);
         return [
             el('section', {
                 class: 'rsvp-card rsvp-result rsvp-result--ok',
@@ -1034,6 +1209,7 @@ function resultNodes(model, handlers, o) {
                 children: [
                     el('h2', { text: '¡Listo, ' + r.name + '!', document: d }),
                     el('p', { text: 'Confirmaste ' + passesLabel(r.seats) + '.', document: d }),
+                    manageable ? manageControl(party, model.payload, handlers, d) : null,
                 ],
                 document: d,
             }),
@@ -1072,11 +1248,14 @@ function answerSection(model, handlers, o) {
         view = 'idle';
     }
 
-    var children = model.result ? resultNodes(model, handlers, o) : [];
+    var children = model.result ? resultNodes(model, handlers, o, parties) : [];
     var inFlow = view === 'choose' || view === 'attend' || view === 'decline';
     // The warning is drawn exactly ONCE: the attending result already carries
-    // it; otherwise it leads every return visit and the web path's screens.
-    if (!attendingResult && (parties.length > 0 || inFlow)) children.push(warningNode(d));
+    // it; otherwise it leads the first visit's choice, the web path's
+    // screens and every return visit. A first visit's app screen has no
+    // link to protect yet; a return visit's does.
+    var firstChoice = view === 'idle' && parties.length === 0 && accepting;
+    if (!attendingResult && (parties.length > 0 || inFlow || firstChoice)) children.push(warningNode(d));
 
     if (view === 'attend') {
         children.push(attendForm(model, handlers, d));
@@ -1087,13 +1266,15 @@ function answerSection(model, handlers, o) {
     } else if (view === 'passes') {
         children.push(passesSection(model, managing, handlers, o));
     } else {
-        for (var i = 0; i < parties.length; i += 1) children.push(partyCard(parties[i], payload, accepting, handlers, d));
+        // A fresh ATTENDING result already shows the answer and its manage
+        // action; the party cards return on the next paint.
+        if (!attendingResult) {
+            for (var i = 0; i < parties.length; i += 1) children.push(partyCard(parties[i], payload, accepting, handlers, o));
+        }
         if (view === 'app') {
             children.push(appCard(model, handlers, o));
-        } else if (parties.length === 0) {
-            if (accepting) children.push(pathChoiceCard(handlers, d));
-        } else if (accepting && !attendingResult) {
-            children.push(el('p', { class: 'rsvp-app-link', children: [appPathLink(handlers, d)], document: d }));
+        } else if (parties.length === 0 && accepting) {
+            children.push(pathChoiceCard(handlers, o));
         }
     }
 
@@ -1109,7 +1290,8 @@ function answerSection(model, handlers, o) {
  *   phase:   'loading' | 'unavailable' | 'enter-code' | 'ready'
  *   view:    'idle' | 'choose' | 'attend' | 'decline' | 'app' | 'passes'
  *   passes:  null | {status: 'loading' | 'ok' | 'error', data?, message?, retryable?}
- * @param {object} handlers {onCode, onChoose, onCancel, onSubmit, onRetry, onManage, onPassesRetry}
+ *   result:  null | {status, name, seats, partyId?}
+ * @param {object} handlers {onCode, onChoose, onCancel, onSubmit, onRetry, onManage, onPassesRetry, onPhoto}
  * @param {object} opts    {document, storageUrl, storeUrl, handoff, smartOpen, navigator, qrcode, now}
  */
 export function renderApp(model, handlers, opts) {
@@ -1120,7 +1302,7 @@ export function renderApp(model, handlers, opts) {
     var children;
 
     if (m.phase === 'ready' && m.payload && m.payload.status === 'ok') {
-        children = [eventCard(m.payload, o), bannerNode(m.payload, d), answerSection(m, h, o)];
+        children = [eventCard(m.payload, h, o), bannerNode(m.payload, d), answerSection(m, h, o)];
     } else if (m.phase === 'enter-code') {
         children = [codeEntryNode(m, h, o)];
     } else if (m.phase === 'loading') {

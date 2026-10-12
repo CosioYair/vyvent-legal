@@ -89,8 +89,54 @@ export function clearCode(win) {
     if (!w) return;
     try {
         w.sessionStorage.removeItem(STORAGE_KEY);
+        w.sessionStorage.removeItem(RETURN_KEY);
     } catch (_) {
         /* nothing to do */
+    }
+}
+
+/* ── The app's RETURN ADDRESS (DEV only) ─────────────────────────────────────
+ * On the DEV mirror the app runs in Expo Go, which does not own `vyvent:`, so
+ * the app attaches its own Metro address to the links it shares
+ * (`?app_return=exp://host:port/--/e/{id}`). The invitation page and the
+ * `/e/{id}` landing already read it; the reply page receives it in the
+ * FRAGMENT as `r=` so the one-tap "Abrir Orbiventt" works here too. It is
+ * UNTRUSTED input: this module only checks its shape and remembers it for the
+ * tab; `app-return.js` is the validator that binds it to THIS event's route
+ * before any href is built from it, and production ignores it entirely.
+ */
+var RETURN_KEY = 'orb.rsvp.return';
+
+/** Shape only: an Expo Go address with nothing that could break out. */
+export function safeReturn(raw) {
+    if (typeof raw !== 'string' || raw === '' || raw.length > 200) return null;
+    if (!/^exps?:\/\//i.test(raw)) return null;
+    if (/[\x00-\x20\x7f"'`<>\\]/.test(raw)) return null;
+    return raw;
+}
+
+/** `r=` from the fragment, or the legacy `app_return=` query. */
+export function parseReturn(hash, search) {
+    return safeReturn(paramFrom(hash, 'r')) || safeReturn(paramFrom(search, 'app_return'));
+}
+
+/**
+ * Capture the app's return address for this tab. Must run BEFORE
+ * `captureCode()`, which strips the address bar. Null when absent.
+ */
+export function captureReturn(win) {
+    var w = win || (typeof window !== 'undefined' ? window : null);
+    if (!w) return null;
+    var loc = w.location || {};
+    var found = parseReturn(loc.hash, loc.search);
+    if (found) {
+        try { w.sessionStorage.setItem(RETURN_KEY, found); } catch (_) { /* memory only */ }
+        return found;
+    }
+    try {
+        return safeReturn(w.sessionStorage.getItem(RETURN_KEY));
+    } catch (_) {
+        return null;
     }
 }
 
@@ -134,4 +180,4 @@ export function captureCode(win) {
     }
 }
 
-export { STORAGE_KEY };
+export { STORAGE_KEY, RETURN_KEY };

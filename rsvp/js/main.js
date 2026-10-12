@@ -3,25 +3,27 @@
  *   session.js  where the code comes from, where it lives, when it dies
  *   backend.js  the three RPCs, closed allowlist, PostgREST 400 → message
  *   qr.js       the server's pass payload → an SVG
+ *   gallery.js  the event's photos → a grid and the fullscreen viewer
  *   ui.js       the model → the page
  *
  * PRODUCT INVARIANT (locked): there is NO new invitation type. This page
  * answers an EXISTING Smart Invitation ("Enlace de invitación") by its
  * existing code. The code is the only authority the server accepts; this page
  * never sends an event id or an invitation id, never logs, never persists
- * anything beyond the code in sessionStorage, and never writes the code into
- * `document.title`, a meta tag or any outgoing URL other than the app deep
- * link resolved by app-return.js.
+ * anything beyond the code (and, on DEV, the app's return address) in
+ * sessionStorage, and never writes the code into `document.title`, a meta tag
+ * or any outgoing URL other than the app deep link resolved by app-return.js.
  *
  * FRESHNESS. Passes are fetched every time their section opens — never cached
  * — and the invitation is re-resolved whenever the tab becomes visible again,
  * so an organizer flipping QR access on while the guest's phone was locked is
  * reflected the moment the guest looks back at the page.
  */
-import { captureCode, rememberCode, clearCode, normalizeCode } from './session.js?v=20261012a';
-import { resolveInvitation, respond, getPasses, backendConfig, storageUrlResolver } from './backend.js?v=20261012a';
-import { renderApp, COPY } from './ui.js?v=20261012a';
-import { clear } from './dom.js?v=20261012a';
+import { captureCode, captureReturn, rememberCode, clearCode, normalizeCode } from './session.js?v=20261012b';
+import { resolveInvitation, respond, getPasses, backendConfig, storageUrlResolver } from './backend.js?v=20261012b';
+import { renderApp, COPY } from './ui.js?v=20261012b';
+import { photoList, viewerNode } from './gallery.js?v=20261012b';
+import { clear } from './dom.js?v=20261012b';
 
 var ENV = (typeof window !== 'undefined' && window.__ORB_ENV__) || {};
 var RETURN = (typeof window !== 'undefined' && window.__ORB_APP_RETURN__) || null;
@@ -35,6 +37,8 @@ var storageUrl = backend ? storageUrlResolver(backend.url) : null;
 var model = {
     phase: 'loading',
     code: null,
+    /** The app's return address for THIS tab (DEV / Expo Go only); untrusted until app-return.js binds it. */
+    appReturn: null,
     payload: null,
     view: 'idle',
     editing: null,
@@ -48,6 +52,10 @@ var model = {
 /** Monotonic ticket so a slow passes response never overwrites a newer one. */
 var passesTicket = 0;
 var refreshing = false;
+/** The open photo viewer's controller, or null. */
+var viewer = null;
+/** The tile that opened the viewer, to return focus to. */
+var viewerOpener = null;
 
 function byId(id) { return document.getElementById(id); }
 
@@ -61,15 +69,17 @@ function storeUrl() {
 /**
  * The app handoff for the event this code answers — resolved EXCLUSIVELY by
  * app-return.js, exactly as the invitation's pass card does. Production gets
- * `vyvent://e/{id}?code=…`; the DEV mirror has no Expo Go return address on
- * this page and therefore gets `{open:false}` — the copy-the-code path.
+ * `vyvent://e/{id}?code=…`; the DEV mirror gets the Expo Go return address
+ * the link carried (`#r=` / `?app_return=`), but only after app-return.js
+ * has bound it to THIS event's route — otherwise `{open:false}` and the app
+ * screen offers the store and the code instead.
  */
 function handoff() {
     if (!RETURN || typeof RETURN.resolveAppHandoff !== 'function') return null;
     if (!model.payload || !model.payload.event || !model.payload.event.id) return null;
     return RETURN.resolveAppHandoff({
         env: ENV.env,
-        appReturn: null,
+        appReturn: model.appReturn,
         kind: 'e',
         id: String(model.payload.event.id),
         isChat: false,
@@ -123,6 +133,44 @@ function currentParty(party) {
     }
     return null;
 }
+
+/* ── the photo viewer ─────────────────────────────────────────────────────── */
+
+/**
+ * Open the viewer on photo `index`. It mounts in its own root, outside the
+ * page tree, so opening and closing never re-renders the page (and never
+ * moves the guest's scroll position). Only the current payload's photos are
+ * ever shown — the ones the invitation resolved — and nothing is fetched.
+ */
+function openViewer(index) {
+    if (!model.payload) return;
+    var photos = photoList(model.payload, storageUrl);
+    if (!photos.length) return;
+    closeViewer();
+    var active = document.activeElement;
+    viewerOpener = active && typeof active.focus === 'function' ? active : null;
+    viewer = viewerNode(photos, index, closeViewer, { document: document });
+    if (!viewer) return;
+    var root = byId('rsvp-viewer-root');
+    root.appendChild(viewer.node);
+    root.removeAttribute('hidden');
+    document.body.classList.add('rsvp-viewer-open');
+    viewer.setIndex(index, true);
+    viewer.focus();
+}
+
+function closeViewer() {
+    if (!viewer) return;
+    var root = byId('rsvp-viewer-root');
+    clear(root);
+    root.setAttribute('hidden', '');
+    document.body.classList.remove('rsvp-viewer-open');
+    viewer = null;
+    if (viewerOpener && viewerOpener.isConnected) viewerOpener.focus();
+    viewerOpener = null;
+}
+
+/* ── data ─────────────────────────────────────────────────────────────────── */
 
 /** Resolve a code. `fromEntry` keeps failures on the entry form, inline. */
 async function load(code, fromEntry) {
@@ -197,11 +245,13 @@ async function fetchPasses(party) {
  * organizer made while this tab was hidden — QR access turned on, a pass
  * count edited, the invitation withdrawn — is reflected without a reload.
  * Skipped while a form is open: re-rendering would discard what the guest
- * is typing, and a submit re-resolves anyway.
+ * is typing, and a submit re-resolves anyway. Skipped while the viewer is
+ * open too: the photos on screen are the ones to keep looking at.
  */
 async function refresh() {
     if (model.phase !== 'ready' || !model.code || refreshing) return;
     if (model.view === 'attend' || model.view === 'decline') return;
+    if (viewer) return;
     refreshing = true;
     try {
         var res = await resolveInvitation(model.code);
@@ -278,6 +328,11 @@ var handlers = {
         if (model.code) void load(model.code, false);
     },
 
+    /** A gallery tile: open the viewer on that photo. */
+    onPhoto: function (index) {
+        openViewer(index);
+    },
+
     /** @returns {Promise<{ok: boolean, message?: string}>} the form shows `message`. */
     onSubmit: async function (answer) {
         var res = await respond(model.code, answer);
@@ -298,7 +353,12 @@ var handlers = {
         var fresh = await resolveInvitation(model.code);
         if (fresh && fresh.status === 'ok') model.payload = fresh;
 
-        model.result = { status: answer.status, name: answer.name, seats: answer.seats };
+        model.result = {
+            status: answer.status,
+            name: answer.name,
+            seats: answer.seats,
+            partyId: typeof res.party_id === 'string' ? res.party_id : (answer.partyId || null),
+        };
         model.view = 'idle';
         model.editing = null;
         model.managing = null;
@@ -311,6 +371,8 @@ var handlers = {
 async function start() {
     revealDevBadge();
 
+    // The return address first: captureCode() strips the address bar.
+    model.appReturn = captureReturn(window);
     var code = captureCode(window);
     if (!code) {
         model.phase = 'enter-code';

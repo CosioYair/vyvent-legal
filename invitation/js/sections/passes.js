@@ -41,9 +41,9 @@
  * the copy path carries the guest, which is the same fail-closed posture the
  * event-preview page has.
  */
-import { el, setText } from '../dom.js?v=20261012a';
-import { MODE } from '../route.js?v=20261012a';
-import { section } from './shell.js?v=20261012a';
+import { el, setText } from '../dom.js?v=20261012b';
+import { MODE } from '../route.js?v=20261012b';
+import { section } from './shell.js?v=20261012b';
 
 /**
  * The code as a guest should read it: XXXX-XXXX-XXXX for the canonical
@@ -216,9 +216,17 @@ function buildOpenControl(handoff, smartOpen, d) {
  * and the code travels in the FRAGMENT — never a query parameter — so it is
  * not sent to the server that hosts the reply page.
  */
-export function rsvpHref(pageUrl, code) {
+export function rsvpHref(pageUrl, code, appReturn) {
     if (typeof code !== 'string' || !/^[A-Za-z0-9-]{1,20}$/.test(code)) return null;
-    const fragment = '#c=' + encodeURIComponent(code);
+    // The DEV mirror's Expo Go return address rides along in the SAME
+    // fragment (`&r=`) so the reply page's "Prefiero usar Orbiventt" can open
+    // the DEV app with one tap too. It arrived validated by route.js
+    // (`safeAppReturn`) and is re-validated by app-return.js before use;
+    // production links never carry one, so nothing is appended there.
+    const ret = typeof appReturn === 'string' && /^exps?:\/\//i.test(appReturn) && !/[\x00-\x20"'`<>\\]/.test(appReturn)
+        ? '&r=' + encodeURIComponent(appReturn)
+        : '';
+    const fragment = '#c=' + encodeURIComponent(code) + ret;
     try {
         return new URL('../rsvp/', pageUrl).href + fragment;
     } catch (_) {
@@ -229,7 +237,7 @@ export function rsvpHref(pageUrl, code) {
 }
 
 function rsvpControl(code, ctx) {
-    const href = rsvpHref(ctx.pageUrl, code);
+    const href = rsvpHref(ctx.pageUrl, code, ctx.route && ctx.route.appReturn);
     if (!href) return null;
     return el('a', {
         class: 'inv-btn inv-btn--solid inv-passes__rsvp',

@@ -12,12 +12,12 @@
     <base href="/vyvent-legal/">
     <!-- ENV-SPECIFIC. The single environment boundary for the whole site:
          Supabase target + DEV marker. Never promoted between repositories. -->
-    <script src="env.js?v=20261012a"></script>
+    <script src="env.js?v=20261012b"></script>
     <!-- SHARED. The single decision point for "Abrir en Orbiventt": the app
          scheme in production, a validated Expo Go return URL on the DEV mirror.
          Loaded synchronously, like env.js, so the inline script below can treat
          it as present-or-definitively-absent (it fails closed either way). -->
-    <script src="app-return.js?v=20261012a"></script>
+    <script src="app-return.js?v=20261012b"></script>
     <!-- SHARED. The single declaration of the store listings and of the platform
          decision, so this page and the Digital Invitation's claim card cannot
          drift apart on where "get the app" leads. Loaded synchronously for the
@@ -26,7 +26,7 @@
          stamped by `node scripts/set-web-build.mjs <token>` — never edited by
          hand. Same reasoning as the invitation page: the JS is cached for four
          hours, the document for ten minutes. -->
-    <script src="app-store-links.js?v=20261012a"></script>
+    <script src="app-store-links.js?v=20261012b"></script>
     <link rel="icon" type="image/png" href="assets/favicon.png">
     <title>Orbiventt</title>
     <!-- SEO is intentionally deferred (external-invitations.md §10). This page
@@ -697,7 +697,15 @@
             // FRAGMENT so it is never sent to the page's host. The relative
             // href resolves through <base>, so it is right in both deployments.
             if (code) {
-                el('rsvpCta').setAttribute('href', 'rsvp/#c=' + encodeURIComponent(code));
+                // The DEV mirror's Expo Go return address rides along in the
+                // same fragment (`&r=`), so the reply page's "Prefiero usar
+                // Orbiventt" opens the DEV app with one tap as this page's
+                // own button does. Untrusted; app-return.js re-validates it
+                // there. Production links never carry one.
+                var ret = appReturn && /^exps?:\/\//i.test(appReturn) && !/[\x00-\x20"'`<>\\]/.test(appReturn)
+                    ? '&r=' + encodeURIComponent(appReturn)
+                    : '';
+                el('rsvpCta').setAttribute('href', 'rsvp/#c=' + encodeURIComponent(code) + ret);
                 show('rsvpCta');
             }
 

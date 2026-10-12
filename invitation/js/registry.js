@@ -20,13 +20,13 @@
  * three fields and the id agree, so a copy-paste mistake in a future entry
  * fails at load rather than mislabeling a stored invitation.
  */
-import weddingRomanticV1 from '../templates/wedding-romantic/template.js?v=20261012a';
-import weddingClassicGoldV1 from '../templates/wedding-classic-gold/template.js?v=20261012a';
-import weddingBotanicalV1 from '../templates/wedding-botanical/template.js?v=20261012a';
-import weddingEditorialV1 from '../templates/wedding-editorial/template.js?v=20261012a';
-import weddingCelestialV1 from '../templates/wedding-celestial/template.js?v=20261012a';
-import customDesignV1 from '../templates/custom-design/template.js?v=20261012a';
-import { CONTRACT_VERSION } from './config.js?v=20261012a';
+import weddingRomanticV1 from '../templates/wedding-romantic/template.js?v=20261012b';
+import weddingClassicGoldV1 from '../templates/wedding-classic-gold/template.js?v=20261012b';
+import weddingBotanicalV1 from '../templates/wedding-botanical/template.js?v=20261012b';
+import weddingEditorialV1 from '../templates/wedding-editorial/template.js?v=20261012b';
+import weddingCelestialV1 from '../templates/wedding-celestial/template.js?v=20261012b';
+import customDesignV1 from '../templates/custom-design/template.js?v=20261012b';
+import { CONTRACT_VERSION } from './config.js?v=20261012b';
 
 /** Categories the registry knows. Used by the editor in Milestone B.
  *  `custom` (Personalizada) is the bring-your-own-design category: one

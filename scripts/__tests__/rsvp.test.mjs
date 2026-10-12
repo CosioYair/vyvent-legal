@@ -9,8 +9,10 @@
  * the title or a third-party host; the backend allowlist is exactly three
  * RPCs; every guest-typed string renders as TEXT (the DOM stub's innerHTML
  * throws); the pass QR is drawn ONLY from a server payload of the exact shape;
- * and the two entry points (the invitation's pass card and /e/{id}?code=)
- * point at this page with the code in the FRAGMENT.
+ * the gallery shows ONLY the photos the invitation resolved and fetches
+ * nothing to show them; the app path is the app's own one-tap handoff; and
+ * the two entry points (the invitation's pass card and /e/{id}?code=) point
+ * at this page with the code in the FRAGMENT.
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
@@ -31,6 +33,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const RSVP = join(ROOT, 'rsvp');
 const read = (...p) => readFileSync(join(RSVP, ...p), 'utf8');
 const HTML = read('index.html');
+const CSS = read('css', 'rsvp.css');
 const LANDING = readFileSync(join(ROOT, '404.html'), 'utf8');
 const VENDOR = read('vendor', 'qrcode-generator.js');
 
@@ -42,6 +45,7 @@ const load = (file) => import(pathToFileURL(join(RSVP, 'js', file)).href);
 const session = await load('session.js');
 const backend = await load('backend.js');
 const qr = await load('qr.js');
+const gallery = await load('gallery.js');
 const ui = await load('ui.js');
 
 /** The vendored UMD encoder, evaluated the way a classic script would be. */
@@ -51,10 +55,18 @@ const qrcode = new Function('exports', 'module', 'define', VENDOR + '\nreturn qr
 const CODE = 'ABCDEFGHIJKL';
 const EVENT_ID = '91000001-0000-4000-8000-000000000001';
 const SUPA = 'https://mfaymuisnpfdolqogktx.supabase.co';
+const OBJ = SUPA + '/storage/v1/object/public/';
+const RETURN_URL = 'exp://192.168.1.5:8081/--/e/' + EVENT_ID;
 const storageUrl = backend.storageUrlResolver(SUPA);
 const tick = () => new Promise((r) => setTimeout(r, 0));
 
 /* ── fixtures ──────────────────────────────────────────────────────────────── */
+
+const PHOTOS = [
+    { path: 'u1/cover.jpg', created_at: '2026-10-01T20:00:00Z' },
+    { path: 'u1/a.jpg', created_at: '2026-10-02T20:00:00Z' },
+    { path: 'u1/b.jpg', created_at: '2026-10-03T20:00:00Z' },
+];
 
 function payload(over = {}) {
     return {
@@ -73,6 +85,8 @@ function payload(over = {}) {
             qr_enabled: false,
             cover_path: 'u1/cover.jpg',
             gallery_paths: ['u1/cover.jpg', 'u1/a.jpg', 'u1/b.jpg'],
+            photos: PHOTOS,
+            photo_count: 3,
             organizer: { display_name: 'Ana Ruiz', avatar_path: 'u1/avatar.jpg' },
             ...(over.event || {}),
         },
@@ -101,7 +115,10 @@ const DECLINED = {
     decline_note: 'Estaré de viaje', updated_at: '2026-10-11T00:00:00Z', companions: [], assigned_items: [],
 };
 const HANDOFF = { open: true, href: 'vyvent://e/' + EVENT_ID + '?code=' + CODE, source: 'app-scheme', reason: null };
+const EXPO = { open: true, href: RETURN_URL + '?code=' + CODE, source: 'expo-go', reason: null };
 const CLOSED = { open: false, href: null, source: 'none', reason: 'expo-go-required' };
+const INTENT = 'intent://e/' + EVENT_ID + '?code=' + CODE + '#Intent;scheme=vyvent;package=com.vyvent.mobile;S.browser_fallback_url=x;end';
+const plan = (over = {}) => ({ strategy: 'ios-scheme-fallback', href: HANDOFF.href, storeUrl: 'https://apps.apple.com/app/id6788249586', platform: 'ios', arm: () => () => {}, ...over });
 
 const P1 = 'OVP1:ABCDEFGH23456789:JKMNPQRSTVWXYZ01';
 const P2 = 'OVP1:0123456789ABCDEF:ZYXWVTSRQPNMKJHG';
@@ -130,9 +147,14 @@ const buttons = (node, label) => node.querySelectorAll('button').filter((b) => b
 const links = (node, label) => node.querySelectorAll('a').filter((a) => a.textContent === label);
 const byId = (node, id) => node.querySelector('[id="' + id + '"]');
 const pathButtons = (node, title) => node.querySelectorAll('.rsvp-btn--path').filter((b) => b.querySelector('strong').textContent === title);
+const appPaths = (node) => node.querySelectorAll('.rsvp-btn--path-app');
 const primaries = (node) => node.querySelectorAll('.rsvp-btn--primary');
 const warnings = (node) => node.querySelectorAll('.rsvp-warning');
+const qrs = (node) => node.querySelectorAll('.rsvp-qr');
+const manages = (node) => buttons(node, 'Administrar mis pases');
 const answerClasses = (node) => node.querySelector('.rsvp-answer').children.map((c) => c.getAttribute('class') || '');
+const tiles = (node) => node.querySelectorAll('.rsvp-gallery__tile');
+const storageImgs = (node) => node.querySelectorAll('img').filter((i) => !(i.getAttribute('class') || '').includes('rsvp-path__icon'));
 
 /* ── The code: transport, storage, stripping ──────────────────────────────── */
 
@@ -214,6 +236,58 @@ describe('code capture', () => {
     });
 });
 
+/* ── The app's return address (DEV one-tap handoff) ───────────────────────── */
+
+describe('return address capture', () => {
+    test('reads r= from the fragment beside the code, remembers it for the tab, then the code capture strips both', () => {
+        const win = fakeWindow({ hash: '#c=' + CODE + '&r=' + encodeURIComponent(RETURN_URL) });
+        assert.equal(session.captureReturn(win), RETURN_URL);
+        assert.equal(win.sessionStorage.store[session.RETURN_KEY], RETURN_URL);
+        assert.equal(session.captureCode(win), CODE);
+        assert.deepEqual(win.history.calls, [[null, '', '/vyvent-legal/rsvp/']]);
+        // After the strip, both survive a reload from the tab.
+        const again = fakeWindow({ hash: '' });
+        again.sessionStorage.store[session.STORAGE_KEY] = CODE;
+        again.sessionStorage.store[session.RETURN_KEY] = RETURN_URL;
+        assert.equal(session.captureReturn(again), RETURN_URL);
+        assert.equal(session.captureCode(again), CODE);
+    });
+
+    test('accepts the legacy ?app_return= query the other pages read', () => {
+        const win = fakeWindow({ search: '?code=' + CODE + '&app_return=' + encodeURIComponent(RETURN_URL), hash: '' });
+        assert.equal(session.captureReturn(win), RETURN_URL);
+    });
+
+    test('only an Expo Go address of a safe shape is ever kept — this module is not the validator, app-return.js is', () => {
+        for (const bad of ['https://evil.example/--/e/x', 'javascript:alert(1)', 'vyvent://e/x', 'exp://a b', 'exp://x/`', 'exp://' + 'a'.repeat(200), '', null]) {
+            assert.equal(session.safeReturn(bad), null, String(bad));
+        }
+        assert.equal(session.safeReturn('exps://tunnel.exp.direct/--/e/' + EVENT_ID), 'exps://tunnel.exp.direct/--/e/' + EVENT_ID);
+        const win = fakeWindow({ hash: '#c=' + CODE + '&r=' + encodeURIComponent('https://evil.example/') });
+        assert.equal(session.captureReturn(win), null);
+        assert.equal(win.sessionStorage.store[session.RETURN_KEY], undefined);
+    });
+
+    test('a dead link forgets the return address with the code', () => {
+        const win = fakeWindow({ hash: '' });
+        win.sessionStorage.store[session.STORAGE_KEY] = CODE;
+        win.sessionStorage.store[session.RETURN_KEY] = RETURN_URL;
+        session.clearCode(win);
+        assert.equal(win.sessionStorage.store[session.RETURN_KEY], undefined);
+    });
+
+    test('main.js captures the return address BEFORE the code strips the bar and hands it ONLY to app-return.js', () => {
+        const main = stripComments(read('js', 'main.js'));
+        assert.match(main, /import \{[^}]*\bcaptureReturn\b[^}]*\} from '\.\/session\.js/);
+        const ret = main.indexOf('model.appReturn = captureReturn(window);');
+        const code = main.indexOf('var code = captureCode(window);');
+        assert.ok(ret !== -1 && code !== -1 && ret < code, 'the return address must be read before the address bar is stripped');
+        assert.match(main, /RETURN\.resolveAppHandoff\(\{[\s\S]*?appReturn: model\.appReturn,[\s\S]*?kind: 'e',[\s\S]*?id: String\(model\.payload\.event\.id\),[\s\S]*?code: model\.code,/);
+        // Nowhere else is the raw value used: never placed in an href by this page.
+        assert.equal((main.match(/appReturn/g) || []).length, 4, 'appReturn is read in more places than the model field, its capture and the resolver');
+    });
+});
+
 /* ── Backend surface ───────────────────────────────────────────────────────── */
 
 describe('backend', () => {
@@ -228,6 +302,7 @@ describe('backend', () => {
         for (const forbidden of [
             'get_event_web_rsvps', 'claim_smart_invitation', 'get_published_invitation', 'get_my_event_passes',
             'scanner_check_in', 'get_public_event_preview', 'publish_invitation', 'assign_bring_item_to_party',
+            'get_event_photos', 'event_photos',
         ]) {
             assert.equal(await backend.callRpc(forbidden, {}, { fetch: fetchStub, env }), null, forbidden);
         }
@@ -274,9 +349,9 @@ describe('backend', () => {
     });
 
     test('storage URLs resolve only our three buckets, safely encoded, same origin', () => {
-        assert.equal(storageUrl('event-photos', 'u1/a b.jpg'), SUPA + '/storage/v1/object/public/event-photos/u1/a%20b.jpg');
-        assert.equal(storageUrl('avatars', 'u1/av.jpg'), SUPA + '/storage/v1/object/public/avatars/u1/av.jpg');
-        assert.equal(storageUrl('invitation-media', 'di/x.jpg'), SUPA + '/storage/v1/object/public/invitation-media/di/x.jpg');
+        assert.equal(storageUrl('event-photos', 'u1/a b.jpg'), OBJ + 'event-photos/u1/a%20b.jpg');
+        assert.equal(storageUrl('avatars', 'u1/av.jpg'), OBJ + 'avatars/u1/av.jpg');
+        assert.equal(storageUrl('invitation-media', 'di/x.jpg'), OBJ + 'invitation-media/di/x.jpg');
         assert.equal(storageUrl('stories', 'x.jpg'), null);
         assert.equal(storageUrl('event-chat-media', 'x.jpg'), null);
         assert.equal(storageUrl('event-photos', '../x.jpg'), null);
@@ -337,23 +412,24 @@ describe('states', () => {
             assert.equal(out.node.querySelectorAll('input').length, 0);
             assert.equal(primaries(out.node).length, 0);
             assert.equal(warnings(out.node).length, 0, 'a link warning with nothing to protect');
+            assert.equal(manages(out.node).length, 0, 'a manage action with no party');
         }
         // Existing answers are still visible, read-only — but an EXPIRED link
         // still shows the passes it already granted: the door is still ahead.
         const expiredParty = render(ready(payload({ invitation: { is_expired: true, accepting_responses: false }, parties: [ATTENDING] })));
         assert.match(expiredParty.text, /Luis Pérez/);
         assert.equal(buttons(expiredParty.node, 'Cambiar mi respuesta').length, 0);
-        assert.equal(buttons(expiredParty.node, 'Prefiero usar la app').length, 0);
-        assert.equal(buttons(expiredParty.node, 'Administrar mis pases').length, 1);
+        assert.equal(expiredParty.node.querySelectorAll('.rsvp-btn--path').length, 0);
+        assert.equal(manages(expiredParty.node).length, 1);
         for (const closed of [{ is_finished: true }, { is_cancelled: true }]) {
             const out = render(ready(payload({ event: closed, invitation: { accepting_responses: false }, parties: [ATTENDING] })));
-            assert.equal(buttons(out.node, 'Administrar mis pases').length, 0, 'passes offered for an event with no door');
+            assert.equal(manages(out.node).length, 0, 'passes offered for an event with no door');
             assert.equal(buttons(out.node, 'Cambiar mi respuesta').length, 0);
         }
         assert.equal(render(ready(payload())).node.querySelectorAll('.rsvp-banner').length, 0);
     });
 
-    test('ok-empty: the event card, es-MX date, map, NO calendar, and ONE two-path choice with no primary', () => {
+    test('first visit: the event card, the photos, es-MX date, map, NO calendar, the warning, then ONE two-path choice with no primary', () => {
         const chosen = [];
         const out = render(ready(payload()), { onChoose: (...a) => chosen.push(a) });
         assert.match(out.text, /Te invita Ana Ruiz/);
@@ -371,48 +447,47 @@ describe('states', () => {
         assert.equal(/calendario/i.test(out.text), false);
         assert.equal(out.node.querySelectorAll('a').filter((a) => (a.getAttribute('href') || '').startsWith('data:')).length, 0);
 
-        const imgs = out.node.querySelectorAll('img');
-        assert.ok(imgs.every((i) => i.getAttribute('src').startsWith(SUPA + '/storage/v1/object/public/')));
+        assert.ok(storageImgs(out.node).every((i) => i.getAttribute('src').startsWith(OBJ)));
         assert.equal(out.node.querySelectorAll('.rsvp-event__cover').length, 1);
         assert.equal(out.node.querySelectorAll('.rsvp-event__avatar').length, 1);
-        assert.equal(out.node.querySelector('.rsvp-gallery').querySelectorAll('img').length, 2, 'the cover repeats in the strip');
+        // The gallery: the cover is the hero, so two tiles remain; the count names all three.
+        assert.match(out.text, /Galería · 3 fotos/);
+        assert.equal(tiles(out.node).length, 2, 'the hero cover repeats as a tile');
 
-        // ONE deliberate choice: two equal paths, no primary, no standalone CTA.
+        // The event card, the warning, then ONE deliberate choice: two real
+        // paths, no primary, no standalone CTA.
         assert.match(out.text, /Confirmar asistencia/);
         assert.equal(buttons(out.node, 'Confirmar asistencia').length, 0, 'the old standalone primary CTA is back');
         assert.equal(out.node.querySelectorAll('.rsvp-btn--path').length, 2);
         assert.equal(primaries(out.node).length, 0, 'a primary control on the path choice');
-        assert.equal(warnings(out.node).length, 0, 'the warning precedes any choice');
+        assert.equal(warnings(out.node).length, 1, 'the warning must lead the first visit');
+        const classes = answerClasses(out.node);
+        assert.ok(classes[0].includes('rsvp-warning') && classes[1].includes('rsvp-prompt'), classes.join(' | '));
         assert.equal(buttons(out.node, 'Responder como otra persona').length, 0);
+        assert.equal(manages(out.node).length, 0, 'a manage action with no party');
         pathButtons(out.node, 'Confirmar desde la web')[0].dispatch('click');
-        pathButtons(out.node, 'Confirmar desde la app')[0].dispatch('click');
+        pathButtons(out.node, 'Prefiero usar Orbiventt')[0].dispatch('click');
         assert.deepEqual(chosen, [['choose', null], ['app', null]]);
-    });
-
-    test('the gallery is capped at six and skips unresolvable paths', () => {
-        const many = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].map((n) => 'u1/' + n + '.jpg');
-        const out = render(ready(payload({ event: { cover_path: null, gallery_paths: many.concat(['../x.jpg']) } })));
-        assert.equal(out.node.querySelector('.rsvp-gallery').querySelectorAll('img').length, 6);
     });
 
     test('the first image is the invitation thumbnail, then the event cover, then nothing', () => {
         const media = render(ready(payload({ invitation_image: { bucket: 'invitation-media', path: 'di/thumb.jpg', width: 1200, height: 630 } })));
         const first = media.node.querySelector('.rsvp-event__cover');
-        assert.equal(first.getAttribute('src'), SUPA + '/storage/v1/object/public/invitation-media/di/thumb.jpg');
+        assert.equal(first.getAttribute('src'), OBJ + 'invitation-media/di/thumb.jpg');
         assert.ok(first.getAttribute('class').includes('rsvp-event__cover--invitation'));
         assert.equal(media.node.querySelectorAll('img')[0], first, 'the thumbnail is not the first image on the page');
-        // The event cover is no longer the first image, so it joins the strip.
-        assert.equal(media.node.querySelector('.rsvp-gallery').querySelectorAll('img').length, 3);
+        // The event cover is no longer the hero, so it joins the grid.
+        assert.equal(tiles(media.node).length, 3);
 
         const photos = render(ready(payload({ invitation_image: { bucket: 'event-photos', path: 'u1/share.jpg' } })));
-        assert.equal(photos.node.querySelector('.rsvp-event__cover').getAttribute('src'), SUPA + '/storage/v1/object/public/event-photos/u1/share.jpg');
+        assert.equal(photos.node.querySelector('.rsvp-event__cover').getAttribute('src'), OBJ + 'event-photos/u1/share.jpg');
 
         // A thumbnail from a bucket this page may not read falls back to the cover.
         const bad = render(ready(payload({ invitation_image: { bucket: 'stories', path: 'x.jpg' } })));
-        assert.equal(bad.node.querySelector('.rsvp-event__cover').getAttribute('src'), SUPA + '/storage/v1/object/public/event-photos/u1/cover.jpg');
+        assert.equal(bad.node.querySelector('.rsvp-event__cover').getAttribute('src'), OBJ + 'event-photos/u1/cover.jpg');
         assert.ok(bad.node.querySelector('.rsvp-event__cover').getAttribute('class').includes('rsvp-event__cover--cover'));
 
-        const none = render(ready(payload({ invitation_image: null, event: { cover_path: null, gallery_paths: [] } })));
+        const none = render(ready(payload({ invitation_image: null, event: { cover_path: null, gallery_paths: [], photos: [], photo_count: 0 } })));
         assert.equal(none.node.querySelectorAll('.rsvp-event__cover').length, 0);
         assert.deepEqual(ui.firstImage({ invitation_image: { bucket: 'invitation-media', path: '../x' }, event: { cover_path: null } }, storageUrl), null);
     });
@@ -471,7 +546,7 @@ describe('states', () => {
         assert.equal(primaries(out.node)[0].textContent, 'Sí, asistiré');
         buttons(out.node, 'Sí, asistiré')[0].dispatch('click');
         buttons(out.node, 'No podré asistir')[0].dispatch('click');
-        buttons(out.node, 'Prefiero usar la app')[0].dispatch('click');
+        buttons(out.node, 'Prefiero usar Orbiventt')[0].dispatch('click');
         buttons(out.node, 'Cancelar')[0].dispatch('click');
         assert.deepEqual(chosen, [['attend', null], ['decline', null], ['app', null], ['cancel']]);
 
@@ -487,51 +562,115 @@ describe('states', () => {
         assert.equal(editing.node.querySelectorAll('.rsvp-benefits').length, 0);
         assert.equal(warnings(editing.node).length, 1);
     });
+});
 
-    test('app path: the code, Copiar código, the ONE smart-open button — and copy-only when the handoff is closed', async () => {
+/* ── The app path: one tap, the code as the fallback ──────────────────────── */
+
+describe('app path', () => {
+    test('with the handoff open, "Prefiero usar Orbiventt" IS the one-tap handoff: an armed anchor carrying this event and code', () => {
+        const armed = [];
+        const chosen = [];
+        const out = render(ready(payload()), { onChoose: (...a) => chosen.push(a) }, { handoff: HANDOFF, smartOpen: plan({ arm: (a) => { armed.push(a); return () => {}; } }) });
+        const app = appPaths(out.node);
+        assert.equal(app.length, 1);
+        assert.equal(app[0].tagName, 'a');
+        assert.equal(app[0].getAttribute('href'), 'vyvent://e/' + EVENT_ID + '?code=' + CODE);
+        assert.equal(app[0].getAttribute('data-state'), 'open');
+        assert.deepEqual(armed, [app[0]], 'the smart-open fallback is not armed');
+        assert.equal(app[0].querySelector('strong').textContent, 'Prefiero usar Orbiventt');
+        assert.match(app[0].textContent, /Se abre con tu invitación lista/);
+        assert.equal(app[0].querySelector('.rsvp-path__icon').getAttribute('src'), 'favicon-96x96.png', 'the app path wears the app icon');
+        assert.ok(!app[0].getAttribute('class').includes('rsvp-btn--primary'), 'the app path must not be THE primary');
+        assert.equal(primaries(out.node).length, 0);
+        // The code is never shown on this screen; the manual route is a quiet link behind it.
+        assert.equal(/ABCD-EFGH-IJKL/.test(out.text), false);
+        buttons(out.node, 'Abrir con el código manualmente')[0].dispatch('click');
+        assert.deepEqual(chosen, [['app', null]]);
+
+        // Android: the intent URL from the plan; iOS/scheme: the plan's href; DEV Expo Go: the validated return address.
+        const android = render(ready(payload()), {}, { handoff: HANDOFF, smartOpen: { strategy: 'android-intent', href: INTENT, storeUrl: 'x', platform: 'android', arm: () => () => {} } });
+        assert.equal(appPaths(android.node)[0].getAttribute('href'), INTENT);
+        const dev = render(ready(payload()), {}, { handoff: EXPO, smartOpen: null });
+        assert.equal(appPaths(dev.node)[0].getAttribute('href'), RETURN_URL + '?code=' + CODE);
+        assert.equal(appPaths(dev.node)[0].tagName, 'a');
+    });
+
+    test('with the handoff closed, the app path leads to the app screen; no quiet fallback link is offered', () => {
+        const chosen = [];
+        for (const handoff of [null, CLOSED]) {
+            const out = render(ready(payload()), { onChoose: (...a) => chosen.push(a) }, { handoff });
+            const app = appPaths(out.node);
+            assert.equal(app.length, 1);
+            assert.equal(app[0].tagName, 'button');
+            assert.equal(app[0].getAttribute('data-state'), 'closed');
+            assert.equal(app[0].hasAttribute('href'), false);
+            assert.match(app[0].textContent, /Chat, fotos, notificaciones y más\./);
+            assert.equal(buttons(out.node, 'Abrir con el código manualmente').length, 0);
+            app[0].dispatch('click');
+        }
+        assert.deepEqual(chosen, [['app', null], ['app', null]]);
+    });
+
+    test('app screen (handoff open): Abrir Orbiventt is the ONE primary, the benefits, then the code as the fallback with Copiar código', async () => {
         const armed = [];
         const written = [];
-        const plan = { strategy: 'ios-scheme-fallback', href: HANDOFF.href, storeUrl: 'https://apps.apple.com/app/id6788249586', platform: 'ios', arm: (a) => { armed.push(a); return () => {}; } };
         const calls = [];
         const out = render(ready(payload(), { view: 'app' }), { onCancel: () => calls.push('cancel') }, {
-            handoff: HANDOFF, smartOpen: plan,
+            handoff: HANDOFF, smartOpen: plan({ arm: (a) => { armed.push(a); return () => {}; } }),
             navigator: { clipboard: { writeText: (v) => { written.push(v); return Promise.resolve(); } } },
         });
         assert.equal(out.node.querySelector('.rsvp-app-path').getAttribute('data-view'), 'app');
-        assert.match(out.text, /Confirmar desde la app/);
-        assert.match(out.text, /ABCD-EFGH-IJKL/);
-        assert.match(out.text, /Si Orbiventt no se abre automáticamente, copia el código/);
+        assert.match(out.text, /Prefiero usar Orbiventt/);
+        assert.match(out.text, /Orbiventt se abre con tu invitación lista para reclamar y asignar tus pases\./);
         const open = links(out.node, 'Abrir Orbiventt');
         assert.equal(open.length, 1);
         assert.equal(open[0].getAttribute('href'), HANDOFF.href);
         assert.deepEqual(armed, [open[0]]);
         assert.equal(primaries(out.node).length, 1);
         assert.equal(primaries(out.node)[0], open[0]);
-        assert.equal(warnings(out.node).length, 0, 'the app path has no link to protect yet');
-        assert.equal(out.node.querySelectorAll('.rsvp-btn--path').length, 0, 'the path choice rendered beside the app card');
+        assert.equal(links(out.node, 'Descargar Orbiventt').length, 0);
+        // The code is the FALLBACK: after the benefits and the open control, never the headline.
+        const classes = out.node.querySelector('.rsvp-app-path').children.map((c) => c.getAttribute('class') || '');
+        assert.ok(classes.indexOf('rsvp-actions') < classes.indexOf('rsvp-fallback'), classes.join(' | '));
+        assert.match(out.node.querySelector('.rsvp-fallback').textContent, /¿No se abre\? Ingresa este código en Orbiventt:/);
+        assert.match(out.node.querySelector('.rsvp-code').textContent, /^ABCD-EFGH-IJKL$/);
+        assert.equal(/copia el código e ingrésalo manualmente/i.test(out.text), false, 'the manual-entry instruction is the message again');
+        assert.equal(warnings(out.node).length, 0, 'the app screen on a first visit has no link to protect yet');
+        assert.equal(out.node.querySelectorAll('.rsvp-btn--path').length, 0, 'the path choice rendered beside the app screen');
         buttons(out.node, 'Copiar código')[0].dispatch('click');
         await tick();
         assert.equal(out.node.querySelector('.rsvp-status').textContent, 'Código copiado');
         assert.deepEqual(written, ['ABCD-EFGH-IJKL']);
         buttons(out.node, 'Volver')[0].dispatch('click');
         assert.deepEqual(calls, ['cancel']);
+    });
 
-        const intent = 'intent://e/' + EVENT_ID + '?code=' + CODE + '#Intent;scheme=vyvent;package=com.vyvent.mobile;S.browser_fallback_url=x;end';
-        const android = render(ready(payload(), { view: 'app' }), {}, {
-            handoff: HANDOFF, smartOpen: { strategy: 'android-intent', href: intent, storeUrl: 'x', platform: 'android', arm: () => () => {} },
-        });
-        assert.equal(links(android.node, 'Abrir Orbiventt')[0].getAttribute('href'), intent);
-
+    test('app screen (handoff closed): the store for this device is the primary, the code stays the fallback; no store → the code alone', () => {
         for (const handoff of [null, CLOSED]) {
-            const closed = render(ready(payload(), { view: 'app' }), {}, {
-                handoff, smartOpen: { strategy: 'store-direct', href: 'https://play.google.com/x', storeUrl: 'https://play.google.com/x', platform: 'desktop', arm: () => () => {} },
-            });
+            const closed = render(ready(payload(), { view: 'app' }), {}, { handoff, storeUrl: 'https://play.google.com/x' });
             assert.equal(links(closed.node, 'Abrir Orbiventt').length, 0, 'a closed handoff still rendered an open control');
+            const store = links(closed.node, 'Descargar Orbiventt');
+            assert.equal(store.length, 1);
+            assert.equal(store[0].getAttribute('href'), 'https://play.google.com/x');
+            assert.ok(store[0].getAttribute('class').includes('rsvp-btn--primary'));
+            assert.match(closed.text, /Instala Orbiventt y abre tu invitación desde la app/);
             assert.match(closed.text, /ABCD-EFGH-IJKL/);
             assert.equal(buttons(closed.node, 'Copiar código').length, 1);
-            assert.match(closed.text, /Copia el código e ingrésalo manualmente en la aplicación Orbiventt/);
-            assert.equal(primaries(closed.node).length, 0);
         }
+        const bare = render(ready(payload(), { view: 'app' }), {}, { handoff: CLOSED });
+        assert.equal(primaries(bare.node).length, 0);
+        assert.equal(bare.node.querySelector('.rsvp-app-path').querySelectorAll('a').length, 0, 'an open or store control with nothing to open');
+        assert.match(bare.text, /ABCD-EFGH-IJKL/);
+    });
+
+    test('appHandoff prefers the smart-open plan href and exposes its arm; closed → null', () => {
+        assert.deepEqual(ui.appHandoff({ handoff: HANDOFF, smartOpen: null }), { href: HANDOFF.href, arm: null });
+        const p = plan({ href: INTENT });
+        assert.equal(ui.appHandoff({ handoff: HANDOFF, smartOpen: p }).href, INTENT);
+        assert.equal(ui.appHandoff({ handoff: HANDOFF, smartOpen: p }).arm, p.arm);
+        assert.equal(ui.appHandoff({ handoff: CLOSED, smartOpen: p }), null);
+        assert.equal(ui.appHandoff({ handoff: null }), null);
+        assert.equal(ui.appHandoff({}), null);
     });
 });
 
@@ -637,7 +776,7 @@ describe('decline form', () => {
 /* ── Return visits and results ─────────────────────────────────────────────── */
 
 describe('return visit', () => {
-    test('every party is listed under the warning; change + manage per party; no "another person"; app only as a quiet link', () => {
+    test('every party is listed under the warning; per party the two paths, then "Administrar mis pases" centred under them — from the first paint', () => {
         const chosen = [];
         const managed = [];
         const out = render(ready(payload({ parties: [ATTENDING, DECLINED] })), { onChoose: (...a) => chosen.push(a), onManage: (p) => managed.push(p) });
@@ -650,26 +789,35 @@ describe('return visit', () => {
         assert.match(out.text, /Indicaste que no asistirás\./);
         assert.match(out.text, /Estaré de viaje/);
 
-        // (c) the warning, once, above the first card.
+        // The warning, once, above the first card.
         assert.equal(warnings(out.node).length, 1);
         const classes = answerClasses(out.node);
         assert.ok(classes[0].includes('rsvp-warning'), classes.join(' | '));
         assert.ok(classes[1].includes('rsvp-party'));
 
-        assert.equal(out.node.querySelectorAll('.rsvp-btn--path').length, 0, 'the path choice rendered on a return visit');
         assert.equal(buttons(out.node, 'Confirmar asistencia').length, 0);
         assert.equal(buttons(out.node, 'Responder como otra persona').length, 0, 'the removed control is back');
-        assert.equal(buttons(out.node, 'Cambiar mi respuesta').length, 2);
-        assert.equal(buttons(out.node, 'Administrar mis pases').length, 1, 'one manage action per ATTENDING party');
-        assert.ok(buttons(out.node, 'Administrar mis pases')[0].getAttribute('class').includes('rsvp-btn--ghost'));
+        assert.equal(buttons(out.node, 'Prefiero usar la app').length, 0, 'the old quiet link is back');
+        // Each card: [Cambiar mi respuesta] [Prefiero usar Orbiventt], then the manage action for the ATTENDING party only.
+        const cards = out.node.querySelectorAll('.rsvp-party');
+        assert.equal(pathButtons(cards[0], 'Cambiar mi respuesta').length, 1);
+        assert.equal(appPaths(cards[0]).length, 1);
+        assert.equal(pathButtons(cards[1], 'Cambiar mi respuesta').length, 1);
+        assert.equal(appPaths(cards[1]).length, 1);
+        assert.equal(manages(cards[0]).length, 1, 'the attending party must manage its passes from the first paint');
+        assert.equal(manages(cards[1]).length, 0, 'a declined party has no passes to manage');
+        const manage = manages(out.node)[0];
+        assert.ok(manage.parentNode.getAttribute('class').includes('rsvp-manage'), 'the manage action is not the centred block');
+        const cardClasses = cards[0].children.map((c) => c.getAttribute('class') || '');
+        assert.ok(cardClasses.indexOf('rsvp-paths') < cardClasses.indexOf('rsvp-manage'), 'the manage action must sit UNDER the two paths: ' + cardClasses.join(' | '));
+        assert.ok(manage.getAttribute('class').includes('rsvp-btn--ghost'));
+        assert.equal(manage.getAttribute('data-state'), 'qr-off');
         assert.equal(primaries(out.node).length, 0, 'a primary with QR off');
         assert.equal(/QR están listos/.test(out.text), false);
-        assert.equal(buttons(out.node, 'Prefiero usar la app').length, 1);
-        assert.ok(out.node.querySelector('.rsvp-party').querySelectorAll('.rsvp-btn--link').length === 0, 'the app link sits under, not inside, a card');
 
-        buttons(out.node, 'Cambiar mi respuesta')[1].dispatch('click');
-        buttons(out.node, 'Administrar mis pases')[0].dispatch('click');
-        buttons(out.node, 'Prefiero usar la app')[0].dispatch('click');
+        pathButtons(cards[1], 'Cambiar mi respuesta')[0].dispatch('click');
+        manage.dispatch('click');
+        appPaths(cards[0])[0].dispatch('click');
         assert.deepEqual(chosen, [['choose', DECLINED], ['app', null]]);
         assert.deepEqual(managed, [ATTENDING]);
     });
@@ -677,36 +825,58 @@ describe('return visit', () => {
     test('QR on: the card says the passes are ready and "Administrar mis pases" is THE primary', () => {
         const out = render(ready(payload({ event: { qr_enabled: true }, parties: [ATTENDING, DECLINED] })));
         assert.match(out.text, /Tus pases con código QR están listos/);
-        const manage = buttons(out.node, 'Administrar mis pases');
+        const manage = manages(out.node);
         assert.equal(manage.length, 1);
         assert.ok(manage[0].getAttribute('class').includes('rsvp-btn--primary'));
+        assert.equal(manage[0].getAttribute('data-state'), 'qr-on');
         assert.equal(primaries(out.node).length, 1);
         assert.equal(out.node.querySelectorAll('.rsvp-ready').length, 1, 'the ready line leaked onto the declined card');
     });
 
-    test('what the organizer asked the party to bring is listed on its card', () => {
-        const party = { ...ATTENDING, assigned_items: [{ id: 'b1', label: 'Hielo' }, { id: 'b2', label: 'Vasos' }, { id: 'b3', label: '' }] };
-        const out = render(ready(payload({ parties: [party] })));
-        assert.match(out.text, /Te pidieron llevar:/);
-        assert.deepEqual(out.node.querySelector('.rsvp-party__items').querySelectorAll('li').map((li) => li.textContent), ['Hielo', 'Vasos']);
-        assert.equal(/Te pidieron llevar/.test(render(ready(payload({ parties: [ATTENDING] }))).text), false);
+    test('a return visit with the handoff open: the app path on the card is the one-tap anchor', () => {
+        const out = render(ready(payload({ parties: [ATTENDING] })), {}, { handoff: HANDOFF, smartOpen: plan() });
+        const app = appPaths(out.node);
+        assert.equal(app.length, 1);
+        assert.equal(app[0].tagName, 'a');
+        assert.equal(app[0].getAttribute('href'), HANDOFF.href);
+        assert.equal(manages(out.node).length, 1);
     });
 
-    test('the app path from a return visit renders under the cards, with Volver', () => {
+    test('"Lo que te toca llevar": a distinct card with one row per item, hidden when nothing is assigned', () => {
+        const party = { ...ATTENDING, assigned_items: [{ id: 'b1', label: 'Hielo' }, { id: 'b2', label: 'Vasos' }, { id: 'b3', label: '' }, { id: 'b4', label: 'Una hielera grande con hielo suficiente para toda la noche y refrescos' }] };
+        const out = render(ready(payload({ parties: [party] })));
+        const card = out.node.querySelector('.rsvp-bring');
+        assert.ok(card, 'no checklist card');
+        assert.equal(card.querySelector('.rsvp-bring__title').textContent, 'Lo que te toca llevar');
+        assert.match(card.textContent, /Te lo asignó el organizador\./);
+        assert.deepEqual(card.querySelectorAll('.rsvp-bring__item').map((li) => li.textContent), ['Hielo', 'Vasos', 'Una hielera grande con hielo suficiente para toda la noche y refrescos']);
+        assert.ok(card.querySelector('.rsvp-bring__plate'), 'no icon plate');
+        assert.equal(card.querySelectorAll('button').length, 0, 'the web must not claim or edit checklist items');
+        assert.equal(/Te pidieron llevar/.test(out.text), false, 'the old muted line is back');
+        // Inside the party card, before the paths.
+        const partyClasses = out.node.querySelector('.rsvp-party').children.map((c) => c.getAttribute('class') || '');
+        assert.ok(partyClasses.indexOf('rsvp-bring') < partyClasses.indexOf('rsvp-paths'), partyClasses.join(' | '));
+        assert.equal(render(ready(payload({ parties: [ATTENDING] }))).node.querySelectorAll('.rsvp-bring').length, 0);
+        assert.equal(render(ready(payload({ parties: [{ ...DECLINED, assigned_items: [{ id: 'x', label: 'Hielo' }] }] }))).node.querySelectorAll('.rsvp-bring').length, 0, 'a declined party carries nothing');
+        // The passes section shows the same card.
+        const passes = render(ready(payload({ parties: [party] }), { view: 'passes', managing: party, passes: null }));
+        assert.equal(passes.node.querySelectorAll('.rsvp-bring').length, 1);
+    });
+
+    test('the app screen from a return visit renders under the warning and the cards, with Volver', () => {
         const calls = [];
         const out = render(ready(payload({ parties: [ATTENDING] }), { view: 'app' }), { onCancel: () => calls.push('cancel') }, { handoff: HANDOFF });
         const classes = answerClasses(out.node);
         assert.ok(classes[0].includes('rsvp-warning') && classes[1].includes('rsvp-party') && classes[2].includes('rsvp-app-path'), classes.join(' | '));
-        assert.equal(buttons(out.node, 'Prefiero usar la app').length, 0);
         assert.equal(links(out.node, 'Abrir Orbiventt').length, 1);
         buttons(out.node, 'Volver')[0].dispatch('click');
         assert.deepEqual(calls, ['cancel']);
     });
 
-    test('attending result: confirmation → app benefits (Abrir Orbiventt SECONDARY) → warning → the party card; no copy-the-code message', () => {
+    test('attending result: confirmation WITH "Administrar mis pases" → app benefits (Abrir Orbiventt SECONDARY) → warning; no copy-the-code message', () => {
         const armed = [];
-        const plan = { strategy: 'ios-scheme-fallback', href: HANDOFF.href, storeUrl: 'https://apps.apple.com/app/id6788249586', platform: 'ios', arm: (a) => { armed.push(a); return () => {}; } };
-        const out = render(ready(payload({ parties: [ATTENDING] }), { result: { status: 'attending', name: 'Luis Pérez', seats: 2 } }), {}, { handoff: HANDOFF, smartOpen: plan });
+        const managed = [];
+        const out = render(ready(payload({ parties: [ATTENDING] }), { result: { status: 'attending', name: 'Luis Pérez', seats: 2, partyId: 'p1' } }), { onManage: (p) => managed.push(p) }, { handoff: HANDOFF, smartOpen: plan({ arm: (a) => { armed.push(a); return () => {}; } }) });
         assert.match(out.text, /¡Listo, Luis Pérez! ?Confirmaste 2 pases\./);
         assert.match(out.text, /Vive el evento completo en Orbiventt/);
         assert.deepEqual(out.node.querySelector('.rsvp-promo').querySelectorAll('li').map((li) => li.textContent),
@@ -721,18 +891,29 @@ describe('return visit', () => {
         assert.equal(/copia (tu|el) código/i.test(out.text), false, 'the copy-the-code message is back');
         assert.equal(/ABCD-EFGH-IJKL/.test(out.text), false, 'the code is shown on the result screen');
 
-        // (b) the warning, once, in the spec'd order, above the party card.
+        // The manage action lives IN the result card — the guest never scrolls past the promo to find it.
+        assert.equal(manages(out.node).length, 1);
+        assert.ok(manages(out.node)[0].parentNode.parentNode.getAttribute('class').includes('rsvp-result--ok'));
+        manages(out.node)[0].dispatch('click');
+        assert.deepEqual(managed, [ATTENDING]);
+
+        // The warning, once, in the spec'd order; the party card waits for the next paint.
         assert.equal(warnings(out.node).length, 1);
         const classes = answerClasses(out.node);
         assert.ok(classes[0].includes('rsvp-result--ok'), classes.join(' | '));
         assert.ok(classes[1].includes('rsvp-promo'));
         assert.ok(classes[2].includes('rsvp-warning'));
-        assert.ok(classes[3].includes('rsvp-party'));
-        assert.equal(classes.length, 4, 'an extra control after the party card');
-        assert.equal(buttons(out.node, 'Administrar mis pases').length, 1);
-        assert.equal(buttons(out.node, 'Prefiero usar la app').length, 0, 'two ways into the app on one screen');
-        // The singular reads right too.
+        assert.equal(classes.length, 3, 'an extra card after the warning');
+        assert.equal(buttons(out.node, 'Prefiero usar Orbiventt').length, 0, 'two ways into the app on one screen');
+
+        // Found by name when the respond answer carried no id; absent when the party is not in the payload.
+        assert.equal(manages(render(ready(payload({ parties: [ATTENDING] }), { result: { status: 'attending', name: 'Luis Pérez', seats: 2 } })).node).length, 1);
+        assert.equal(manages(render(ready(payload(), { result: { status: 'attending', name: 'Ana', seats: 1 } })).node).length, 0);
         assert.match(render(ready(payload(), { result: { status: 'attending', name: 'Ana', seats: 1 } })).text, /Confirmaste 1 pase\./);
+        // QR on → the manage action is the one primary on the result.
+        const qrOn = render(ready(payload({ event: { qr_enabled: true }, parties: [ATTENDING] }), { result: { status: 'attending', name: 'Luis Pérez', seats: 2, partyId: 'p1' } }), {}, { handoff: HANDOFF });
+        assert.equal(primaries(qrOn.node).length, 1);
+        assert.equal(primaries(qrOn.node)[0].textContent, 'Administrar mis pases');
     });
 
     test('attending result with a closed handoff (DEV): the app stays a quiet link, never the code', () => {
@@ -745,12 +926,12 @@ describe('return visit', () => {
             assert.equal(/ABCD-EFGH-IJKL/.test(out.text), false);
             assert.equal(buttons(out.node, 'Copiar código').length, 0);
             assert.equal(out.node.querySelector('.rsvp-promo').querySelectorAll('.rsvp-btn--link').length, 1);
-            buttons(out.node, 'Prefiero usar la app')[0].dispatch('click');
+            buttons(out.node, 'Prefiero usar Orbiventt')[0].dispatch('click');
         }
         assert.deepEqual(chosen, [['app', null], ['app', null]]);
     });
 
-    test('declined result: thanks naming the organizer, app promotion muted only, warning above the card', () => {
+    test('declined result: thanks naming the organizer, app promotion muted only, warning above the card; the card keeps both paths', () => {
         const out = render(ready(payload({ parties: [DECLINED] }), { result: { status: 'declined', name: 'Rosa', seats: 0 } }), {}, { handoff: HANDOFF, storeUrl: 'https://apps.apple.com/app/id6788249586' });
         assert.match(out.text, /Gracias por responder\. ?Tu respuesta fue enviada a Ana Ruiz\./);
         assert.equal(links(out.node, 'Abrir Orbiventt').length, 0);
@@ -762,6 +943,190 @@ describe('return visit', () => {
         assert.equal(warnings(out.node).length, 1);
         const classes = answerClasses(out.node);
         assert.ok(classes[0].includes('rsvp-result--declined') && classes[1].includes('rsvp-warning') && classes[2].includes('rsvp-party'), classes.join(' | '));
+        assert.equal(manages(out.node).length, 0, 'no QR passes for a declined party');
+        assert.equal(pathButtons(out.node, 'Cambiar mi respuesta').length, 1, 'the way back to attending is missing');
+        assert.equal(appPaths(out.node).length, 1, 'the app option is missing on the declined card');
+    });
+});
+
+/* ── The gallery and the viewer ────────────────────────────────────────────── */
+
+describe('gallery', () => {
+    const many = (n) => Array.from({ length: n }, (_, i) => ({ path: 'u1/p' + i + '.jpg', created_at: '2026-10-0' + ((i % 9) + 1) + 'T20:00:00Z' }));
+
+    test('photoList reads event.photos through the resolver only: our bucket, safe paths, no duplicates, capped at 60', () => {
+        const list = gallery.photoList(payload(), storageUrl);
+        assert.deepEqual(list.map((p) => p.url), [OBJ + 'event-photos/u1/cover.jpg', OBJ + 'event-photos/u1/a.jpg', OBJ + 'event-photos/u1/b.jpg']);
+        assert.equal(list[0].at, Date.parse('2026-10-01T20:00:00Z'));
+        const hostile = gallery.photoList(payload({ event: { photos: [{ path: '../x.jpg' }, { path: 'https://evil/x.jpg' }, { path: 'u1/ok.jpg' }, { path: 'u1/ok.jpg' }, null, 'u1/str.jpg'] } }), storageUrl);
+        assert.deepEqual(hostile.map((p) => p.url), [OBJ + 'event-photos/u1/ok.jpg']);
+        assert.equal(gallery.photoList(payload({ event: { photos: many(80) } }), storageUrl).length, 60);
+        assert.deepEqual(gallery.photoList(payload({ event: { photos: [] } }), storageUrl), []);
+        assert.deepEqual(gallery.photoList(null, storageUrl), []);
+        // An older server (no `photos`): the legacy strip still shows.
+        const legacy = gallery.photoList(payload({ event: { photos: undefined } }), storageUrl);
+        assert.equal(legacy.length, 3);
+        assert.equal(legacy[0].at, null);
+    });
+
+    test('0 photos → no section; 1 photo that is the hero → no tiles; 1 photo behind a thumbnail → one tile', () => {
+        assert.equal(render(ready(payload({ event: { photos: [], cover_path: null, gallery_paths: [] } }))).node.querySelectorAll('.rsvp-gallery').length, 0);
+        const heroOnly = render(ready(payload({ event: { photos: [PHOTOS[0]], gallery_paths: ['u1/cover.jpg'] } })));
+        assert.equal(heroOnly.node.querySelectorAll('.rsvp-gallery').length, 0, 'the hero repeated as the only tile');
+        const behind = render(ready(payload({ event: { photos: [PHOTOS[0]], gallery_paths: ['u1/cover.jpg'] }, invitation_image: { bucket: 'invitation-media', path: 'di/t.jpg' } })));
+        assert.equal(tiles(behind.node).length, 1);
+        assert.match(behind.text, /Galería · 1 foto(?!s)/);
+    });
+
+    test('many photos: six tiles, the last one says +N, every tile opens the viewer at its FULL index', () => {
+        const opened = [];
+        const out = render(ready(payload({ event: { photos: many(10), cover_path: 'u1/p0.jpg' } })), { onPhoto: (i) => opened.push(i) });
+        const t = tiles(out.node);
+        assert.equal(t.length, 6);
+        assert.match(out.text, /Galería · 10 fotos/);
+        assert.equal(t[5].querySelector('.rsvp-gallery__more').textContent, '+3', 'ten photos, the hero not repeated: nine tiles, six shown, three behind');
+        assert.ok(t[5].getAttribute('class').includes('rsvp-gallery__tile--more'));
+        assert.equal(t[0].querySelectorAll('.rsvp-gallery__more').length, 0);
+        assert.equal(t[0].getAttribute('data-index'), '1', 'the first tile is the second photo (the hero is the first)');
+        assert.equal(t[0].getAttribute('aria-label'), 'Ver foto 2 de 10');
+        assert.ok(t.every((b) => b.tagName === 'button' && b.getAttribute('type') === 'button'));
+        assert.ok(t.every((b) => b.querySelector('img').getAttribute('src').startsWith(OBJ + 'event-photos/')));
+        assert.ok(t.every((b) => b.querySelector('img').getAttribute('loading') === 'lazy'));
+        t[0].dispatch('click');
+        t[5].dispatch('click');
+        assert.deepEqual(opened, [1, 6]);
+    });
+
+    test('the viewer: black fullscreen dialog, close top-left, "n / N" centred, dots, caption; starts at the asked index', () => {
+        const d = createDocument();
+        const photos = gallery.photoList(payload(), storageUrl);
+        const closed = [];
+        const v = gallery.viewerNode(photos, 1, () => closed.push('closed'), { document: d });
+        const node = v.node;
+        assert.equal(node.getAttribute('role'), 'dialog');
+        assert.equal(node.getAttribute('aria-modal'), 'true');
+        assert.equal(node.getAttribute('aria-label'), 'Fotos del evento');
+        assert.equal(node.getAttribute('tabindex'), '-1');
+        assert.equal(node.getAttribute('data-index'), '1');
+        assert.equal(v.getIndex(), 1);
+        assert.equal(node.querySelector('.rsvp-viewer__counter').textContent, '2 / 3');
+        const header = node.querySelector('.rsvp-viewer__header');
+        assert.ok(header.children[0].getAttribute('class').includes('rsvp-viewer__close'), 'the close control is not first in the header');
+        assert.equal(header.children[0].getAttribute('aria-label'), 'Cerrar');
+        assert.equal(node.querySelectorAll('.rsvp-viewer__slide').length, 3);
+        const imgs = node.querySelectorAll('.rsvp-viewer__img');
+        assert.deepEqual(imgs.map((i) => i.getAttribute('src')), photos.map((p) => p.url));
+        assert.deepEqual(imgs.map((i) => i.getAttribute('alt')), ['Foto 1 de 3', 'Foto 2 de 3', 'Foto 3 de 3']);
+        assert.equal(imgs[2].getAttribute('loading'), 'lazy');
+        assert.equal(imgs[0].hasAttribute('loading'), false, 'the first photos must not wait for lazy loading');
+        const dots = node.querySelectorAll('.rsvp-viewer__dot');
+        assert.equal(dots.length, 3);
+        assert.ok(dots[1].getAttribute('class').includes('rsvp-viewer__dot--active'));
+        assert.match(node.querySelector('.rsvp-viewer__caption').textContent, /^Publicada el /);
+        assert.equal(node.querySelectorAll('.rsvp-viewer__nav').length, 2);
+        assert.ok(serialize(node).includes('aria-modal="true"'));
+        assert.equal(serialize(node).includes('style='), false, 'inline style under a style-src self CSP');
+    });
+
+    test('the viewer: next / previous (buttons and arrow keys) move and clamp; Escape and the close control close', () => {
+        const d = createDocument();
+        const photos = gallery.photoList(payload(), storageUrl);
+        const closed = [];
+        const v = gallery.viewerNode(photos, 0, () => closed.push('closed'), { document: d });
+        const node = v.node;
+        const prev = node.querySelector('.rsvp-viewer__nav--prev');
+        const next = node.querySelector('.rsvp-viewer__nav--next');
+        assert.equal(prev.disabled, true);
+        assert.equal(next.disabled, false);
+        next.dispatch('click');
+        assert.equal(v.getIndex(), 1);
+        assert.equal(node.querySelector('.rsvp-viewer__counter').textContent, '2 / 3');
+        next.dispatch('click');
+        assert.equal(v.getIndex(), 2);
+        assert.equal(next.disabled, true);
+        next.dispatch('click');
+        assert.equal(v.getIndex(), 2, 'walked past the last photo');
+        node.dispatch('keydown', { key: 'ArrowLeft' });
+        assert.equal(v.getIndex(), 1);
+        node.dispatch('keydown', { key: 'ArrowRight' });
+        assert.equal(v.getIndex(), 2);
+        prev.dispatch('click'); prev.dispatch('click'); prev.dispatch('click');
+        assert.equal(v.getIndex(), 0, 'walked before the first photo');
+        assert.ok(node.querySelectorAll('.rsvp-viewer__dot')[0].getAttribute('class').includes('--active'));
+        v.setIndex(99);
+        assert.equal(v.getIndex(), 2, 'setIndex must clamp');
+        assert.equal(node.getAttribute('data-index'), '2');
+        node.dispatch('keydown', { key: 'Escape' });
+        node.querySelector('.rsvp-viewer__close').dispatch('click');
+        assert.deepEqual(closed, ['closed', 'closed']);
+    });
+
+    test('the viewer: a swipe (the strip scrolling) updates the counter; a failed image says so on its slide only', () => {
+        const d = createDocument();
+        const photos = gallery.photoList(payload(), storageUrl);
+        const v = gallery.viewerNode(photos, 0, () => {}, { document: d });
+        const track = v.node.querySelector('.rsvp-viewer__track');
+        track.clientWidth = 390;
+        track.scrollLeft = 780;
+        track.dispatch('scroll');
+        assert.equal(v.getIndex(), 2);
+        assert.equal(v.node.querySelector('.rsvp-viewer__counter').textContent, '3 / 3');
+        track.scrollLeft = 400;
+        track.dispatch('scroll');
+        assert.equal(v.getIndex(), 1);
+        const slides = v.node.querySelectorAll('.rsvp-viewer__slide');
+        slides[1].querySelector('img').dispatch('error');
+        assert.ok(slides[1].getAttribute('class').includes('rsvp-viewer__slide--failed'));
+        assert.equal(slides[1].querySelector('.rsvp-viewer__failed').hasAttribute('hidden'), false);
+        assert.match(slides[1].querySelector('.rsvp-viewer__failed').textContent, /No pudimos cargar esta foto\./);
+        assert.equal(slides[1].querySelector('img').hasAttribute('hidden'), true);
+        assert.equal(slides[0].querySelector('.rsvp-viewer__failed').hasAttribute('hidden'), true, 'the failure leaked to another slide');
+        // Single photo: no arrows, no dots; nothing: null.
+        const one = gallery.viewerNode(photos.slice(0, 1), 0, () => {}, { document: d });
+        assert.equal(one.node.querySelectorAll('.rsvp-viewer__nav').length, 0);
+        assert.equal(one.node.querySelectorAll('.rsvp-viewer__dot').length, 0);
+        assert.equal(one.node.querySelector('.rsvp-viewer__counter').textContent, '1 / 1');
+        assert.equal(gallery.viewerNode([], 0, () => {}, { document: d }), null);
+        // Past twelve photos the dots give way to the counter alone.
+        const lots = gallery.viewerNode(gallery.photoList(payload({ event: { photos: many(13) } }), storageUrl), 0, () => {}, { document: d });
+        assert.equal(lots.node.querySelectorAll('.rsvp-viewer__dot').length, 0);
+        assert.equal(lots.node.querySelector('.rsvp-viewer__counter').textContent, '1 / 13');
+    });
+
+    test('no capability leakage: the gallery draws ONLY what the invitation resolved and never talks to a server', () => {
+        const src = stripComments(read('js', 'gallery.js'));
+        assert.equal(/fetch\(|backend\.js|callRpc|XMLHttpRequest|supabase/.test(src), false, 'gallery.js reaches for the network');
+        assert.match(src, /import \{ el, svgEl, setText \} from '\.\/dom\.js/);
+        // Another invitation's photos never enter the page: the list is built from THIS payload alone.
+        const other = payload({ event: { id: '91000002-0000-4000-8000-000000000002', photos: [{ path: 'u9/secret.jpg' }] } });
+        const mine = gallery.photoList(payload(), storageUrl);
+        assert.ok(!mine.some((p) => p.url.includes('secret')));
+        assert.equal(gallery.photoList(other, storageUrl)[0].url, OBJ + 'event-photos/u9/secret.jpg');
+        // main.js opens the viewer from the CURRENT payload, in its own root, and re-resolves nothing to do so.
+        const main = stripComments(read('js', 'main.js'));
+        assert.match(main, /function openViewer\(index\) \{[\s\S]*?var photos = photoList\(model\.payload, storageUrl\);[\s\S]*?viewerNode\(photos, index, closeViewer, \{ document: document \}\)/);
+        assert.match(main, /byId\('rsvp-viewer-root'\)/);
+        assert.match(main, /document\.body\.classList\.add\('rsvp-viewer-open'\)/);
+        assert.match(main, /onPhoto: function \(index\) \{\s*openViewer\(index\);/);
+        assert.match(main, /if \(viewer\) return;/, 'a visibility refresh must not re-render under an open viewer');
+        assert.match(HTML, /<div id="rsvp-viewer-root" hidden><\/div>/);
+    });
+
+    test('the stylesheet keeps the app viewer idiom: black, centred, never cropped, swipe-snapped; a 3-up grid; the page locked underneath', () => {
+        assert.match(CSS, /\.rsvp-viewer \{[^}]*position: fixed; inset: 0;[^}]*background: #000;/);
+        assert.match(CSS, /\.rsvp-viewer__img \{[^}]*object-fit: contain;/);
+        assert.match(CSS, /\.rsvp-viewer__track \{[^}]*scroll-snap-type: x mandatory;/);
+        assert.match(CSS, /\.rsvp-viewer__slide \{[^}]*scroll-snap-align: center;/);
+        assert.match(CSS, /\.rsvp-gallery__grid \{ display: grid; grid-template-columns: repeat\(3, 1fr\);/);
+        assert.match(CSS, /\.rsvp-gallery__tile \{[^}]*aspect-ratio: 1 \/ 1;/);
+        assert.match(CSS, /body\.rsvp-viewer-open \{ overflow: hidden; \}/);
+        assert.match(CSS, /@media \(hover: none\) and \(pointer: coarse\) \{ \.rsvp-viewer__nav \{ display: none; \} \}/);
+        assert.match(CSS, /\.rsvp-bring \{/);
+        assert.match(CSS, /\.rsvp-bring__item \{[^}]*overflow-wrap: anywhere;/);
+        assert.match(CSS, /\.rsvp-pass\[data-state="active"\]::before \{ background: var\(--gradient\); \}/);
+        assert.match(CSS, /\.rsvp-btn--path-app \{/);
+        assert.match(CSS, /\.rsvp-manage \{ display: grid; justify-items: center;/);
+        assert.equal(/\.rsvp-gallery img \{/.test(CSS), false, 'the old strip rule survives');
     });
 });
 
@@ -820,15 +1185,20 @@ describe('passes', () => {
         assert.match(render(managing({}, null)).text, /Cargando tus pases…/);
     });
 
-    test('active: one card per pass with its title, a QR only where a payload exists', () => {
+    test('active: one ticket per pass — number, state badge, who — with a QR only where a payload exists', () => {
         const out = render(managing({ event: { qr_enabled: true } }, { status: 'ok', data: passesOk() }));
         const cards = out.node.querySelectorAll('.rsvp-pass');
         assert.equal(cards.length, 2);
-        assert.equal(cards[0].querySelector('.rsvp-pass__title').textContent, 'Pase 1 de 2 · Titular: Luis Pérez');
-        assert.equal(cards[1].querySelector('.rsvp-pass__title').textContent, 'Pase 2 de 2 · Acompañante: Marta');
+        assert.equal(cards[0].querySelector('.rsvp-pass__num').textContent, 'Pase 1 de 2');
+        assert.equal(cards[0].querySelector('.rsvp-pass__kind').textContent, 'Titular');
+        assert.equal(cards[0].querySelector('.rsvp-pass__who').textContent, 'Luis Pérez');
+        assert.equal(cards[0].querySelector('.rsvp-pass__badge').textContent, 'Activo');
+        assert.ok(cards[0].querySelector('.rsvp-pass__badge').getAttribute('class').includes('rsvp-pass__badge--active'));
+        assert.equal(cards[1].querySelector('.rsvp-pass__num').textContent, 'Pase 2 de 2');
+        assert.equal(cards[1].querySelector('.rsvp-pass__kind').textContent, 'Acompañante');
+        assert.equal(cards[1].querySelector('.rsvp-pass__who').textContent, 'Marta');
         assert.equal(cards[0].getAttribute('data-state'), 'active');
-        assert.equal(out.node.querySelectorAll('svg').length, 2);
-        assert.equal(out.node.querySelectorAll('.rsvp-qr').length, 2);
+        assert.equal(qrs(out.node).length, 2);
         assert.equal(out.node.querySelectorAll('.rsvp-pass__state').length, 0);
         assert.equal(/QR desactivado|Ingreso registrado/.test(out.text), false);
         assert.equal(out.node.querySelectorAll('.rsvp-passes__notice').length, 0);
@@ -842,13 +1212,14 @@ describe('passes', () => {
             ],
         });
         const partial = render(managing({ event: { qr_enabled: true } }, { status: 'ok', data: scrambled }));
-        const titles = partial.node.querySelectorAll('.rsvp-pass__title').map((t) => t.textContent);
-        assert.deepEqual(titles, ['Pase 1 de 2 · Titular: Luis Pérez', 'Pase 2 de 2 · Acompañante: Marta']);
-        assert.equal(partial.node.querySelectorAll('svg').length, 1);
-        assert.equal(partial.node.querySelectorAll('.rsvp-pass')[0].querySelectorAll('svg').length, 0);
+        const nums = partial.node.querySelectorAll('.rsvp-pass__num').map((t) => t.textContent);
+        assert.deepEqual(nums, ['Pase 1 de 2', 'Pase 2 de 2']);
+        assert.deepEqual(partial.node.querySelectorAll('.rsvp-pass__who').map((t) => t.textContent), ['Luis Pérez', 'Marta']);
+        assert.equal(qrs(partial.node).length, 1);
+        assert.equal(qrs(partial.node.querySelectorAll('.rsvp-pass')[0]).length, 0);
         assert.match(partial.node.querySelectorAll('.rsvp-pass')[0].textContent, /Este pase no está disponible por ahora\./);
         // No encoder on the page: nothing is drawn, nothing throws.
-        assert.equal(render(managing({ event: { qr_enabled: true } }, { status: 'ok', data: passesOk() }), {}, { qrcode: null }).node.querySelectorAll('svg').length, 0);
+        assert.equal(qrs(render(managing({ event: { qr_enabled: true } }, { status: 'ok', data: passesOk() }), {}, { qrcode: null }).node).length, 0);
     });
 
     test('qr_disabled: no QR, the organizer copy on every card, the come-back note once; anonymous companions', () => {
@@ -861,12 +1232,16 @@ describe('passes', () => {
             ],
         });
         const out = render(managing({}, { status: 'ok', data }));
-        assert.equal(out.node.querySelectorAll('svg').length, 0);
+        assert.equal(qrs(out.node).length, 0);
         assert.equal(out.node.querySelectorAll('.rsvp-pass').length, 3);
         assert.equal(out.node.querySelectorAll('.rsvp-pass__state').filter((p) => p.textContent === 'QR desactivado por el organizador').length, 3);
+        assert.equal(out.node.querySelectorAll('.rsvp-pass__badge').filter((p) => p.textContent === 'QR desactivado').length, 3);
         assert.equal(out.node.querySelectorAll('.rsvp-passes__notice').length, 1);
         assert.match(out.text, /Si el organizador activa el acceso con código QR, tus pases podrán escanearse automáticamente\. Vuelve a abrir este mismo enlace para verlos\./);
-        assert.equal(out.node.querySelectorAll('.rsvp-pass__title')[2].textContent, 'Pase 3 de 3 · Acompañante');
+        const third = out.node.querySelectorAll('.rsvp-pass')[2];
+        assert.equal(third.querySelector('.rsvp-pass__num').textContent, 'Pase 3 de 3');
+        assert.equal(third.querySelector('.rsvp-pass__kind').textContent, 'Acompañante');
+        assert.equal(third.querySelector('.rsvp-pass__who').textContent, '');
         assert.equal(/no está disponible/.test(out.text), false);
     });
 
@@ -880,10 +1255,13 @@ describe('passes', () => {
         const out = render(managing({ event: { qr_enabled: true } }, { status: 'ok', data }));
         const cards = out.node.querySelectorAll('.rsvp-pass');
         assert.equal(cards[0].querySelector('.rsvp-pass__checkin').textContent, 'Ingreso registrado · 18:05 h');
-        assert.equal(cards[0].querySelectorAll('svg').length, 1, 'a checked-in pass lost its QR');
+        assert.equal(cards[0].querySelector('.rsvp-pass__badge').textContent, 'Ingresó · 18:05 h');
+        assert.ok(cards[0].querySelector('.rsvp-pass__badge').getAttribute('class').includes('--checked'));
+        assert.equal(qrs(cards[0]).length, 1, 'a checked-in pass lost its QR');
         assert.equal(cards[1].querySelectorAll('.rsvp-pass__checkin').length, 0);
         assert.equal(cards[1].getAttribute('data-state'), 'suspended');
-        assert.equal(cards[1].querySelectorAll('svg').length, 0);
+        assert.equal(cards[1].querySelector('.rsvp-pass__badge').textContent, 'No disponible');
+        assert.equal(qrs(cards[1]).length, 0);
         assert.match(cards[1].textContent, /Este pase no está disponible por ahora\./);
     });
 
@@ -912,7 +1290,7 @@ describe('passes', () => {
         // An expired link still manages its passes — but offers no change.
         const expired = render(managing({ invitation: { is_expired: true, accepting_responses: false } }, { status: 'ok', data: passesOk() }));
         assert.equal(expired.node.querySelectorAll('.rsvp-passes').length, 1);
-        assert.equal(expired.node.querySelectorAll('svg').length, 2);
+        assert.equal(qrs(expired.node).length, 2);
         assert.equal(buttons(expired.node, 'Cambiar mi respuesta').length, 0);
     });
 
@@ -922,7 +1300,7 @@ describe('passes', () => {
         const out = render(managing({ event: { qr_enabled: true } }, { status: 'ok', data }));
         assert.equal(out.html.includes('<img src=x'), false);
         assert.ok(out.html.split('&lt;img src=x onerror=alert(1)&gt;').length >= 3);
-        assert.equal(out.node.querySelectorAll('svg').length, 2, 'the QR depends on the payload, never on the label');
+        assert.equal(qrs(out.node).length, 2, 'the QR depends on the payload, never on the label');
     });
 
     test('main.js fetches passes afresh on every open and re-resolves when the tab becomes visible', () => {
@@ -939,6 +1317,8 @@ describe('passes', () => {
         // The encoder reaches the renderer only as the vendored global, through the opts seam.
         assert.match(main, /window\.qrcode/);
         assert.match(main, /qrcode: QRCODE/);
+        // A fresh answer remembers which party it created, so the result can offer its passes.
+        assert.match(main, /partyId: typeof res\.party_id === 'string' \? res\.party_id : \(answer\.partyId \|\| null\),/);
     });
 
     test('the vendored encoder keeps its MIT attribution and is wired as a classic script before the module', () => {
@@ -959,7 +1339,7 @@ describe('passes', () => {
 /* ── Text stays text ───────────────────────────────────────────────────────── */
 
 describe('escaping', () => {
-    test('a hostile party name, companion, note, greeting and title render as text', () => {
+    test('a hostile party name, companion, note, checklist item, greeting and title render as text', () => {
         const hostile = '<img src=x onerror=alert(1)>';
         const p = payload({
             event: { title: hostile + ' título' },
@@ -969,10 +1349,13 @@ describe('escaping', () => {
                 { ...DECLINED, decline_note: hostile },
             ],
         });
-        const out = render(ready(p, { result: { status: 'attending', name: hostile, seats: 1 } }), {}, { handoff: HANDOFF });
+        const out = render(ready(p), {}, { handoff: HANDOFF });
         assert.equal(out.html.includes('<img src=x'), false);
         assert.ok(out.html.split('&lt;img src=x onerror=alert(1)&gt;').length >= 8, 'hostile text did not survive as text everywhere');
         for (const img of out.node.querySelectorAll('img')) assert.equal(img.hasAttribute('onerror'), false);
+        const result = render(ready(p, { result: { status: 'attending', name: hostile, seats: 1 } }), {}, { handoff: HANDOFF });
+        assert.equal(result.html.includes('<img src=x'), false);
+        assert.match(result.text, /¡Listo, <img src=x onerror=alert\(1\)>!/);
         const form = render(ready(p, { view: 'attend', editing: p.parties[0] }));
         assert.equal(byId(form.node, 'rsvp-name').value, hostile);
         assert.equal(serialize(form.node).includes('<img src=x'), false);
@@ -994,6 +1377,7 @@ describe('escaping', () => {
             assert.equal(/\bRSVP\b/.test(src), false, 'copy says "RSVP"');
             assert.equal(/Responder como otra persona/.test(src), false, 'the removed control is still in the source');
             assert.equal(/Agregar al calendario|calendar\.js|icsDataUrl|buildIcs/.test(src), false, 'the calendar is still wired');
+            assert.equal(/Confirmar desde la app|Prefiero usar la app/.test(src), false, 'the old app-path labels are back');
         }
         const uiSrc = stripComments(read('js', 'ui.js'));
         assert.ok(uiSrc.includes("'Confirmar asistencia'"));
@@ -1001,6 +1385,10 @@ describe('escaping', () => {
         assert.ok(uiSrc.includes("'Este enlace es tu llave'"));
         assert.ok(uiSrc.includes('No lo compartas con nadie fuera de tu grupo.'));
         assert.equal(typeof ui.calendarHref, 'undefined');
+        // Implementation terms never reach a guest.
+        for (const term of ['web party', 'external party', 'party web', 'parte web']) {
+            assert.equal(new RegExp(term, 'i').test(render(ready(payload({ parties: [ATTENDING, DECLINED] }))).text), false, term);
+        }
     });
 });
 
@@ -1074,7 +1462,7 @@ describe('page', () => {
                 assert.equal(m[1].startsWith('../'), false, `${file}: rsvp/ imports outside its tree (${m[1]})`);
             }
         }
-        assert.ok(edges >= 6, `only ${edges} import edges found`);
+        assert.ok(edges >= 8, `only ${edges} import edges found`);
         const stamper = readFileSync(join(ROOT, 'scripts', 'set-web-build.mjs'), 'utf8');
         assert.match(stamper, /rsvp\\\/vendor\\\/qrcode-generator\\\.js/);
         const out = execFileSync(process.execPath, [join(ROOT, 'scripts', 'set-web-build.mjs'), '--check'], { cwd: ROOT, encoding: 'utf8' });
@@ -1086,26 +1474,34 @@ describe('page', () => {
 /* ── Entry points ──────────────────────────────────────────────────────────── */
 
 describe('entry points', () => {
-    test('rsvpHref resolves beside the invitation page under both roots, code in the fragment', () => {
+    test('rsvpHref resolves beside the invitation page under both roots, code in the fragment, the DEV return address beside it', () => {
         assert.equal(rsvpHref('https://cosioyair.github.io/vyvent-legal/invitation/?i=slug&code=' + CODE, CODE),
             'https://cosioyair.github.io/vyvent-legal/rsvp/#c=' + CODE);
         assert.equal(rsvpHref('https://orbiventt.com/invitation/?i=slug&code=' + CODE, CODE), 'https://orbiventt.com/rsvp/#c=' + CODE);
         assert.equal(rsvpHref('', CODE), 'rsvp/#c=' + CODE);
         assert.equal(rsvpHref('https://orbiventt.com/invitation/', '../evil'), null);
+        // The return address only ever rides as `&r=` in the fragment, and only when it looks like Expo Go.
+        assert.equal(rsvpHref('https://cosioyair.github.io/vyvent-legal/invitation/', CODE, RETURN_URL),
+            'https://cosioyair.github.io/vyvent-legal/rsvp/#c=' + CODE + '&r=' + encodeURIComponent(RETURN_URL));
+        for (const bad of ['https://evil/', 'vyvent://e/x', 'exp://a b', null, 42]) {
+            assert.equal(rsvpHref('https://orbiventt.com/invitation/', CODE, bad), 'https://orbiventt.com/rsvp/#c=' + CODE, String(bad));
+        }
+        assert.equal(/\?/.test(rsvpHref('', CODE, RETURN_URL)), false, 'the return address reached a query string');
     });
 
-    test('the published pass card leads with "Confirmar asistencia", app + copy secondary', () => {
+    test('the published pass card leads with "Confirmar asistencia", app + copy secondary, and forwards the DEV return address', () => {
         const template = resolveTemplate('wedding_romantic_v1');
         const { config } = normalizeConfig(demoConfig('wedding_romantic_v1'));
-        for (const handoff of [HANDOFF, CLOSED, null]) {
+        for (const [handoff, appReturn] of [[HANDOFF, null], [CLOSED, null], [null, null], [EXPO, RETURN_URL]]) {
             const document = createDocument();
+            const query = '?i=q7m2k9x4pt3wz8ab&code=' + CODE + (appReturn ? '&app_return=' + encodeURIComponent(appReturn) : '');
             const result = renderInvitation({
                 template, config, document,
-                route: parseRoute('?i=q7m2k9x4pt3wz8ab&code=' + CODE),
+                route: parseRoute(query),
                 assetBase: 'https://cosioyair.github.io/vyvent-legal/invitation/assets/',
                 templateBase: 'https://cosioyair.github.io/vyvent-legal/invitation/templates/',
                 now: Date.parse('2026-08-01T12:00:00Z'),
-                pageUrl: 'https://cosioyair.github.io/vyvent-legal/invitation/?i=q7m2k9x4pt3wz8ab&code=' + CODE,
+                pageUrl: 'https://cosioyair.github.io/vyvent-legal/invitation/' + query,
                 handoff, smartOpen: null,
             });
             const card = result.node.querySelector('[data-section="passes"]');
@@ -1114,7 +1510,7 @@ describe('entry points', () => {
             assert.equal(first.tagName, 'a');
             assert.match(first.textContent, /Confirmar asistencia/);
             assert.ok(first.getAttribute('class').includes('inv-btn--solid'), 'the web reply is not the primary control');
-            assert.equal(first.getAttribute('href'), 'https://cosioyair.github.io/vyvent-legal/rsvp/#c=' + CODE);
+            assert.equal(first.getAttribute('href'), 'https://cosioyair.github.io/vyvent-legal/rsvp/#c=' + CODE + (appReturn ? '&r=' + encodeURIComponent(appReturn) : ''));
             assert.equal(/\?code=/.test(first.getAttribute('href')), false);
             const open = actions.querySelectorAll('a').find((a) => /Abrir Orbiventt/.test(a.textContent));
             if (handoff && handoff.open) assert.ok(open.getAttribute('class').includes('inv-btn--ghost'), 'the app CTA stayed primary');
@@ -1123,13 +1519,16 @@ describe('entry points', () => {
         }
     });
 
-    test('404.html: /e/{id}?code= shows the same primary CTA above the app button, fragment transport', () => {
+    test('404.html: /e/{id}?code= shows the same primary CTA above the app button, fragment transport, return address forwarded', () => {
         const code = LANDING.replace(/<!--[\s\S]*?-->/g, '').replace(/^\s*\/\/.*$/gm, '');
         assert.match(LANDING, /<a id="rsvpCta" class="btn hidden" href="#">Confirmar asistencia<\/a>/);
         assert.ok(LANDING.indexOf('id="rsvpCta"') < LANDING.indexOf('id="openApp"'), 'the reply CTA is not above the app button');
-        assert.ok(code.includes("el('rsvpCta').setAttribute('href', 'rsvp/#c=' + encodeURIComponent(code))"));
+        assert.ok(code.includes("el('rsvpCta').setAttribute('href', 'rsvp/#c=' + encodeURIComponent(code) + ret)"));
+        assert.ok(code.includes("var ret = appReturn && /^exps?:\\/\\//i.test(appReturn)"));
+        assert.ok(code.includes("'&r=' + encodeURIComponent(appReturn)"));
         assert.ok(code.includes("show('rsvpCta')"));
         assert.equal(/rsvp\/\?code=/.test(code), false, 'the code travels as a query parameter');
+        assert.equal(/rsvp\/#c=[^\n]*app_return/.test(code), false, 'the raw query name leaked into the fragment');
         assert.match(LANDING, /#openApp\.btn, #rsvpCta\.btn \{/);
     });
 });
