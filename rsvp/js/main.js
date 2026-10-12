@@ -1,7 +1,8 @@
 /* CONFIRMAR ASISTENCIA — wiring only. Every decision lives beside this file:
  *
  *   session.js  where the code comes from, where it lives, when it dies
- *   backend.js  the two RPCs, closed allowlist, PostgREST 400 → message
+ *   backend.js  the three RPCs, closed allowlist, PostgREST 400 → message
+ *   qr.js       the server's pass payload → an SVG
  *   ui.js       the model → the page
  *
  * PRODUCT INVARIANT (locked): there is NO new invitation type. This page
@@ -11,15 +12,22 @@
  * anything beyond the code in sessionStorage, and never writes the code into
  * `document.title`, a meta tag or any outgoing URL other than the app deep
  * link resolved by app-return.js.
+ *
+ * FRESHNESS. Passes are fetched every time their section opens — never cached
+ * — and the invitation is re-resolved whenever the tab becomes visible again,
+ * so an organizer flipping QR access on while the guest's phone was locked is
+ * reflected the moment the guest looks back at the page.
  */
-import { captureCode, rememberCode, clearCode, normalizeCode } from './session.js?v=20261011a';
-import { resolveInvitation, respond, backendConfig, storageUrlResolver } from './backend.js?v=20261011a';
-import { renderApp, COPY } from './ui.js?v=20261011a';
-import { clear } from './dom.js?v=20261011a';
+import { captureCode, rememberCode, clearCode, normalizeCode } from './session.js?v=20261012a';
+import { resolveInvitation, respond, getPasses, backendConfig, storageUrlResolver } from './backend.js?v=20261012a';
+import { renderApp, COPY } from './ui.js?v=20261012a';
+import { clear } from './dom.js?v=20261012a';
 
 var ENV = (typeof window !== 'undefined' && window.__ORB_ENV__) || {};
 var RETURN = (typeof window !== 'undefined' && window.__ORB_APP_RETURN__) || null;
 var LINKS = (typeof window !== 'undefined' && window.__ORB_APP_LINKS__) || null;
+/** The vendored encoder (classic script, `window.qrcode`). Absent → no QR drawn. */
+var QRCODE = (typeof window !== 'undefined' && typeof window.qrcode === 'function') ? window.qrcode : null;
 
 var backend = backendConfig();
 var storageUrl = backend ? storageUrlResolver(backend.url) : null;
@@ -30,10 +38,16 @@ var model = {
     payload: null,
     view: 'idle',
     editing: null,
+    managing: null,
+    passes: null,
     result: null,
     entryError: null,
     retryable: false,
 };
+
+/** Monotonic ticket so a slow passes response never overwrites a newer one. */
+var passesTicket = 0;
+var refreshing = false;
 
 function byId(id) { return document.getElementById(id); }
 
@@ -79,6 +93,8 @@ function render(scrollTo) {
         handoff: h,
         smartOpen: smartOpen(h),
         navigator: navigator,
+        qrcode: QRCODE,
+        now: Date.now(),
     }));
     var loading = byId('rsvp-loading');
     if (loading) loading.setAttribute('hidden', '');
@@ -98,6 +114,16 @@ function revealDevBadge() {
     if (badge) badge.removeAttribute('hidden');
 }
 
+/** The same party, as the CURRENT payload describes it (or null when gone). */
+function currentParty(party) {
+    if (!party || !model.payload || !Array.isArray(model.payload.parties)) return null;
+    var parties = model.payload.parties;
+    for (var i = 0; i < parties.length; i += 1) {
+        if (parties[i] && parties[i].id === party.id) return parties[i];
+    }
+    return null;
+}
+
 /** Resolve a code. `fromEntry` keeps failures on the entry form, inline. */
 async function load(code, fromEntry) {
     model.phase = 'loading';
@@ -112,6 +138,8 @@ async function load(code, fromEntry) {
         model.phase = 'ready';
         model.view = 'idle';
         model.editing = null;
+        model.managing = null;
+        model.passes = null;
         rememberCode(window, code);
         render();
         return;
@@ -135,6 +163,72 @@ async function load(code, fromEntry) {
     render();
 }
 
+/**
+ * Fetch THIS party's passes — fresh, every time. A response is applied only
+ * if the section is still open for the same party and no newer request was
+ * started since.
+ */
+async function fetchPasses(party) {
+    passesTicket += 1;
+    var ticket = passesTicket;
+    // Opening the section always starts from nothing (onManage clears it); a
+    // visibility refresh keeps the current list on screen until the fresh one
+    // replaces it, so a QR does not blink away while the phone unlocks.
+    if (!model.passes || model.passes.status !== 'ok') model.passes = { status: 'loading' };
+    render();
+
+    var res = await getPasses(model.code, party.id);
+    if (ticket !== passesTicket || model.view !== 'passes' || !model.managing || model.managing.id !== party.id) return;
+
+    if (res && res.status === 'ok') {
+        model.passes = { status: 'ok', data: res };
+    } else if (res && res.status === 'not_found') {
+        model.passes = { status: 'error', message: COPY.passesGone, retryable: false };
+    } else if (res && res.status === 'rate_limited') {
+        model.passes = { status: 'error', message: COPY.rateLimited, retryable: true };
+    } else {
+        model.passes = { status: 'error', message: COPY.passesOffline, retryable: true };
+    }
+    render();
+}
+
+/**
+ * Re-resolve the invitation silently (no loading state) so a change the
+ * organizer made while this tab was hidden — QR access turned on, a pass
+ * count edited, the invitation withdrawn — is reflected without a reload.
+ * Skipped while a form is open: re-rendering would discard what the guest
+ * is typing, and a submit re-resolves anyway.
+ */
+async function refresh() {
+    if (model.phase !== 'ready' || !model.code || refreshing) return;
+    if (model.view === 'attend' || model.view === 'decline') return;
+    refreshing = true;
+    try {
+        var res = await resolveInvitation(model.code);
+        if (model.phase !== 'ready') return;
+        if (res && res.status === 'ok') {
+            model.payload = res;
+            model.editing = currentParty(model.editing);
+            model.managing = currentParty(model.managing);
+            if (model.view === 'passes' && model.managing) {
+                await fetchPasses(model.managing);
+            } else {
+                if (model.view === 'passes') model.view = 'idle';
+                render();
+            }
+        } else if (res && res.status === 'not_found') {
+            clearCode(window);
+            model.code = null;
+            model.phase = 'unavailable';
+            model.retryable = false;
+            render();
+        }
+        // rate_limited / transport failure: keep what is on screen.
+    } finally {
+        refreshing = false;
+    }
+}
+
 var handlers = {
     onCode: function (raw) {
         var code = normalizeCode(raw);
@@ -148,16 +242,35 @@ var handlers = {
         void load(code, true);
     },
 
+    /** view: 'choose' (web path) | 'app' | 'attend' | 'decline'; party when changing an answer. */
     onChoose: function (view, party) {
         model.view = view;
         model.editing = party || null;
+        model.managing = null;
+        model.passes = null;
         model.result = null;
         render('.rsvp-answer');
+    },
+
+    /** "Administrar mis pases" — opens the section and fetches the passes afresh. */
+    onManage: function (party) {
+        model.view = 'passes';
+        model.managing = party;
+        model.editing = null;
+        model.result = null;
+        void fetchPasses(party);
+        render('.rsvp-answer');
+    },
+
+    onPassesRetry: function () {
+        if (model.view === 'passes' && model.managing) void fetchPasses(model.managing);
     },
 
     onCancel: function () {
         model.view = 'idle';
         model.editing = null;
+        model.managing = null;
+        model.passes = null;
         render('.rsvp-answer');
     },
 
@@ -188,6 +301,8 @@ var handlers = {
         model.result = { status: answer.status, name: answer.name, seats: answer.seats };
         model.view = 'idle';
         model.editing = null;
+        model.managing = null;
+        model.passes = null;
         render('.rsvp-answer');
         return { ok: true };
     },
@@ -204,6 +319,10 @@ async function start() {
     }
     await load(code, false);
 }
+
+document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') void refresh();
+});
 
 start().catch(function () {
     model.phase = 'unavailable';

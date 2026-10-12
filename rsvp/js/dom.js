@@ -86,6 +86,65 @@ export function el(tag, opts) {
     return node;
 }
 
+/* ── SVG ──────────────────────────────────────────────────────────────────── */
+
+var SVG_NS = 'http://www.w3.org/2000/svg';
+
+/**
+ * SVG attributes a pass QR may carry — and nothing else. Every value written
+ * here is a NUMBER or a constant the page itself chose (`qr.js`): no guest
+ * text, no server text, ever reaches an SVG attribute.
+ */
+var ALLOWED_SVG_ATTRS = {
+    class: true,
+    role: true,
+    'aria-label': true,
+    'aria-hidden': true,
+    viewBox: true,
+    width: true,
+    height: true,
+    x: true,
+    y: true,
+    fill: true,
+    d: true,
+    'shape-rendering': true,
+    preserveAspectRatio: true,
+};
+
+/**
+ * Create an SVG element (namespaced, so the browser actually draws it). Same
+ * contract as `el()` — allowlisted attributes, children appended in order, the
+ * document as a test seam — with no text option at all: an SVG here is pure
+ * geometry. Falls back to `createElement` where `createElementNS` is absent
+ * (the test DOM), which is fine: the tests read attributes, not pixels.
+ */
+export function svgEl(tag, opts) {
+    var options = opts || {};
+    var d = doc(options.document);
+    if (!d) throw new Error('svgEl(): no document available');
+
+    var node = typeof d.createElementNS === 'function' ? d.createElementNS(SVG_NS, tag) : d.createElement(tag);
+    if (options.class) node.setAttribute('class', String(options.class));
+
+    if (options.attrs) {
+        var names = Object.keys(options.attrs);
+        for (var i = 0; i < names.length; i += 1) {
+            var name = names[i];
+            var value = options.attrs[name];
+            if (value === null || value === undefined || value === false) continue;
+            if (!Object.prototype.hasOwnProperty.call(ALLOWED_SVG_ATTRS, name)) continue;
+            node.setAttribute(name, value === true ? '' : String(value));
+        }
+    }
+
+    if (options.children) {
+        for (var j = 0; j < options.children.length; j += 1) {
+            if (options.children[j]) node.appendChild(options.children[j]);
+        }
+    }
+    return node;
+}
+
 /** Set text content. The single entry point for any copy. */
 export function setText(node, value) {
     if (!node) return node;

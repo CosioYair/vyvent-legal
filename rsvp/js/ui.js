@@ -3,8 +3,9 @@
  * PRODUCT INVARIANT (locked). This page answers an EXISTING Smart Invitation
  * ("Enlace de invitación") by its existing code. Nothing here creates, names
  * or implies a second kind of invitation: the copy says "tu invitación" and
- * "Confirmar asistencia", the seat numbers are the invitation's own pool, and
- * the organizer sees the answer in the same place as an app claim.
+ * "Confirmar asistencia", the seat numbers are the invitation's own pool, the
+ * passes are the invitation's own passes, and the organizer sees the answer
+ * in the same place as an app claim.
  *
  * PURE. `renderApp(model, handlers, opts)` takes the document as a seam and
  * returns one subtree; it never reads `window`, never fetches, never persists.
@@ -13,12 +14,22 @@
  * through `dom.js` — there is no innerHTML anywhere in this tree, and the test
  * suite's DOM stub throws if one ever appears.
  *
- * ONE PRIMARY CONTROL PER SCREEN: "Confirmar asistencia" → "Sí, asistiré" /
- * "No podré asistir" → "Confirmar" / "Enviar respuesta" → "Abrir Orbiventt".
+ * ONE DELIBERATE CHOICE, THEN ONE PRIMARY CONTROL PER SCREEN. A link with no
+ * answer yet shows TWO EQUAL paths — "Confirmar desde la web" / "Confirmar
+ * desde la app" — and no primary at all; each path then has exactly one:
+ * "Sí, asistiré" → "Confirmar" / "Enviar respuesta", or "Abrir Orbiventt".
+ * A link that already holds an answer shows the answer, "Cambiar mi
+ * respuesta" and "Administrar mis pases" (primary when the organizer has
+ * turned QR access on), and the app path only as a quiet link.
+ *
+ * THE LINK IS THE KEY. Possession of the link is what lets a guest see and
+ * manage the household's answer and passes, so a warning box that cannot be
+ * collapsed says so at the moment it starts to matter: when the web path is
+ * chosen, on the confirmation screen, and on every return visit.
  */
-import { el, setText, clear, paragraphs } from './dom.js?v=20261011a';
-import { displayCode } from './session.js?v=20261011a';
-import { buildIcs, icsDataUrl, icsFileName } from '../../invitation/js/calendar.js?v=20261011a';
+import { el, setText, clear, paragraphs } from './dom.js?v=20261012a';
+import { displayCode } from './session.js?v=20261012a';
+import { qrNode } from './qr.js?v=20261012a';
 
 export var LIMITS = {
     NAME: 80,
@@ -28,15 +39,16 @@ export var LIMITS = {
     GREETING: 2000,
     DESCRIPTION: 4000,
     ADDRESS: 300,
+    ITEM: 120,
 };
 
 var LOCALE = 'es-MX';
 var TIME_ZONE = 'America/Mexico_City';
 
-/** An event without an end: assume three hours for the calendar entry. */
-var DEFAULT_DURATION_MS = 3 * 60 * 60 * 1000;
+/** Relative-day phrasing reaches this many days ahead (after tomorrow). */
+var RELATIVE_DAY_HORIZON = 6;
 
-/** The real app capabilities the post-confirmation card may list. Closed. */
+/** The real app capabilities the app-benefits block may list. Closed. */
 export var APP_CAPABILITIES = [
     'Chat del evento',
     'Compartir fotos',
@@ -56,6 +68,16 @@ export var COPY = {
     codeShape: 'Revisa el código: debe tener 12 letras o números.',
     codeNotFound: 'No encontramos una invitación con ese código.',
     codeOffline: 'No pudimos verificar el código. Revisa tu conexión e inténtalo de nuevo.',
+    warningTitle: 'Este enlace es tu llave',
+    warningText: 'Con este enlace puedes ver y administrar tu invitación y tus pases. No lo compartas con nadie fuera de tu grupo.',
+    qrReady: 'Tus pases con código QR están listos',
+    qrDisabled: 'QR desactivado por el organizador',
+    qrDisabledNote: 'Si el organizador activa el acceso con código QR, tus pases podrán escanearse automáticamente. Vuelve a abrir este mismo enlace para verlos.',
+    passesLoading: 'Cargando tus pases…',
+    passesOffline: 'No pudimos cargar tus pases. Revisa tu conexión e inténtalo de nuevo.',
+    passesGone: 'No encontramos tus pases. Vuelve a abrir tu enlace de invitación.',
+    passUnavailable: 'Este pase no está disponible por ahora.',
+    benefitsLead: 'Con Orbiventt también puedes:',
 };
 
 /* ── pure helpers ─────────────────────────────────────────────────────────── */
@@ -117,6 +139,57 @@ export function formatWhen(startsAt, endsAt) {
     return out;
 }
 
+/** The calendar day of an instant IN THE EVENT'S TIME ZONE, as a UTC-midnight ms. */
+function calendarDay(ms) {
+    try {
+        var parts = new Intl.DateTimeFormat('en-US', {
+            timeZone: TIME_ZONE, year: 'numeric', month: 'numeric', day: 'numeric',
+        }).formatToParts(new Date(ms));
+        var o = {};
+        for (var i = 0; i < parts.length; i += 1) {
+            if (parts[i].type !== 'literal') o[parts[i].type] = Number(parts[i].value);
+        }
+        var day = Date.UTC(o.year, o.month - 1, o.day);
+        return Number.isFinite(day) ? day : NaN;
+    } catch (_) {
+        return NaN;
+    }
+}
+
+/**
+ * "Hoy" / "Mañana" / "Este martes" when the event starts within the next six
+ * days (counted in America/Mexico_City calendar days, so a year boundary or a
+ * late-night start never shifts the answer); null for anything further out
+ * or already begun on an earlier day — the full date carries those.
+ */
+export function relativeDay(startsAt, nowMs) {
+    var start = Date.parse(startsAt || '');
+    if (!Number.isFinite(start)) return null;
+    var now = Number.isFinite(nowMs) ? nowMs : Date.now();
+    var a = calendarDay(start);
+    var b = calendarDay(now);
+    if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
+    var days = Math.round((a - b) / 86400000);
+    if (days < 0 || days > RELATIVE_DAY_HORIZON) return null;
+    if (days === 0) return 'Hoy';
+    if (days === 1) return 'Mañana';
+    var weekday = fmt(start, { weekday: 'long' });
+    return weekday ? 'Este ' + weekday : null;
+}
+
+/**
+ * The two date lines: a relative lead ("Este martes · 18:00 h") when the
+ * event is near and not over, and the full date always. `{lead, full}`.
+ */
+export function whenLines(event, nowMs) {
+    var e = event || {};
+    var full = formatWhen(e.starts_at, e.ends_at);
+    if (!full) return { lead: null, full: '' };
+    var day = e.is_finished === true ? null : relativeDay(e.starts_at, nowMs);
+    var lead = day ? day + ' · ' + fmt(Date.parse(e.starts_at), TIME_FMT) + ' h' : null;
+    return { lead: lead, full: full };
+}
+
 /** Always Google Maps, built from constants plus ONE encoded query. */
 export function mapUrl(event) {
     if (!event) return null;
@@ -130,24 +203,6 @@ export function mapUrl(event) {
     }
     if (!query) return null;
     return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(query);
-}
-
-/** A `data:` .ics download, built on the client; null when there is no date. */
-export function calendarHref(event) {
-    if (!event) return null;
-    var startMs = Date.parse(event.starts_at || '');
-    if (!Number.isFinite(startMs)) return null;
-    var endMs = Date.parse(event.ends_at || '');
-    if (!Number.isFinite(endMs) || endMs <= startMs) endMs = startMs + DEFAULT_DURATION_MS;
-    return icsDataUrl(buildIcs({
-        uid: 'orbiventt-event-' + String(event.id || ''),
-        title: text(event.title, LIMITS.TITLE) || 'Evento',
-        description: text(event.description, LIMITS.DESCRIPTION),
-        location: text(event.address, LIMITS.ADDRESS),
-        startMs: startMs,
-        endMs: endMs,
-        stampMs: startMs,
-    }));
 }
 
 /** The one status banner, by priority; null when the invitation is live. */
@@ -164,6 +219,43 @@ export function acceptsResponses(payload) {
     return !!(payload && payload.invitation && payload.invitation.accepting_responses === true);
 }
 
+/**
+ * Whether a party may manage its passes: it is attending and the event is
+ * still ahead. An EXPIRED invitation keeps this — the link stops taking
+ * answers, but the passes it already granted are still the way in at the
+ * door. Cancelled or finished events have no door.
+ */
+export function passesAllowed(payload, party) {
+    if (!party || party.rsvp_status !== 'attending') return false;
+    var event = (payload && payload.event) || {};
+    return event.is_cancelled !== true && event.is_finished !== true;
+}
+
+/**
+ * The page's FIRST image: the published digital invitation's own thumbnail
+ * when there is one, else the event cover, else nothing.
+ * @returns {?{url: string, kind: 'invitation'|'cover'}}
+ */
+export function firstImage(payload, resolve) {
+    var r = typeof resolve === 'function' ? resolve : function () { return null; };
+    var image = payload && payload.invitation_image;
+    if (image && typeof image === 'object') {
+        var url = r(image.bucket, image.path);
+        if (url) return { url: url, kind: 'invitation' };
+    }
+    var event = (payload && payload.event) || {};
+    var cover = r('event-photos', event.cover_path);
+    return cover ? { url: cover, kind: 'cover' } : null;
+}
+
+function findParty(parties, party) {
+    if (!party) return null;
+    for (var i = 0; i < parties.length; i += 1) {
+        if (parties[i] && parties[i].id === party.id) return parties[i];
+    }
+    return null;
+}
+
 /* ── small builders ───────────────────────────────────────────────────────── */
 
 function button(label, variant, onClick, d, attrs) {
@@ -178,6 +270,21 @@ function button(label, variant, onClick, d, attrs) {
     if (typeof onClick === 'function' && typeof node.addEventListener === 'function') {
         node.addEventListener('click', onClick);
     }
+    return node;
+}
+
+/** A tall two-line choice button: title + one-line hint. Never primary. */
+function pathButton(title, hint, onClick, d) {
+    var node = el('button', {
+        class: 'rsvp-btn rsvp-btn--path',
+        attrs: { type: 'button' },
+        children: [
+            el('strong', { text: title, document: d }),
+            el('span', { text: hint, document: d }),
+        ],
+        document: d,
+    });
+    if (typeof node.addEventListener === 'function') node.addEventListener('click', onClick);
     return node;
 }
 
@@ -300,13 +407,12 @@ function eventCard(payload, o) {
     var organizer = event.organizer || {};
     var resolve = typeof o.storageUrl === 'function' ? o.storageUrl : function () { return null; };
 
-    var coverUrl = resolve('event-photos', event.cover_path);
+    var first = firstImage(payload, resolve);
     var avatarUrl = resolve('avatars', organizer.avatar_path);
     var organizerName = text(organizer.display_name, LIMITS.NAME);
-    var when = formatWhen(event.starts_at, event.ends_at);
+    var when = whenLines(event, o.now);
     var address = text(event.address, LIMITS.ADDRESS);
     var map = mapUrl(event);
-    var calendar = calendarHref(event);
     var title = text(event.title, LIMITS.TITLE) || 'Evento';
     var label = text(invitation.label, LIMITS.LABEL);
     var greeting = text(invitation.greeting, LIMITS.GREETING);
@@ -316,26 +422,22 @@ function eventCard(payload, o) {
     var paths = Array.isArray(event.gallery_paths) ? event.gallery_paths.slice(0, 6) : [];
     for (var i = 0; i < paths.length; i += 1) {
         var url = resolve('event-photos', paths[i]);
-        if (!url || url === coverUrl) continue;
+        if (!url || (first && url === first.url)) continue;
         gallery.push(el('img', { attrs: { src: url, alt: '', loading: 'lazy', decoding: 'async' }, document: d }));
     }
 
     var links = [];
     if (map) links.push(externalLink(map, 'Cómo llegar', d, 'rsvp-btn rsvp-btn--ghost'));
-    if (calendar) {
-        links.push(el('a', {
-            class: 'rsvp-btn rsvp-btn--ghost',
-            attrs: { href: calendar, download: icsFileName(title) },
-            text: 'Agregar al calendario',
-            document: d,
-        }));
-    }
 
     return el('article', {
         class: 'rsvp-card rsvp-event',
         children: [
-            coverUrl
-                ? el('img', { class: 'rsvp-event__cover', attrs: { src: coverUrl, alt: '', decoding: 'async' }, document: d })
+            first
+                ? el('img', {
+                    class: 'rsvp-event__cover rsvp-event__cover--' + first.kind,
+                    attrs: { src: first.url, alt: '', decoding: 'async' },
+                    document: d,
+                })
                 : null,
             el('div', {
                 class: 'rsvp-event__body',
@@ -355,10 +457,18 @@ function eventCard(payload, o) {
                     el('h1', { class: 'rsvp-event__title', text: title, document: d }),
                     label ? el('p', { class: 'rsvp-event__label', text: label, document: d }) : null,
                     greeting ? el('p', { class: 'rsvp-event__greeting', text: greeting, document: d }) : null,
-                    when
+                    when.full
                         ? el('p', {
                             class: 'rsvp-event__when',
-                            children: [el('time', { attrs: { datetime: String(event.starts_at || '') }, text: when, document: d })],
+                            children: [
+                                when.lead ? el('strong', { class: 'rsvp-event__when-lead', text: when.lead, document: d }) : null,
+                                el('time', {
+                                    class: when.lead ? 'rsvp-event__when-full' : null,
+                                    attrs: { datetime: String(event.starts_at || '') },
+                                    text: when.full,
+                                    document: d,
+                                }),
+                            ],
                             document: d,
                         })
                         : null,
@@ -386,20 +496,126 @@ function bannerNode(payload, d) {
     });
 }
 
-/* ── the answer ───────────────────────────────────────────────────────────── */
+/* ── the link warning + the app benefits ──────────────────────────────────── */
 
-function promptCard(handlers, d) {
-    return el('section', {
-        class: 'rsvp-card rsvp-prompt',
+/** "Este enlace es tu llave" — prominent, never collapsible, rendered ONCE. */
+function warningNode(d) {
+    return el('aside', {
+        class: 'rsvp-warning',
+        attrs: { role: 'note' },
         children: [
-            el('h2', { text: 'Confirmar asistencia', document: d }),
-            el('p', { class: 'rsvp-muted', text: 'Responde en un minuto. No necesitas una cuenta.', document: d }),
-            button('Confirmar asistencia', 'primary', function () { handlers.onChoose('choose', null); }, d),
+            el('span', { class: 'rsvp-warning__icon', attrs: { 'aria-hidden': 'true' }, text: '!', document: d }),
+            el('div', {
+                class: 'rsvp-warning__body',
+                children: [
+                    el('p', { class: 'rsvp-warning__title', children: [el('strong', { text: COPY.warningTitle, document: d })], document: d }),
+                    el('p', { class: 'rsvp-warning__text', text: COPY.warningText, document: d }),
+                ],
+                document: d,
+            }),
         ],
         document: d,
     });
 }
 
+function benefitsList(d) {
+    var items = [];
+    for (var i = 0; i < APP_CAPABILITIES.length; i += 1) items.push(el('li', { text: APP_CAPABILITIES[i], document: d }));
+    return el('ul', { class: 'rsvp-benefits', children: items, document: d });
+}
+
+/** The quiet, link-styled way into the app path. */
+function appPathLink(handlers, d) {
+    return button('Prefiero usar la app', 'link', function () { handlers.onChoose('app', null); }, d);
+}
+
+/* ── the answer ───────────────────────────────────────────────────────────── */
+
+/** No answer yet: ONE deliberate choice between two equal paths. No primary. */
+function pathChoiceCard(handlers, d) {
+    return el('section', {
+        class: 'rsvp-card rsvp-prompt',
+        children: [
+            el('h2', { text: 'Confirmar asistencia', document: d }),
+            el('p', { class: 'rsvp-muted', text: 'Elige cómo quieres responder a tu invitación.', document: d }),
+            el('div', {
+                class: 'rsvp-paths',
+                children: [
+                    pathButton('Confirmar desde la web', 'Sin cuenta, en un minuto.', function () { handlers.onChoose('choose', null); }, d),
+                    pathButton('Confirmar desde la app', 'Chat, fotos, notificaciones y más.', function () { handlers.onChoose('app', null); }, d),
+                ],
+                document: d,
+            }),
+        ],
+        document: d,
+    });
+}
+
+/**
+ * "Abrir Orbiventt" — the same two-module contract as the invitation's pass
+ * card: the destination arrives PRE-RESOLVED (`app-return.js`), the device
+ * plan alongside (`app-store-links.js`). Null when the handoff is closed —
+ * the DEV mirror — and the copy path carries the guest instead.
+ */
+function openControl(handoff, smartOpen, d, variant) {
+    if (!handoff || handoff.open !== true || !handoff.href) return null;
+    var href = smartOpen && typeof smartOpen.href === 'string' && smartOpen.href ? smartOpen.href : handoff.href;
+    var anchor = el('a', { class: 'rsvp-btn rsvp-btn--' + (variant || 'primary'), attrs: { href: href }, text: 'Abrir Orbiventt', document: d });
+    if (smartOpen && typeof smartOpen.arm === 'function') smartOpen.arm(anchor);
+    return anchor;
+}
+
+function copyButton(code, o, status) {
+    var d = o.document;
+    return button('Copiar código', 'ghost', function () {
+        var nav = o.navigator;
+        if (nav && nav.clipboard && typeof nav.clipboard.writeText === 'function') {
+            Promise.resolve()
+                .then(function () { return nav.clipboard.writeText(displayCode(code)); })
+                .then(function () { setText(status, 'Código copiado'); })
+                .catch(function () { setText(status, 'Mantén presionado el código para copiarlo.'); });
+            return;
+        }
+        setText(status, 'Mantén presionado el código para copiarlo.');
+    }, d, { 'aria-label': 'Copiar código de invitación' });
+}
+
+/**
+ * The APP path — the original app-oriented flow, exactly as the invitation's
+ * pass card draws it: the code, "Copiar código", and the single smart-open
+ * "Abrir Orbiventt" when the handoff is open (never on the DEV mirror, where
+ * the copy path IS the path). The code is visible on purpose: possession of
+ * the code is the invitation credential in the product model.
+ */
+function appCard(model, handlers, o) {
+    var d = o.document;
+    var status = el('p', { class: 'rsvp-status', attrs: { role: 'status', 'aria-live': 'polite' }, document: d });
+    var open = openControl(o.handoff, o.smartOpen, d, 'primary');
+    return el('section', {
+        class: 'rsvp-card rsvp-app-path',
+        attrs: { 'data-view': 'app' },
+        children: [
+            el('h2', { text: 'Confirmar desde la app', document: d }),
+            el('p', { class: 'rsvp-muted', text: 'Usa este código en Orbiventt para reclamar y asignar tus pases.', document: d }),
+            // Selectable as ONE run (`user-select: all`), so nothing but the
+            // code itself sits inside this block.
+            el('p', { class: 'rsvp-code', attrs: { 'aria-label': 'Código de invitación' }, text: displayCode(model.code), document: d }),
+            el('div', { class: 'rsvp-actions', children: [open, copyButton(model.code, o, status)], document: d }),
+            status,
+            el('p', {
+                class: 'rsvp-muted',
+                text: open
+                    ? 'Si Orbiventt no se abre automáticamente, copia el código e ingrésalo manualmente en la aplicación.'
+                    : 'Copia el código e ingrésalo manualmente en la aplicación Orbiventt para reclamar tus pases.',
+                document: d,
+            }),
+            button('Volver', 'quiet', handlers.onCancel, d),
+        ],
+        document: d,
+    });
+}
+
+/** The WEB path's first screen — Sí / No — with what the app adds, inside. */
 function choiceCard(model, handlers, d) {
     var party = model.editing;
     var max = maxSeatsFor(model.payload.invitation, party);
@@ -412,6 +628,7 @@ function choiceCard(model, handlers, d) {
         class: 'rsvp-card rsvp-choice-card',
         children: [
             el('h2', { text: party ? 'Cambiar mi respuesta' : '¿Nos acompañas?', document: d }),
+            party ? null : el('p', { class: 'rsvp-muted', text: 'Responde en un minuto. No necesitas una cuenta.', document: d }),
             canAttend ? null : el('p', { class: 'rsvp-hint', text: COPY.noSeats, document: d }),
             el('div', {
                 class: 'rsvp-choice',
@@ -421,6 +638,17 @@ function choiceCard(model, handlers, d) {
                 ],
                 document: d,
             }),
+            party
+                ? null
+                : el('div', {
+                    class: 'rsvp-benefits-block',
+                    children: [
+                        el('p', { class: 'rsvp-benefits-block__lead', text: COPY.benefitsLead, document: d }),
+                        benefitsList(d),
+                        appPathLink(handlers, d),
+                    ],
+                    document: d,
+                }),
             button('Cancelar', 'quiet', handlers.onCancel, d),
         ],
         document: d,
@@ -621,91 +849,179 @@ function declineForm(model, handlers, d) {
     });
 }
 
-/** "Tu respuesta actual" — one card per party under this code. */
-function partyCard(party, accepting, handlers, d) {
-    var attending = party.rsvp_status === 'attending';
-    var seats = Number.isInteger(party.seats) ? party.seats : 0;
+/* ── the current answer + passes ──────────────────────────────────────────── */
+
+function companionItems(party, d) {
     var companions = Array.isArray(party.companions) ? party.companions : [];
     var items = [];
     for (var i = 0; i < companions.length; i += 1) {
         var companionName = text(companions[i] && companions[i].name, LIMITS.NAME);
         if (companionName) items.push(el('li', { text: companionName, document: d }));
     }
+    return items;
+}
+
+/** The party's answer lines, shared by the card and the passes section. */
+function answerLines(party, d) {
+    var attending = party.rsvp_status === 'attending';
+    var seats = Number.isInteger(party.seats) ? party.seats : 0;
+    var items = companionItems(party, d);
     var note = text(party.decline_note, LIMITS.NOTE);
+    return [
+        el('p', { class: 'rsvp-muted', text: 'Tu respuesta actual', document: d }),
+        el('p', { class: 'rsvp-party__name', text: text(party.party_name, LIMITS.NAME), document: d }),
+        el('p', {
+            class: 'rsvp-party__status',
+            text: attending ? 'Asistirás con ' + passesLabel(seats) + '.' : 'Indicaste que no asistirás.',
+            document: d,
+        }),
+        attending && items.length ? el('ul', { children: items, document: d }) : null,
+        !attending && note ? el('p', { class: 'rsvp-party__note', text: '“' + note + '”', document: d }) : null,
+    ];
+}
+
+/** What the organizer asked this party to bring, when anything. */
+function assignedItems(party, d) {
+    var assigned = Array.isArray(party.assigned_items) ? party.assigned_items : [];
+    var items = [];
+    for (var i = 0; i < assigned.length; i += 1) {
+        var label = text(assigned[i] && assigned[i].label, LIMITS.ITEM);
+        if (label) items.push(el('li', { text: label, document: d }));
+    }
+    if (!items.length) return [];
+    return [
+        el('p', { class: 'rsvp-muted rsvp-party__items-lead', text: 'Te pidieron llevar:', document: d }),
+        el('ul', { class: 'rsvp-party__items', children: items, document: d }),
+    ];
+}
+
+/** "Tu respuesta actual" — one card per party under this code. */
+function partyCard(party, payload, accepting, handlers, d) {
+    var attending = party.rsvp_status === 'attending';
+    var manageable = passesAllowed(payload, party);
+    var qrOn = !!(payload.event && payload.event.qr_enabled === true);
+    var actions = [
+        manageable
+            ? button('Administrar mis pases', qrOn ? 'primary' : 'ghost', function () { handlers.onManage(party); }, d)
+            : null,
+        accepting
+            ? button('Cambiar mi respuesta', 'ghost', function () { handlers.onChoose('choose', party); }, d)
+            : null,
+    ];
+    var hasAction = !!(actions[0] || actions[1]);
     return el('article', {
         class: 'rsvp-card rsvp-party' + (attending ? '' : ' rsvp-party--declined'),
+        children: answerLines(party, d).concat(
+            attending ? assignedItems(party, d) : [],
+            [
+                manageable && qrOn ? el('p', { class: 'rsvp-ready', text: COPY.qrReady, document: d }) : null,
+                hasAction ? el('div', { class: 'rsvp-actions', children: actions, document: d }) : null,
+            ],
+        ),
+        document: d,
+    });
+}
+
+function passCard(pass, index, total, holder, o) {
+    var d = o.document;
+    var pos = Number.isInteger(pass.pos) && pass.pos >= 1 ? pass.pos : index + 1;
+    var occupant = text(pass.occupant_label, LIMITS.NAME);
+    var who = pass.occupant_kind === 'holder'
+        ? 'Titular: ' + (occupant || holder)
+        : (occupant ? 'Acompañante: ' + occupant : 'Acompañante');
+    var state = typeof pass.state === 'string' ? pass.state : 'unavailable';
+    var qr = state === 'active' && typeof pass.payload === 'string' ? qrNode(pass.payload, o.qrcode, d) : null;
+    var checkedIn = Date.parse(pass.checked_in_at || '');
+
+    return el('article', {
+        class: 'rsvp-pass',
+        attrs: { 'data-state': state },
         children: [
-            el('p', { class: 'rsvp-muted', text: 'Tu respuesta actual', document: d }),
-            el('p', { class: 'rsvp-party__name', text: text(party.party_name, LIMITS.NAME), document: d }),
-            el('p', {
-                class: 'rsvp-party__status',
-                text: attending ? 'Asistirás con ' + passesLabel(seats) + '.' : 'Indicaste que no asistirás.',
-                document: d,
-            }),
-            attending && items.length ? el('ul', { children: items, document: d }) : null,
-            !attending && note ? el('p', { class: 'rsvp-party__note', text: '“' + note + '”', document: d }) : null,
-            accepting
-                ? button('Cambiar mi respuesta', 'ghost', function () { handlers.onChoose('choose', party); }, d)
+            el('p', { class: 'rsvp-pass__title', text: 'Pase ' + pos + ' de ' + total + ' · ' + who, document: d }),
+            qr ? el('div', { class: 'rsvp-pass__qr', children: [qr], document: d }) : null,
+            state === 'qr_disabled'
+                ? el('p', { class: 'rsvp-pass__state', text: COPY.qrDisabled, document: d })
+                : null,
+            state !== 'qr_disabled' && !qr
+                ? el('p', { class: 'rsvp-pass__state', text: COPY.passUnavailable, document: d })
+                : null,
+            Number.isFinite(checkedIn)
+                ? el('p', { class: 'rsvp-pass__checkin', text: 'Ingreso registrado · ' + fmt(checkedIn, TIME_FMT) + ' h', document: d })
                 : null,
         ],
         document: d,
     });
 }
 
-/* ── results ──────────────────────────────────────────────────────────────── */
-
 /**
- * "Abrir Orbiventt" — the same two-module contract as the invitation's pass
- * card: the destination arrives PRE-RESOLVED (`app-return.js`), the device
- * plan alongside (`app-store-links.js`). Null when the handoff is closed —
- * the DEV mirror — and the copy path carries the guest instead.
+ * "Administrar mis pases" for ONE party: its answer, the way to change it, and
+ * its passes exactly as `guest_get_passes` returned them a moment ago. The
+ * list is fetched every time this section opens and never cached.
  */
-function openControl(handoff, smartOpen, d) {
-    if (!handoff || handoff.open !== true || !handoff.href) return null;
-    var href = smartOpen && typeof smartOpen.href === 'string' && smartOpen.href ? smartOpen.href : handoff.href;
-    var anchor = el('a', { class: 'rsvp-btn rsvp-btn--primary', attrs: { href: href }, text: 'Abrir Orbiventt', document: d });
-    if (smartOpen && typeof smartOpen.arm === 'function') smartOpen.arm(anchor);
-    return anchor;
-}
-
-function copyFallback(code, o) {
+function passesSection(model, party, handlers, o) {
     var d = o.document;
-    var status = el('p', { class: 'rsvp-status', attrs: { role: 'status', 'aria-live': 'polite' }, document: d });
-    var copy = button('Copiar código', 'ghost', function () {
-        var nav = o.navigator;
-        if (nav && nav.clipboard && typeof nav.clipboard.writeText === 'function') {
-            Promise.resolve()
-                .then(function () { return nav.clipboard.writeText(displayCode(code)); })
-                .then(function () { setText(status, 'Código copiado'); })
-                .catch(function () { setText(status, 'Mantén presionado el código para copiarlo.'); });
-            return;
+    var accepting = acceptsResponses(model.payload);
+    var passes = model.passes || { status: 'loading' };
+    var list = el('div', { class: 'rsvp-passes__list', attrs: { 'aria-live': 'polite' }, document: d });
+
+    if (passes.status === 'ok' && passes.data) {
+        var data = passes.data;
+        var rows = Array.isArray(data.passes) ? data.passes.filter(function (p) { return p && typeof p === 'object'; }) : [];
+        rows.sort(function (a, b) { return (Number(a.pos) || 0) - (Number(b.pos) || 0); });
+        var total = rows.length || (Number.isInteger(data.seats) ? data.seats : 0);
+        var holder = text(data.holder_label, LIMITS.NAME) || text(party.party_name, LIMITS.NAME);
+        if (data.qr_enabled !== true) {
+            list.appendChild(el('p', { class: 'rsvp-passes__notice', text: COPY.qrDisabledNote, document: d }));
         }
-        setText(status, 'Mantén presionado el código para copiarlo.');
-    }, d, { 'aria-label': 'Copiar código de invitación' });
-    return [
-        el('p', { class: 'rsvp-muted', text: 'Copia tu código e ingrésalo en la aplicación Orbiventt para abrir el evento.', document: d }),
-        el('p', { class: 'rsvp-code', text: displayCode(code), document: d }),
-        copy,
-        status,
-    ];
-}
+        for (var i = 0; i < rows.length; i += 1) list.appendChild(passCard(rows[i], i, total, holder, o));
+        if (!rows.length) list.appendChild(el('p', { class: 'rsvp-muted', text: COPY.passesGone, document: d }));
+    } else if (passes.status === 'error') {
+        var error = errorLine(d);
+        setText(error, passes.message || COPY.passesOffline);
+        list.appendChild(error);
+        if (passes.retryable !== false) list.appendChild(button('Reintentar', 'ghost', handlers.onPassesRetry, d));
+    } else {
+        list.appendChild(el('p', { class: 'rsvp-muted', attrs: { role: 'status' }, text: COPY.passesLoading, document: d }));
+    }
 
-function promoCard(model, o) {
-    var d = o.document;
-    var items = [];
-    for (var i = 0; i < APP_CAPABILITIES.length; i += 1) items.push(el('li', { text: APP_CAPABILITIES[i], document: d }));
-    var open = openControl(o.handoff, o.smartOpen, d);
     return el('section', {
-        class: 'rsvp-card rsvp-promo',
-        children: [
-            el('h3', { text: 'Vive el evento completo en Orbiventt', document: d }),
-            el('ul', { children: items, document: d }),
-        ].concat(open ? [open] : copyFallback(model.code, o)),
+        class: 'rsvp-card rsvp-passes',
+        attrs: { 'data-view': 'passes' },
+        children: [el('h2', { text: 'Administrar mis pases', document: d })].concat(
+            answerLines(party, d),
+            assignedItems(party, d),
+            [
+                accepting
+                    ? button('Cambiar mi respuesta', 'ghost', function () { handlers.onChoose('choose', party); }, d)
+                    : null,
+                el('h3', { class: 'rsvp-passes__heading', text: 'Tus pases', document: d }),
+                list,
+                button('Cerrar', 'quiet', handlers.onCancel, d),
+            ],
+        ),
         document: d,
     });
 }
 
-function resultNodes(model, o) {
+/* ── results ──────────────────────────────────────────────────────────────── */
+
+/** After a web confirmation: what the app adds, with the app as a SECONDARY suggestion. */
+function promoCard(handlers, o) {
+    var d = o.document;
+    var open = openControl(o.handoff, o.smartOpen, d, 'ghost');
+    return el('section', {
+        class: 'rsvp-card rsvp-promo',
+        children: [
+            el('h3', { text: 'Vive el evento completo en Orbiventt', document: d }),
+            el('p', { class: 'rsvp-muted', text: COPY.benefitsLead, document: d }),
+            benefitsList(d),
+            open || appPathLink(handlers, d),
+        ],
+        document: d,
+    });
+}
+
+function resultNodes(model, handlers, o) {
     var d = o.document;
     var r = model.result;
     var organizer = text(model.payload.event && model.payload.event.organizer && model.payload.event.organizer.display_name, LIMITS.NAME)
@@ -721,7 +1037,8 @@ function resultNodes(model, o) {
                 ],
                 document: d,
             }),
-            promoCard(model, o),
+            promoCard(handlers, o),
+            warningNode(d),
         ];
     }
     return [
@@ -743,10 +1060,23 @@ function resultNodes(model, o) {
 function answerSection(model, handlers, o) {
     var d = o.document;
     var payload = model.payload;
-    var parties = Array.isArray(payload.parties) ? payload.parties : [];
+    var parties = Array.isArray(payload.parties) ? payload.parties.filter(function (p) { return p && typeof p === 'object'; }) : [];
     var accepting = acceptsResponses(payload);
-    var view = accepting ? model.view : 'idle';
-    var children = model.result ? resultNodes(model, o) : [];
+    var managing = findParty(parties, model.managing);
+    var attendingResult = !!(model.result && model.result.status === 'attending');
+
+    var view = typeof model.view === 'string' ? model.view : 'idle';
+    if (view === 'passes') {
+        if (!managing || !passesAllowed(payload, managing)) view = 'idle';
+    } else if (!accepting) {
+        view = 'idle';
+    }
+
+    var children = model.result ? resultNodes(model, handlers, o) : [];
+    var inFlow = view === 'choose' || view === 'attend' || view === 'decline';
+    // The warning is drawn exactly ONCE: the attending result already carries
+    // it; otherwise it leads every return visit and the web path's screens.
+    if (!attendingResult && (parties.length > 0 || inFlow)) children.push(warningNode(d));
 
     if (view === 'attend') {
         children.push(attendForm(model, handlers, d));
@@ -754,18 +1084,16 @@ function answerSection(model, handlers, o) {
         children.push(declineForm(model, handlers, d));
     } else if (view === 'choose') {
         children.push(choiceCard(model, handlers, d));
-    } else if (parties.length === 0) {
-        if (accepting) children.push(promptCard(handlers, d));
+    } else if (view === 'passes') {
+        children.push(passesSection(model, managing, handlers, o));
     } else {
-        for (var i = 0; i < parties.length; i += 1) {
-            if (parties[i] && typeof parties[i] === 'object') children.push(partyCard(parties[i], accepting, handlers, d));
-        }
-        if (accepting) {
-            children.push(el('div', {
-                class: 'rsvp-actions',
-                children: [button('Responder como otra persona', 'ghost', function () { handlers.onChoose('choose', null); }, d)],
-                document: d,
-            }));
+        for (var i = 0; i < parties.length; i += 1) children.push(partyCard(parties[i], payload, accepting, handlers, d));
+        if (view === 'app') {
+            children.push(appCard(model, handlers, o));
+        } else if (parties.length === 0) {
+            if (accepting) children.push(pathChoiceCard(handlers, d));
+        } else if (accepting && !attendingResult) {
+            children.push(el('p', { class: 'rsvp-app-link', children: [appPathLink(handlers, d)], document: d }));
         }
     }
 
@@ -777,11 +1105,12 @@ function answerSection(model, handlers, o) {
 /**
  * Draw the whole page for a model.
  *
- * @param {object} model   {phase, code, payload, view, editing, result, entryError, retryable}
- *   phase: 'loading' | 'unavailable' | 'enter-code' | 'ready'
- *   view:  'idle' | 'choose' | 'attend' | 'decline'
- * @param {object} handlers {onCode, onChoose, onCancel, onSubmit, onRetry}
- * @param {object} opts    {document, storageUrl, storeUrl, handoff, smartOpen, navigator}
+ * @param {object} model   {phase, code, payload, view, editing, managing, passes, result, entryError, retryable}
+ *   phase:   'loading' | 'unavailable' | 'enter-code' | 'ready'
+ *   view:    'idle' | 'choose' | 'attend' | 'decline' | 'app' | 'passes'
+ *   passes:  null | {status: 'loading' | 'ok' | 'error', data?, message?, retryable?}
+ * @param {object} handlers {onCode, onChoose, onCancel, onSubmit, onRetry, onManage, onPassesRetry}
+ * @param {object} opts    {document, storageUrl, storeUrl, handoff, smartOpen, navigator, qrcode, now}
  */
 export function renderApp(model, handlers, opts) {
     var o = opts || {};

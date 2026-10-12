@@ -1,12 +1,13 @@
 /* THE ONLY PLACE THIS PAGE TALKS TO A SERVER.
  *
- * Two RPCs, a closed allowlist, nothing else — the same shape as
- * `check-in/js/backend.js`. Both functions answer to the EXISTING Smart
+ * Three RPCs, a closed allowlist, nothing else — the same shape as
+ * `check-in/js/backend.js`. All three answer to the EXISTING Smart
  * Invitation code; there is no invitation-creating surface here, because there
- * is no new invitation type (migration 20261011200000, header).
+ * is no new invitation type (migrations 20261011200000 + 20261012120000).
  *
- *   guest_resolve_invitation(code)   what this code may see
- *   guest_respond(...)               attend / decline / change the answer
+ *   guest_resolve_invitation(code)        what this code may see
+ *   guest_respond(...)                    attend / decline / change the answer
+ *   guest_get_passes(code, party)         this party's passes + signed QR payloads
  *
  * WHAT IS AND IS NOT A SECRET. `env.js` carries a PUBLISHABLE anon JWT; it
  * authenticates nothing here. The authorization is the CODE, verified inside
@@ -25,10 +26,14 @@
 var RPCS = Object.create(null);
 RPCS.guest_resolve_invitation = true;
 RPCS.guest_respond = true;
+RPCS.guest_get_passes = true;
 
-/** Buckets an image on this page may come from (resolver payload only). */
+/** Buckets an image on this page may come from (resolver payload only).
+ *  `invitation-media` carries the published digital invitation's share
+ *  thumbnail (`invitation_image`), which is the page's first image. */
 var BUCKETS = Object.create(null);
 BUCKETS['event-photos'] = true;
+BUCKETS['invitation-media'] = true;
 BUCKETS.avatars = true;
 
 /** @returns {?{url: string, anon: string}} null when env.js did not load. */
@@ -117,6 +122,16 @@ export function respond(code, answer, opts) {
         p_companions: attending ? (Array.isArray(a.companions) ? a.companions : []) : null,
         p_note: !attending && a.note ? a.note : null,
     }, opts);
+}
+
+/**
+ * This party's passes, FRESH on every call. The server signs the QR payloads
+ * on read and never stores them; this page never caches them either — the
+ * section that shows them re-fetches each time it opens, so a QR toggle the
+ * organizer flipped a second ago is what the guest sees.
+ */
+export function getPasses(code, partyId, opts) {
+    return callRpc('guest_get_passes', { p_code: code, p_party_id: partyId }, opts);
 }
 
 /** A plain relative object path: no scheme, no traversal, no breakout chars. */
