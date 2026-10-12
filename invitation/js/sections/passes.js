@@ -41,9 +41,9 @@
  * the copy path carries the guest, which is the same fail-closed posture the
  * event-preview page has.
  */
-import { el, setText } from '../dom.js?v=20260821a';
-import { MODE } from '../route.js?v=20260821a';
-import { section } from './shell.js?v=20260821a';
+import { el, setText } from '../dom.js?v=20261011a';
+import { MODE } from '../route.js?v=20261011a';
+import { section } from './shell.js?v=20261011a';
 
 /**
  * The code as a guest should read it: XXXX-XXXX-XXXX for the canonical
@@ -192,7 +192,9 @@ function buildOpenControl(handoff, smartOpen, d) {
         : handoff.href;
 
     const anchor = el('a', {
-        class: 'inv-btn inv-btn--solid',
+        // SECONDARY since the web reply exists: confirming attendance is the
+        // primary action on a published card; the app is the richer follow-up.
+        class: 'inv-btn inv-btn--ghost',
         attrs: { href },
         children: [el('span', { class: 'inv-btn__label', text: 'Abrir Orbiventt', document: d })],
         document: d,
@@ -200,6 +202,41 @@ function buildOpenControl(handoff, smartOpen, d) {
 
     if (smartOpen && typeof smartOpen.arm === 'function') smartOpen.arm(anchor);
     return anchor;
+}
+
+/**
+ * The web reply page for THIS code — `rsvp/#c=<code>`, the PRIMARY control
+ * on a published card.
+ *
+ * NO NEW INVITATION TYPE. The reply page answers the very same Smart
+ * Invitation this card shows, by the same code; it is a second consumer of one
+ * entitlement, not a second entitlement. The href is computed from the page's
+ * own URL (`../rsvp/` from `/invitation/`), so it is correct under the DEV
+ * project path and at the production root with no environment string here,
+ * and the code travels in the FRAGMENT — never a query parameter — so it is
+ * not sent to the server that hosts the reply page.
+ */
+export function rsvpHref(pageUrl, code) {
+    if (typeof code !== 'string' || !/^[A-Za-z0-9-]{1,20}$/.test(code)) return null;
+    const fragment = '#c=' + encodeURIComponent(code);
+    try {
+        return new URL('../rsvp/', pageUrl).href + fragment;
+    } catch (_) {
+        // No usable page URL: a document-relative path still resolves through
+        // the page's <base>, which the promotion rewrites per environment.
+        return 'rsvp/' + fragment;
+    }
+}
+
+function rsvpControl(code, ctx) {
+    const href = rsvpHref(ctx.pageUrl, code);
+    if (!href) return null;
+    return el('a', {
+        class: 'inv-btn inv-btn--solid inv-passes__rsvp',
+        attrs: { href },
+        children: [el('span', { class: 'inv-btn__label', text: 'Confirmar asistencia', document: ctx.document })],
+        document: ctx.document,
+    });
 }
 
 function copyButton(code, ctx, status) {
@@ -283,7 +320,9 @@ export default function renderPasses(_data, ctx) {
         }),
         el('div', {
             class: 'inv-passes__actions',
-            children: [openControl, copyButton(code, ctx, status)],
+            // Primary first: answer the invitation on the web, no account
+            // needed. The app and the copy path stay as secondary controls.
+            children: [rsvpControl(code, ctx), openControl, copyButton(code, ctx, status)],
             document: d,
         }),
         status,

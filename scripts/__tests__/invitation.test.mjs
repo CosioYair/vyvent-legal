@@ -2393,7 +2393,9 @@ describe('the pass-claim card (published)', () => {
             smartOpen: { strategy: 'android-intent', href: intent, storeUrl: 'https://play.google.com/x', platform: 'android', arm: () => () => {} },
         });
         const node = passesNode(out);
-        const links = node.querySelectorAll('a');
+        // The web-reply CTA ("Confirmar asistencia") is a sibling control with
+        // its own contract (rsvp.test.mjs); the app CTA must still be ONE link.
+        const links = node.querySelectorAll('a').filter((a) => !/Confirmar asistencia/.test(a.textContent));
         assert.equal(links.length, 1, 'a second download control appeared on the card');
         assert.equal(links[0].getAttribute('href'), intent);
         assert.match(links[0].textContent, /Abrir Orbiventt/);
@@ -2436,7 +2438,8 @@ describe('the pass-claim card (published)', () => {
         });
         const node = passesNode(out);
         assert.ok(node, 'the card vanished');
-        assert.equal(node.querySelectorAll('a').length, 0, 'a closed handoff still rendered a control');
+        const appLinks = node.querySelectorAll('a').filter((a) => !/Confirmar asistencia/.test(a.textContent));
+        assert.equal(appLinks.length, 0, 'a closed handoff still rendered a control');
     });
 
     test('without a usable handoff there is no automatic button, and the card survives', () => {
