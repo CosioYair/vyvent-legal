@@ -10,7 +10,9 @@
  * RPCs; every guest-typed string renders as TEXT (the DOM stub's innerHTML
  * throws); the pass QR is drawn ONLY from a server payload of the exact shape;
  * the gallery shows ONLY the photos the invitation resolved and fetches
- * nothing to show them; the app path is the app's own one-tap handoff; and
+ * nothing to show them; the itinerary shows ONLY the activities the
+ * invitation resolved, read-only, in the app's own timeline language; the
+ * app path is the app's own one-tap handoff; and
  * the two entry points (the invitation's pass card and /e/{id}?code=) point
  * at this page with the code in the FRAGMENT.
  */
@@ -46,6 +48,7 @@ const session = await load('session.js');
 const backend = await load('backend.js');
 const qr = await load('qr.js');
 const gallery = await load('gallery.js');
+const itinerary = await load('itinerary.js');
 const ui = await load('ui.js');
 
 /** The vendored UMD encoder, evaluated the way a classic script would be. */
@@ -87,6 +90,8 @@ function payload(over = {}) {
             gallery_paths: ['u1/cover.jpg', 'u1/a.jpg', 'u1/b.jpg'],
             photos: PHOTOS,
             photo_count: 3,
+            itinerary: [],
+            itinerary_count: 0,
             organizer: { display_name: 'Ana Ruiz', avatar_path: 'u1/avatar.jpg' },
             ...(over.event || {}),
         },
@@ -1127,6 +1132,288 @@ describe('gallery', () => {
         assert.match(CSS, /\.rsvp-btn--path-app \{/);
         assert.match(CSS, /\.rsvp-manage \{ display: grid; justify-items: center;/);
         assert.equal(/\.rsvp-gallery img \{/.test(CSS), false, 'the old strip rule survives');
+    });
+});
+
+/* ── The itinerary: the app's timeline, read-only, for THIS event only ─────── */
+
+describe('itinerary', () => {
+    const T0 = '2027-04-17T23:00:00Z'; // the fixture event's start: 17:00 in America/Mexico_City
+    const at = (ms) => new Date(ms).toISOString();
+    const act = (over = {}) => ({
+        id: 'i-' + (over.title || 'x'), title: 'Recepción', description: null, starts_at: T0, duration_minutes: 60,
+        location_source: 'none', location_name: null, address: null, latitude: null, longitude: null,
+        created_at: '2026-10-01T00:00:00Z', ...over,
+    });
+    const withItin = (items, event = {}, rest = {}) => payload({ event: { itinerary: items, itinerary_count: items.length, ...event }, ...rest });
+    const sections = (node) => node.querySelectorAll('.rsvp-itin');
+    const rows = (node) => node.querySelectorAll('.rsvp-itin__item');
+    const names = (node) => rows(node).map((r) => r.querySelector('.rsvp-itin__name').textContent);
+    const chips = (node) => rows(node).map((r) => r.querySelector('.rsvp-itin__chip').textContent);
+    const dayHeads = (node) => node.querySelectorAll('.rsvp-itin__day').map((h) => h.textContent);
+    const NOW = Date.parse('2026-10-11T18:00:00Z');
+    const H = 3600000;
+
+    test('itineraryList: only well-formed rows, deduplicated, limits re-applied, in the app order (start, creation, id)', () => {
+        const list = itinerary.itineraryList(withItin([
+            act({ id: 'b', title: 'Segunda misma hora', created_at: '2026-10-01T00:00:02Z' }),
+            act({ id: 'c', title: 'Cena', starts_at: at(Date.parse(T0) + 2 * H) }),
+            act({ id: 'a', title: 'Primera misma hora', created_at: '2026-10-01T00:00:01Z' }),
+            act({ id: 'z0', title: 'Misma creación, id menor', created_at: '2026-10-01T00:00:02Z' }),
+            act({ id: 'b', title: 'Duplicada' }),
+            act({ id: 'no-title', title: '   ' }),
+            act({ id: 'no-date', starts_at: 'ayer' }),
+            { id: 7, title: 'id no es texto', starts_at: T0 },
+            null, 'texto',
+            act({ id: 'dur', title: 'Duración rara', duration_minutes: 'muchos' }),
+            act({ id: 'dur2', title: 'Duración enorme', duration_minutes: 99999 }),
+            act({ id: 'src', title: 'Fuente rara', location_source: 'satellite', location_name: 'X' }),
+            act({ id: 'coords', title: 'Coordenada fuera de rango', location_source: 'custom', location_name: 'Y', latitude: 95, longitude: 10 }),
+        ]));
+        assert.deepEqual(list.map((i) => i.id), ['coords', 'dur', 'dur2', 'src', 'a', 'b', 'z0', 'c'], 'same instant: creation first (the defaults were created earliest), then id');
+        assert.equal(list[0].startMs, Date.parse(T0));
+        assert.equal(list[0].endMs, Date.parse(T0) + H);
+        assert.equal(list.find((i) => i.id === 'dur').durationMinutes, 60, 'an unusable duration falls back to the app default');
+        assert.equal(list.find((i) => i.id === 'dur2').durationMinutes, 1440, 'clamped to the app maximum');
+        assert.equal(list.find((i) => i.id === 'src').locationSource, 'none');
+        assert.equal(list.find((i) => i.id === 'src').locationName, null, 'a non-custom source carries no place');
+        assert.equal(list.find((i) => i.id === 'coords').latitude, null, 'an out-of-range coordinate is dropped, the name stays');
+        assert.equal(list.find((i) => i.id === 'coords').locationName, 'Y');
+        const long = itinerary.itineraryList(withItin([act({ id: 'l', title: 'T'.repeat(500), description: 'D'.repeat(2000) })]));
+        assert.equal(long[0].title.length, itinerary.TITLE_MAX);
+        assert.equal(long[0].description.length, itinerary.DESCRIPTION_MAX);
+        const many = Array.from({ length: 250 }, (_, i) => act({ id: 'm' + i, title: 'A' + i, starts_at: at(Date.parse(T0) + i * 60000) }));
+        assert.equal(itinerary.itineraryList(withItin(many)).length, itinerary.ITEMS_MAX);
+        assert.deepEqual(itinerary.itineraryList(payload({ event: { itinerary: undefined } })), [], 'an older server without the key');
+        assert.deepEqual(itinerary.itineraryList(payload({ event: { itinerary: 'nope' } })), []);
+        assert.deepEqual(itinerary.itineraryList(null), []);
+    });
+
+    test('no itinerary → no section at all; the rest of the event card is exactly as before', () => {
+        const out = render(ready(payload()));
+        assert.equal(sections(out.node).length, 0);
+        assert.equal(/Itinerario/.test(out.text), false);
+        assert.equal(tiles(out.node).length, 2, 'the gallery is untouched');
+        assert.equal(warnings(out.node).length, 1);
+    });
+
+    test('one activity on the event day: "Itinerario · 1 actividad", the time in the rail, no day heading, no connector', () => {
+        const out = render(ready(withItin([act({ title: 'Llegada' })])), {}, { now: NOW });
+        assert.equal(sections(out.node).length, 1);
+        assert.match(out.text, /Itinerario · 1 actividad(?!es)/);
+        assert.deepEqual(names(out.node), ['Llegada']);
+        assert.deepEqual(dayHeads(out.node), [], 'the event date sits right above — a single same-day itinerary repeats nothing');
+        const row = rows(out.node)[0];
+        assert.equal(row.querySelector('.rsvp-itin__time').textContent, '17:00');
+        assert.equal(row.querySelector('.rsvp-itin__time').getAttribute('datetime'), T0.replace('Z', '.000Z'));
+        assert.equal(row.querySelector('.rsvp-itin__range').textContent, '17:00 – 18:00');
+        assert.equal(row.querySelector('.rsvp-itin__dot') !== null, true);
+        assert.equal(row.querySelector('.rsvp-itin__line'), null);
+        assert.equal(row.querySelectorAll('.rsvp-itin__place').length, 0);
+        assert.equal(row.querySelectorAll('.rsvp-itin__desc').length, 0);
+        assert.equal(row.querySelectorAll('.rsvp-itin__maps').length, 0);
+        assert.equal(out.node.querySelector('.rsvp-itin').getAttribute('aria-label'), 'Itinerario');
+        assert.equal(out.node.querySelector('.rsvp-itin__expand'), null);
+    });
+
+    test('several activities: chronological whatever the arrival order, ranges, Próxima before the event, connectors except on the last', () => {
+        const out = render(ready(withItin([
+            act({ title: 'Juegos', starts_at: at(Date.parse(T0) + 3 * H), duration_minutes: 120 }),
+            act({ title: 'Recepción' }),
+            act({ title: 'Cena', starts_at: at(Date.parse(T0) + H), duration_minutes: 90, description: 'Menú de tres tiempos.' }),
+        ])), {}, { now: NOW });
+        assert.match(out.text, /Itinerario · 3 actividades/);
+        assert.deepEqual(names(out.node), ['Recepción', 'Cena', 'Juegos']);
+        assert.deepEqual(rows(out.node).map((r) => r.querySelector('.rsvp-itin__time').textContent), ['17:00', '18:00', '20:00']);
+        assert.deepEqual(rows(out.node).map((r) => r.querySelector('.rsvp-itin__range').textContent), ['17:00 – 18:00', '18:00 – 19:30', '20:00 – 22:00']);
+        assert.deepEqual(chips(out.node), ['Próxima', 'Próxima', 'Próxima']);
+        assert.deepEqual(rows(out.node).map((r) => r.getAttribute('data-state')), ['upcoming', 'upcoming', 'upcoming']);
+        assert.deepEqual(rows(out.node).map((r) => r.getAttribute('data-index')), ['0', '1', '2']);
+        assert.deepEqual(rows(out.node).map((r) => r.querySelector('.rsvp-itin__line') !== null), [true, true, false]);
+        assert.equal(rows(out.node)[1].querySelector('.rsvp-itin__desc').textContent, 'Menú de tres tiempos.');
+        assert.ok(rows(out.node).every((r) => r.tagName === 'li'));
+        assert.equal(out.node.querySelectorAll('.rsvp-itin__list').length, 1, 'one list for one day');
+    });
+
+    test('multi-day: one uppercase heading per calendar day in the event zone, in the app order; the year only when it is not the current one', () => {
+        // Yair's example: 18:00 → 21:00 one evening, 00:00 the next — Oct 13/14 2026 Mexico City.
+        const out = render(ready(withItin([
+            act({ title: 'Pastel', starts_at: '2026-10-14T06:00:00Z' }),
+            act({ title: 'Recepción', starts_at: '2026-10-14T00:00:00Z' }),
+            act({ title: 'Juegos', starts_at: '2026-10-14T03:00:00Z' }),
+            act({ title: 'Cena', starts_at: '2026-10-14T01:00:00Z' }),
+        ], { starts_at: '2026-10-14T00:00:00Z', ends_at: '2026-10-14T07:00:00Z' })), {}, { now: NOW });
+        assert.deepEqual(dayHeads(out.node), ['MARTES 13 DE OCTUBRE', 'MIÉRCOLES 14 DE OCTUBRE']);
+        assert.deepEqual(names(out.node), ['Recepción', 'Cena', 'Juegos', 'Pastel']);
+        assert.deepEqual(rows(out.node).map((r) => r.querySelector('.rsvp-itin__time').textContent), ['18:00', '19:00', '21:00', '00:00']);
+        const lists = out.node.querySelectorAll('.rsvp-itin__list');
+        assert.equal(lists.length, 2);
+        assert.equal(lists[0].querySelectorAll('.rsvp-itin__item').length, 3);
+        assert.equal(lists[1].querySelectorAll('.rsvp-itin__item').length, 1);
+        assert.deepEqual(rows(out.node).map((r) => r.querySelector('.rsvp-itin__line') !== null), [true, true, false, false], 'the connector stops at each day');
+        assert.ok(out.node.querySelectorAll('.rsvp-itin__day').every((h) => h.tagName === 'h3'));
+        // Another year: the heading says so.
+        const next = render(ready(withItin([act({ title: 'A' }), act({ title: 'B', starts_at: '2027-04-18T07:00:00Z' })])), {}, { now: NOW });
+        assert.deepEqual(dayHeads(next.node), ['SÁBADO 17 DE ABRIL DE 2027', 'DOMINGO 18 DE ABRIL DE 2027']);
+        assert.equal(itinerary.formatDayHeading(Date.parse('2026-10-14T00:00:00Z'), NOW), 'MARTES 13 DE OCTUBRE');
+        assert.equal(itinerary.formatDayHeading(NaN, NOW), '');
+        assert.equal(itinerary.dayKey(Date.parse('2026-10-14T05:59:00Z')), '2026-10-13');
+        assert.equal(itinerary.dayKey(Date.parse('2026-10-14T06:00:00Z')), '2026-10-14');
+        assert.equal(itinerary.formatTime(Date.parse('2026-10-14T06:05:00Z')), '00:05');
+    });
+
+    test('a single day that is NOT the event start day still gets its heading', () => {
+        const out = render(ready(withItin([act({ title: 'Desayuno', starts_at: '2027-04-18T14:00:00Z' })])), {}, { now: NOW });
+        assert.deepEqual(dayHeads(out.node), ['DOMINGO 18 DE ABRIL DE 2027']);
+    });
+
+    test('status follows the clock like the app: En curso lights the dot, Finalizada dims the card; syncItineraryStatus updates rows in place', () => {
+        const items = [act({ title: 'Recepción' }), act({ title: 'Cena', starts_at: at(Date.parse(T0) + H) })];
+        const start = Date.parse(T0);
+        const before = render(ready(withItin(items)), {}, { now: start - 1 });
+        assert.deepEqual(chips(before.node), ['Próxima', 'Próxima']);
+        const during = render(ready(withItin(items)), {}, { now: start + 10 * 60000 });
+        assert.deepEqual(chips(during.node), ['En curso', 'Próxima']);
+        assert.deepEqual(rows(during.node).map((r) => r.getAttribute('data-state')), ['ongoing', 'upcoming']);
+        const after = render(ready(withItin(items)), {}, { now: start + 2 * H });
+        assert.deepEqual(chips(after.node), ['Finalizada', 'Finalizada']);
+        assert.deepEqual(rows(after.node).map((r) => r.getAttribute('data-state')), ['completed', 'completed']);
+        // [start, end): the boundary instants
+        const list = itinerary.itineraryList(withItin(items));
+        assert.equal(itinerary.activityStatus(list[0], start), 'ongoing');
+        assert.equal(itinerary.activityStatus(list[0], start + H), 'completed');
+        // The tick: rows only, no re-render needed, nothing else touched.
+        const live = render(ready(withItin(items)), {}, { now: start - 1 });
+        const html = live.html;
+        assert.equal(itinerary.syncItineraryStatus(live.node, list, start - 1), 0);
+        assert.equal(itinerary.syncItineraryStatus(live.node, list, start + 10 * 60000), 1);
+        assert.deepEqual(chips(live.node), ['En curso', 'Próxima']);
+        assert.equal(rows(live.node)[0].getAttribute('data-state'), 'ongoing');
+        assert.equal(itinerary.syncItineraryStatus(live.node, list, start + 3 * H), 2);
+        assert.deepEqual(chips(live.node), ['Finalizada', 'Finalizada']);
+        assert.equal(itinerary.syncItineraryStatus(live.node, [], start + 3 * H), 0);
+        assert.equal(itinerary.syncItineraryStatus(null, list, start), 0);
+        assert.notEqual(serialize(live.node), html);
+        assert.equal(serialize(live.node).replace(/data-state="[a-z]+"/g, '').replace(/En curso|Finalizada|Próxima/g, ''), html.replace(/data-state="[a-z]+"/g, '').replace(/En curso|Finalizada|Próxima/g, ''), 'only states and chips changed');
+    });
+
+    test('places: a custom place shows its name and opens Google Maps by coordinate (else by address); "at the event" reuses the event address and link; none shows nothing', () => {
+        const out = render(ready(withItin([
+            act({ title: 'Cena', location_source: 'custom', location_name: 'Salón Azul', address: 'Av. Niños Héroes 10', latitude: 19.2433, longitude: -103.7247 }),
+            act({ title: 'Pastel', starts_at: at(Date.parse(T0) + H), location_source: 'custom', location_name: null, address: 'Solo dirección 5' }),
+            act({ title: 'Recepción', starts_at: at(Date.parse(T0) + 2 * H), location_source: 'event' }),
+            act({ title: 'Brindis', starts_at: at(Date.parse(T0) + 3 * H), location_source: 'none', location_name: 'Ignorado', address: 'Ignorado' }),
+        ])), {}, { now: NOW });
+        const r = rows(out.node);
+        assert.equal(r[0].querySelector('.rsvp-itin__place').textContent, 'Salón Azul');
+        assert.equal(r[0].querySelector('.rsvp-itin__maps').getAttribute('href'), 'https://www.google.com/maps/search/?api=1&query=19.243300%2C-103.724700');
+        assert.equal(r[0].querySelector('.rsvp-itin__maps').textContent, 'Abrir en Maps');
+        assert.equal(r[0].querySelector('.rsvp-itin__maps').getAttribute('target'), '_blank');
+        assert.equal(r[0].querySelector('.rsvp-itin__maps').getAttribute('rel'), 'noopener noreferrer');
+        assert.equal(r[1].querySelector('.rsvp-itin__place').textContent, 'Solo dirección 5');
+        assert.equal(r[1].querySelector('.rsvp-itin__maps').getAttribute('href'), 'https://www.google.com/maps/search/?api=1&query=Solo%20direcci%C3%B3n%205');
+        assert.equal(r[2].querySelector('.rsvp-itin__place').textContent, 'Calle Hidalgo 12, Colima');
+        assert.equal(r[2].querySelector('.rsvp-itin__maps').getAttribute('href'), links(out.node, 'Cómo llegar')[0].getAttribute('href'));
+        assert.equal(r[3].querySelectorAll('.rsvp-itin__place').length, 0);
+        assert.equal(r[3].querySelectorAll('.rsvp-itin__maps').length, 0);
+        assert.ok(out.node.querySelectorAll('.rsvp-itin__maps').every((a) => a.getAttribute('href').startsWith('https://www.google.com/maps/search/?api=1&query=')));
+        // "At the event" with no event address: nothing to show, nothing to open.
+        const bare = render(ready(withItin([act({ title: 'Recepción', location_source: 'event' })], { address: null, latitude: null, longitude: null })), {}, { now: NOW });
+        assert.equal(bare.node.querySelectorAll('.rsvp-itin__place').length, 0);
+        assert.equal(bare.node.querySelectorAll('.rsvp-itin__maps').length, 0);
+    });
+
+    test('a long title, a long description and hostile strings render as text, clamped, never as markup', () => {
+        const hostile = '<img src=x onerror=alert(1)>';
+        const out = render(ready(withItin([
+            act({ title: hostile + ' ' + 'Título muy largo '.repeat(20), description: hostile + '\n' + 'Línea '.repeat(300), location_source: 'custom', location_name: hostile, address: hostile + ' calle' }),
+        ])), {}, { now: NOW });
+        assert.equal(out.html.includes('<img src=x'), false);
+        assert.ok(out.html.split('&lt;img src=x onerror=alert(1)&gt;').length >= 4, 'hostile text did not survive as text in title, description and place');
+        assert.equal(rows(out.node)[0].querySelector('.rsvp-itin__name').textContent.length, itinerary.TITLE_MAX);
+        assert.equal(rows(out.node)[0].querySelector('.rsvp-itin__desc').textContent.length, itinerary.DESCRIPTION_MAX);
+        assert.equal(rows(out.node)[0].querySelector('.rsvp-itin__maps').getAttribute('href'), 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(hostile + ' calle'));
+        for (const img of out.node.querySelectorAll('img')) assert.equal(img.hasAttribute('onerror'), false);
+    });
+
+    test('more than six activities fold behind "Ver todo el itinerario"; expanding reveals every row and heading in place', () => {
+        const items = Array.from({ length: 9 }, (_, i) => act({ title: 'Actividad ' + (i + 1), starts_at: at(Date.parse(T0) + i * H) }));
+        const out = render(ready(withItin(items)), {}, { now: NOW });
+        const r = rows(out.node);
+        assert.equal(r.length, 9);
+        assert.deepEqual(r.map((row) => row.hasAttribute('hidden')), [false, false, false, false, false, false, true, true, true]);
+        assert.equal(r[5].querySelector('.rsvp-itin__line').hasAttribute('hidden'), true, 'the last visible row points at nothing');
+        assert.equal(r[4].querySelector('.rsvp-itin__line').hasAttribute('hidden'), false);
+        const btn = out.node.querySelector('.rsvp-itin__expand');
+        assert.equal(btn.textContent, 'Ver todo el itinerario · 9 actividades');
+        assert.equal(btn.getAttribute('type'), 'button');
+        assert.equal(btn.getAttribute('aria-expanded'), 'false');
+        assert.equal(primaries(out.node).length, 0, 'the fold is quiet; the page keeps its own primary');
+        btn.dispatch('click');
+        assert.ok(rows(out.node).every((row) => !row.hasAttribute('hidden')));
+        assert.equal(r[5].querySelector('.rsvp-itin__line').hasAttribute('hidden'), false);
+        assert.equal(btn.getAttribute('aria-expanded'), 'true');
+        assert.equal(btn.hasAttribute('hidden'), true);
+        // Six exactly: nothing folds. Multi-day: a heading past the fold waits with its rows.
+        assert.equal(render(ready(withItin(items.slice(0, 6)))).node.querySelector('.rsvp-itin__expand'), null);
+        const two = render(ready(withItin(items.concat([act({ title: 'Mañana', starts_at: '2027-04-18T14:00:00Z' })]))), {}, { now: NOW });
+        const heads = two.node.querySelectorAll('.rsvp-itin__day');
+        assert.deepEqual(heads.map((h) => h.hasAttribute('hidden')), [false, true]);
+        two.node.querySelector('.rsvp-itin__expand').dispatch('click');
+        assert.deepEqual(heads.map((h) => h.hasAttribute('hidden')), [false, false]);
+    });
+
+    test('with an itinerary present the RSVP flow, warning, gallery and app path are exactly as before; the invitation renderer knows nothing of it', () => {
+        const items = [act({ title: 'Recepción' }), act({ title: 'Cena', starts_at: at(Date.parse(T0) + H) })];
+        const first = render(ready(withItin(items)), {}, { now: NOW, handoff: HANDOFF, smartOpen: plan() });
+        assert.equal(warnings(first.node).length, 1);
+        assert.equal(pathButtons(first.node, 'Confirmar desde la web').length, 1);
+        assert.equal(appPaths(first.node).length, 1);
+        assert.equal(tiles(first.node).length, 2);
+        const body = first.node.querySelector('.rsvp-event__body');
+        const order = body.children.map((c) => c.getAttribute('class') || '');
+        assert.ok(order.indexOf('rsvp-gallery') < order.indexOf('rsvp-itin'), 'details → description → gallery → itinerary');
+        assert.equal(first.node.querySelector('.rsvp-event').querySelectorAll('.rsvp-itin').length, 1, 'inside the event card, before the warning and the choice');
+        const back = render(ready(withItin(items, {}, { parties: [ATTENDING] })), {}, { now: NOW, handoff: HANDOFF, smartOpen: plan() });
+        assert.equal(sections(back.node).length, 1);
+        assert.equal(manages(back.node).length, 1);
+        assert.equal(pathButtons(back.node, 'Cambiar mi respuesta').length, 1);
+        assert.equal(appPaths(back.node).length, 1);
+        const form = render(ready(withItin(items), { view: 'attend' }), {}, { now: NOW });
+        assert.equal(sections(form.node).length, 1);
+        assert.ok(byId(form.node, 'rsvp-name'));
+        const passes = render(ready(withItin(items, { qr_enabled: true }, { parties: [ATTENDING] }), { view: 'passes', managing: ATTENDING, passes: { status: 'ok', data: passesOk() } }), {}, { now: NOW });
+        assert.equal(qrs(passes.node).length, 2);
+        assert.equal(sections(passes.node).length, 1);
+        // The digital invitation renderer and its files are untouched.
+        assert.equal(readdirSync(join(ROOT, 'invitation', 'js')).some((f) => /itinerar/i.test(f)), false);
+        assert.equal(/itinerar/i.test(readFileSync(join(ROOT, 'invitation', 'js', 'renderer.js'), 'utf8')), false);
+        assert.equal(/itinerar/i.test(readFileSync(join(ROOT, 'invitation', 'js', 'sections', 'passes.js'), 'utf8')), false);
+    });
+
+    test('CSS contract: rail + dot + connector, state styling, clamps, wrap-safe, no overflow', () => {
+        for (const rule of [
+            '.rsvp-itin__rail { flex: none; width: 3.1rem;',
+            '.rsvp-itin__dot {',
+            '.rsvp-itin__line { flex: 1; width: 1px;',
+            '.rsvp-itin__item { display: flex; gap: 0.6rem; min-width: 0; }',
+            '.rsvp-itin__body {\n    flex: 1; min-width: 0;',
+            '.rsvp-itin__item[data-state="ongoing"] .rsvp-itin__dot { background: var(--accent);',
+            '.rsvp-itin__item[data-state="ongoing"] .rsvp-itin__chip',
+            '.rsvp-itin__item[data-state="completed"] .rsvp-itin__body { opacity: 0.55; }',
+            '-webkit-line-clamp: 2;',
+            '-webkit-line-clamp: 3;',
+            '.rsvp-itin__time {\n    font-weight: 800;',
+            'white-space: nowrap; margin-bottom: 4px;',
+            '.rsvp-itin__range {\n    flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;',
+            '.rsvp-itin__chip {\n    flex: none;',
+            '.rsvp-itin__rail { width: 2.8rem; }',
+        ]) assert.ok(CSS.replace(/\r\n/g, '\n').includes(rule), rule);
+        assert.ok((CSS.match(/overflow-wrap: anywhere/g) || []).length >= 4, 'name, place, description and the checklist wrap anywhere');
+        const src = stripComments(read('js', 'itinerary.js'));
+        assert.equal(/style=|innerHTML|fetch\(|supabase/.test(src), false, 'draws only; fetches nothing');
+        assert.ok(src.includes("'America/Mexico_City'"), 'the same zone as the event date row above it');
+        assert.ok(src.includes("upcoming: 'Próxima', ongoing: 'En curso', completed: 'Finalizada'"));
     });
 });
 

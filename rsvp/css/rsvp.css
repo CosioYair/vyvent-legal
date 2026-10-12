@@ -256,6 +256,74 @@ a { color: var(--accent-ink); }
     background: rgba(5, 3, 10, 0.55); color: #fff; font-weight: 800; font-size: 1.35rem;
 }
 
+/* ── The itinerary — the app's timeline (rail, dot, connector), read-only ── */
+.rsvp-itin { margin: 1.1rem 0 0; }
+.rsvp-itin__title {
+    display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap;
+    margin: 0 0 0.35rem; font-weight: 700; font-size: 0.98rem; color: var(--ink);
+}
+.rsvp-itin__icon { color: var(--accent-ink); width: 1.25em; height: 1.25em; }
+.rsvp-itin__count { font-weight: 500; color: var(--muted); white-space: pre; }
+.rsvp-itin__day {
+    margin: 0.7rem 0 0.45rem !important; font-size: 0.74rem; font-weight: 800;
+    letter-spacing: 0.06em; color: var(--muted); font-variant-numeric: tabular-nums;
+}
+.rsvp-itin__list { margin: 0; padding: 0; list-style: none; }
+.rsvp-itin__item { display: flex; gap: 0.6rem; min-width: 0; }
+.rsvp-itin__rail { flex: none; width: 3.1rem; display: flex; flex-direction: column; align-items: center; }
+.rsvp-itin__time {
+    font-weight: 800; font-size: 0.86rem; color: var(--ink);
+    font-variant-numeric: tabular-nums; white-space: nowrap; margin-bottom: 4px;
+}
+.rsvp-itin__dot {
+    flex: none; width: 9px; height: 9px; border-radius: 50%;
+    background: var(--line); box-shadow: 0 0 0 2px var(--surface-alt);
+}
+.rsvp-itin__line { flex: 1; width: 1px; min-height: 12px; margin-top: 3px; background: var(--line); }
+.rsvp-itin__body {
+    flex: 1; min-width: 0; margin: 0 0 0.75rem; padding: 0.7rem 0.85rem 0.75rem;
+    border: 1px solid var(--line); border-radius: 12px; background: var(--surface);
+}
+.rsvp-itin__name {
+    margin: 0 !important; font-weight: 600; font-size: 1rem; line-height: 1.3; color: var(--ink);
+    overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.rsvp-itin__meta {
+    display: flex; align-items: center; gap: 0.5rem;
+    margin: 0.2rem 0 0 !important; font-size: 0.82rem; color: var(--muted);
+}
+.rsvp-itin__range {
+    flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    font-variant-numeric: tabular-nums;
+}
+.rsvp-itin__chip {
+    flex: none; padding: 0 0.55rem; height: 22px; line-height: 22px; border-radius: 999px;
+    background: var(--surface-alt); font-weight: 600; font-size: 0.72rem; color: var(--muted);
+}
+.rsvp-itin__item[data-state="ongoing"] .rsvp-itin__dot { background: var(--accent); box-shadow: 0 0 0 2px rgba(90, 24, 212, 0.33); }
+.rsvp-itin__item[data-state="ongoing"] .rsvp-itin__chip { background: rgba(90, 24, 212, 0.13); color: var(--accent-ink); }
+.rsvp-itin__item[data-state="completed"] .rsvp-itin__body { opacity: 0.55; }
+.rsvp-itin__place {
+    display: flex; align-items: flex-start; gap: 0.3rem;
+    margin: 0.3rem 0 0 !important; font-size: 0.82rem; line-height: 1.4; color: var(--muted);
+}
+.rsvp-itin__place .rsvp-icon { margin-top: 0.15em; }
+.rsvp-itin__place span {
+    flex: 1; min-width: 0; overflow-wrap: anywhere;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.rsvp-itin__desc {
+    margin: 0.35rem 0 0 !important; font-size: 0.88rem; line-height: 1.45; color: var(--muted);
+    white-space: pre-line; overflow-wrap: anywhere;
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+.rsvp-itin__maps {
+    display: inline-flex; align-items: center; gap: 0.3rem; margin-top: 0.45rem; min-height: 32px;
+    font-weight: 600; font-size: 0.86rem; color: var(--accent-ink); text-decoration: none;
+}
+.rsvp-itin__maps:hover { text-decoration: underline; }
+.rsvp-itin__expand { margin-top: 0.1rem; }
+
 body.rsvp-viewer-open { overflow: hidden; }
 
 .rsvp-viewer {
@@ -547,4 +615,6 @@ body.rsvp-viewer-open { overflow: hidden; }
 @media (max-width: 380px) {
     .rsvp-btn--path { padding: 0.75rem 0.8rem; gap: 0.6rem; }
     .rsvp-path__icon { width: 36px; height: 36px; }
+    .rsvp-itin__rail { width: 2.8rem; }
+    .rsvp-itin__body { padding: 0.6rem 0.7rem 0.65rem; }
 }

@@ -20,7 +20,7 @@
  * anyone ever reaches an attribute. There is no innerHTML here and no
  * `createSvgTag`.
  */
-import { svgEl } from './dom.js?v=20261012b';
+import { svgEl } from './dom.js?v=20261012c';
 
 /** Quiet zone required by the QR spec. Cropping it breaks decoders. */
 export var QUIET_ZONE_MODULES = 4;

@@ -47,23 +47,23 @@
     <meta name="twitter:title" content="Confirmar asistencia · Orbiventt">
     <meta name="twitter:description" content="Confirma tu asistencia a un evento al que te invitaron en Orbiventt.">
 
-    <link rel="stylesheet" href="rsvp/css/rsvp.css?v=20261012b">
+    <link rel="stylesheet" href="rsvp/css/rsvp.css?v=20261012c">
 
     <!-- ENV-SPECIFIC. The single environment boundary for the whole site. -->
-    <script src="env.js?v=20261012b"></script>
+    <script src="env.js?v=20261012c"></script>
     <!-- SHARED app handoff + app distribution, the same classic scripts the
          invitation page and 404.html load. The post-confirmation "Abrir
          Orbiventt" control is resolved exclusively through them, so this page
          inherits the exact DEV/production behaviour: production opens
          `vyvent://`, the DEV mirror never falls back across environments and
          simply shows the copy-the-code path instead. -->
-    <script src="app-return.js?v=20261012b"></script>
-    <script src="app-store-links.js?v=20261012b"></script>
+    <script src="app-return.js?v=20261012c"></script>
+    <script src="app-store-links.js?v=20261012c"></script>
     <!-- VENDORED QR ENCODER, loaded as a classic script because it is a UMD
          build that assigns `window.qrcode`. The same library, at the same
          pinned version, the mobile app uses to draw the same pass payload.
          MIT; see rsvp/vendor/qrcode-generator-LICENSE.txt. -->
-    <script src="rsvp/vendor/qrcode-generator.js?v=20261012b"></script>
+    <script src="rsvp/vendor/qrcode-generator.js?v=20261012c"></script>
 </head>
 <body>
     <div class="env-badge" id="envBadge" hidden>DEV</div>
@@ -97,6 +97,6 @@
         </footer>
     </main>
 
-    <script type="module" src="rsvp/js/main.js?v=20261012b"></script>
+    <script type="module" src="rsvp/js/main.js?v=20261012c"></script>
 </body>
 </html>

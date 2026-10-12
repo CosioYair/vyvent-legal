@@ -30,10 +30,11 @@
  * collapsed says so from the first visit, on the confirmation screen, and on
  * every return.
  */
-import { el, setText, clear, paragraphs } from './dom.js?v=20261012b';
-import { displayCode } from './session.js?v=20261012b';
-import { qrNode } from './qr.js?v=20261012b';
-import { photoList, galleryNode, lineIcon } from './gallery.js?v=20261012b';
+import { el, setText, clear, paragraphs } from './dom.js?v=20261012c';
+import { displayCode } from './session.js?v=20261012c';
+import { qrNode } from './qr.js?v=20261012c';
+import { photoList, galleryNode, lineIcon } from './gallery.js?v=20261012c';
+import { itineraryList, itineraryNode } from './itinerary.js?v=20261012c';
 
 export var LIMITS = {
     NAME: 80,
@@ -467,6 +468,17 @@ function eventCard(payload, handlers, o) {
         skipUrl: first && first.kind === 'cover' ? first.url : null,
     });
 
+    // The itinerary: the organizer's activities for THIS event, read-only, in
+    // the app's timeline language. Absent when the event has none.
+    var itinerary = itineraryNode(itineraryList(payload), {
+        document: d,
+        now: o.now,
+        eventStartsAt: event.starts_at,
+        eventAddress: address,
+        eventMapUrl: map,
+        mapUrl: mapUrl,
+    });
+
     var links = [];
     if (map) links.push(externalLink(map, 'Cómo llegar', d, 'rsvp-btn rsvp-btn--ghost'));
 
@@ -518,6 +530,7 @@ function eventCard(payload, handlers, o) {
                 ].concat(
                     paragraphs(description, 'rsvp-event__desc', d),
                     gallery ? [gallery] : [],
+                    itinerary ? [itinerary] : [],
                 ),
                 document: d,
             }),

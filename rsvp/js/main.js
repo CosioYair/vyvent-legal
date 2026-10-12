@@ -19,11 +19,12 @@
  * so an organizer flipping QR access on while the guest's phone was locked is
  * reflected the moment the guest looks back at the page.
  */
-import { captureCode, captureReturn, rememberCode, clearCode, normalizeCode } from './session.js?v=20261012b';
-import { resolveInvitation, respond, getPasses, backendConfig, storageUrlResolver } from './backend.js?v=20261012b';
-import { renderApp, COPY } from './ui.js?v=20261012b';
-import { photoList, viewerNode } from './gallery.js?v=20261012b';
-import { clear } from './dom.js?v=20261012b';
+import { captureCode, captureReturn, rememberCode, clearCode, normalizeCode } from './session.js?v=20261012c';
+import { resolveInvitation, respond, getPasses, backendConfig, storageUrlResolver } from './backend.js?v=20261012c';
+import { renderApp, COPY } from './ui.js?v=20261012c';
+import { itineraryList, syncItineraryStatus } from './itinerary.js?v=20261012c';
+import { photoList, viewerNode } from './gallery.js?v=20261012c';
+import { clear } from './dom.js?v=20261012c';
 
 var ENV = (typeof window !== 'undefined' && window.__ORB_ENV__) || {};
 var RETURN = (typeof window !== 'undefined' && window.__ORB_APP_RETURN__) || null;
@@ -385,6 +386,17 @@ async function start() {
 document.addEventListener('visibilitychange', function () {
     if (document.visibilityState === 'visible') void refresh();
 });
+
+/* The itinerary chips (Próxima / En curso / Finalizada) follow the clock the
+ * way the app's itinerary screen does — a 30 s tick that touches ONLY the
+ * rows in place. The page is never re-rendered for it: a guest mid-form
+ * keeps every keystroke, and the viewer stays where it is. */
+var ITINERARY_TICK_MS = 30000;
+setInterval(function () {
+    if (model.phase !== 'ready' || !model.payload) return;
+    var root = byId('rsvp-root');
+    if (root) syncItineraryStatus(root, itineraryList(model.payload), Date.now());
+}, ITINERARY_TICK_MS);
 
 start().catch(function () {
     model.phase = 'unavailable';

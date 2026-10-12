@@ -21,7 +21,7 @@
  * DOM. No innerHTML, no inline style: every image attribute is a URL the
  * resolver already vetted, every other value is a class or a number.
  */
-import { el, svgEl, setText } from './dom.js?v=20261012b';
+import { el, svgEl, setText } from './dom.js?v=20261012c';
 
 /** Tiles shown in the grid; the rest live behind the last tile's "+N". */
 export var GRID_MAX = 6;

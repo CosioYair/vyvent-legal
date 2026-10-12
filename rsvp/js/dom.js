@@ -40,6 +40,7 @@ var ALLOWED_ATTRS = {
     'aria-live': true,
     'aria-describedby': true,
     'aria-modal': true,
+    'aria-expanded': true,
     'data-view': true,
     'data-state': true,
     'data-index': true,
